@@ -80,20 +80,28 @@ def pick_asset(release: Release, platform: str = sys.platform) -> dict | None:
     )
 
 
+def supports_automatic_update(
+    release: Release,
+    platform: str = sys.platform,
+    frozen: bool | None = None,
+) -> bool:
+    if frozen is None:
+        frozen = bool(getattr(sys, "frozen", False))
+    return bool(
+        platform == "win32"
+        and frozen
+        and pick_asset(release, platform) is not None
+    )
+
+
 def download_and_install(
     release: Release,
     progress_callback=None,
 ) -> bool:
-    if sys.platform == "darwin":
-        webbrowser.open(release.url)
-        return True
-    if not getattr(sys, "frozen", False):
+    if not supports_automatic_update(release):
         webbrowser.open(release.url)
         return True
     asset = pick_asset(release)
-    if not asset:
-        webbrowser.open(release.url)
-        return True
 
     destination = os.path.join(
         tempfile.gettempdir(),

@@ -1,6 +1,12 @@
 import unittest
 
-from blindspot.updates import Release, newer_than, pick_asset, version_parts
+from blindspot.updates import (
+    Release,
+    newer_than,
+    pick_asset,
+    supports_automatic_update,
+    version_parts,
+)
 
 
 class UpdateVersionTests(unittest.TestCase):
@@ -29,3 +35,21 @@ class UpdateVersionTests(unittest.TestCase):
             pick_asset(release, "darwin")["name"],
             "BlindSpot-macOS.zip",
         )
+
+    def test_automatic_update_is_only_available_in_packaged_windows_build(self):
+        release = Release(
+            "2026.7.0.1",
+            "https://example.test",
+            ({"name": "BlindSpot-Windows.zip"},),
+        )
+        self.assertTrue(supports_automatic_update(release, "win32", True))
+        self.assertFalse(supports_automatic_update(release, "win32", False))
+        self.assertFalse(supports_automatic_update(release, "darwin", True))
+
+    def test_automatic_update_requires_windows_asset(self):
+        release = Release(
+            "2026.7.0.1",
+            "https://example.test",
+            ({"name": "BlindSpot-macOS.zip"},),
+        )
+        self.assertFalse(supports_automatic_update(release, "win32", True))

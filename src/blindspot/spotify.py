@@ -66,13 +66,12 @@ class AuthorizationRequest:
 class SpotifyClient:
     def __init__(self, store: PortableStore) -> None:
         self.store = store
-        self.settings = store.read("settings.json", {}) or {}
         self.token = store.read("authentication.json", {}) or {}
         self._token_lock = threading.Lock()
 
     @property
     def client_id(self) -> str:
-        return str(self.settings.get("spotify_client_id", "")).strip()
+        return str(self.token.get("client_id", "")).strip()
 
     @property
     def connected(self) -> bool:
@@ -98,8 +97,8 @@ class SpotifyClient:
         return str(token)
 
     def set_client_id(self, client_id: str) -> None:
-        self.settings["spotify_client_id"] = client_id.strip()
-        self.store.write("settings.json", self.settings)
+        self.token["client_id"] = client_id.strip()
+        self.store.write("authentication.json", self.token)
 
     def begin_authorization(
         self,
@@ -130,15 +129,17 @@ class SpotifyClient:
 
     def complete_authorization(self, code: str, verifier: str) -> None:
         logger.info("Exchanging Spotify authorization code")
+        client_id = self.client_id
         self.token = self._token_request(
             {
                 "grant_type": "authorization_code",
                 "code": code,
                 "redirect_uri": REDIRECT_URI,
-                "client_id": self.client_id,
+                "client_id": client_id,
                 "code_verifier": verifier,
             }
         )
+        self.token["client_id"] = client_id
         self._save_token()
         logger.info("Spotify authorization completed and token was saved")
 
@@ -690,6 +691,7 @@ class SpotifyClient:
                 }
             )
             refreshed.setdefault("refresh_token", refresh)
+            refreshed.setdefault("client_id", self.client_id)
             self.token = refreshed
             self._save_token()
 

@@ -55,10 +55,10 @@ class TokenRefreshTests(unittest.TestCase):
     def test_concurrent_access_refreshes_and_writes_token_once(self):
         with tempfile.TemporaryDirectory() as folder:
             store = PortableStore(Path(folder))
-            store.write("settings.json", {"spotify_client_id": "client-id"})
             store.write(
                 "authentication.json",
                 {
+                    "client_id": "client-id",
                     "refresh_token": "refresh-token",
                     "expires_at": 0,
                 },
@@ -93,6 +93,47 @@ class TokenRefreshTests(unittest.TestCase):
             self.assertEqual(errors, [])
             self.assertEqual(results, ["new-token", "new-token"])
             token_request.assert_called_once()
+            self.assertEqual(client.token["client_id"], "client-id")
+
+
+class ClientIdStorageTests(unittest.TestCase):
+    def test_client_id_is_saved_with_authentication(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = PortableStore(Path(folder))
+            client = SpotifyClient(store)
+
+            client.set_client_id(" client-id ")
+
+            authentication = store.read("authentication.json")
+            self.assertEqual(authentication["client_id"], "client-id")
+            self.assertNotIn(
+                "spotify_client_id",
+                store.read("settings.json", {}) or {},
+            )
+
+    def test_completed_authorization_keeps_client_id_with_token(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = PortableStore(Path(folder))
+            client = SpotifyClient(store)
+            client.set_client_id("client-id")
+
+            with patch.object(
+                client,
+                "_token_request",
+                return_value={
+                    "access_token": "access-token",
+                    "refresh_token": "refresh-token",
+                    "expires_in": 3600,
+                },
+            ):
+                client.complete_authorization("code", "verifier")
+
+            authentication = store.read("authentication.json")
+            self.assertEqual(authentication["client_id"], "client-id")
+            self.assertEqual(
+                authentication["refresh_token"],
+                "refresh-token",
+            )
 
 
 class PlaybackFallbackClient(SpotifyClient):

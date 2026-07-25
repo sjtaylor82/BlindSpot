@@ -25,7 +25,12 @@ from .spotify import (
     SpotifyClient,
     SpotifyError,
 )
-from .updates import download_and_install, latest_release, newer_than
+from .updates import (
+    download_and_install,
+    latest_release,
+    newer_than,
+    supports_automatic_update,
+)
 from .web_player import WebPlaybackController
 
 logger = logging.getLogger("blindspot.ui")
@@ -1726,9 +1731,13 @@ class MainFrame(wx.Frame):
                 and settings.get("dismissed_update") == release.version
             ):
                 return
+            action = (
+                "Download and install the update now?"
+                if supports_automatic_update(release)
+                else "Open the download page now?"
+            )
             answer = wx.MessageBox(
-                f"BlindSpot {release.version} is available.\n\n"
-                "Open the download page now?",
+                f"BlindSpot {release.version} is available.\n\n{action}",
                 "BlindSpot update available",
                 wx.YES_NO | wx.ICON_INFORMATION,
                 self,
