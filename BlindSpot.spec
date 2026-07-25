@@ -2,12 +2,25 @@
 # python -m PyInstaller --noconfirm BlindSpot.spec
 
 import sys
+from pathlib import Path
+
+import wx
+
+
+binaries = []
+if sys.platform == "win32":
+    webview2_loader = Path(wx.__file__).resolve().parent / "WebView2Loader.dll"
+    if not webview2_loader.is_file():
+        raise FileNotFoundError(
+            f"wxPython WebView2 loader was not found: {webview2_loader}"
+        )
+    binaries.append((str(webview2_loader), "wx"))
 
 
 a = Analysis(
     ["src/blindspot_launcher.py"],
     pathex=["src"],
-    binaries=[],
+    binaries=binaries,
     datas=[
         ("manual.html", "."),
         ("LICENSE", "."),
