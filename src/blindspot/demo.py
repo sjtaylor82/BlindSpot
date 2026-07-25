@@ -72,6 +72,18 @@ class DemoSpotifyClient:
             )
             for number in range(1, 21)
         ]
+        self.audiobooks = [
+            SpotifyItem(
+                id=f"demo-audiobook-{number}",
+                kind=ItemKind.AUDIOBOOK,
+                name=f"Demo Audiobook {number}",
+                artist=f"Demo Author {number}",
+                total=8,
+                uri=f"spotify:audiobook:demo-audiobook-{number}",
+                raw={"authors": [{"name": f"Demo Author {number}"}]},
+            )
+            for number in range(1, 6)
+        ]
         self.tracks = [_track(number, ((number - 1) // 12) + 1) for number in range(1, 41)]
         self.saved_ids = {track.id for track in self.tracks[:15]}
         self.queue_items: list[SpotifyItem] = []
@@ -105,6 +117,9 @@ class DemoSpotifyClient:
                     results.extend(matches)
             return results
         return self._matches(buckets.get(category, []), query)[:20]
+
+    def has_scope(self, scope: str) -> bool:
+        return True
 
     def _matches(
         self,
@@ -161,6 +176,33 @@ class DemoSpotifyClient:
 
     def user_playlists(self) -> list[SpotifyItem]:
         return list(self.playlists)
+
+    def saved_audiobooks(self) -> list[SpotifyItem]:
+        return list(self.audiobooks)
+
+    def audiobook_chapters(
+        self,
+        audiobook: SpotifyItem,
+    ) -> list[SpotifyItem]:
+        return [
+            SpotifyItem(
+                id=f"{audiobook.id}-chapter-{number}",
+                kind=ItemKind.CHAPTER,
+                name=f"Chapter {number}",
+                artist=audiobook.artist,
+                album=audiobook.name,
+                duration_ms=1_800_000,
+                uri=f"spotify:chapter:{audiobook.id}-{number}",
+                raw={
+                    "resume_point": {
+                        "fully_played": False,
+                        "resume_position_ms": 120_000 if number == 1 else 0,
+                    },
+                    "resume_position_ms": 120_000 if number == 1 else 0,
+                },
+            )
+            for number in range(1, 9)
+        ]
 
     def add_to_playlist(self, playlist: SpotifyItem, item: SpotifyItem) -> None:
         self.playlist_items[playlist.id].append(item)
@@ -315,6 +357,10 @@ class DemoSpotifyClient:
             0,
             min(100, self.volume_percent + delta_percent),
         )
+        return self.volume_percent
+
+    def set_volume(self, volume_percent: int, device_id: str) -> int:
+        self.volume_percent = max(0, min(100, int(volume_percent)))
         return self.volume_percent
 
     def next_track(self, device_id: str) -> None:

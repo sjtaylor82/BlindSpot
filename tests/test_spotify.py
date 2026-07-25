@@ -235,6 +235,31 @@ class ForbiddenPlaylistClient(PlaylistClient):
 
 
 class PlaybackCommandTests(unittest.TestCase):
+    def test_container_totals_are_mapped_from_kind_specific_fields(self):
+        client = SpotifyClient.__new__(SpotifyClient)
+
+        album = client._map_item(
+            {"id": "album", "name": "Album", "total_tracks": 11},
+            ItemKind.ALBUM,
+        )
+        playlist = client._map_item(
+            {
+                "id": "playlist",
+                "name": "Playlist",
+                "tracks": {"total": 22},
+            },
+            ItemKind.PLAYLIST,
+        )
+        show = client._map_item(
+            {"id": "show", "name": "Show", "total_episodes": 33},
+            ItemKind.SHOW,
+        )
+
+        self.assertEqual(album.total, 11)
+        self.assertEqual(playlist.total, 22)
+        self.assertEqual(show.total, 33)
+        self.assertIn("33 episodes", show.accessible_label())
+
     def test_followed_playlist_is_marked_read_only(self):
         client = PlaylistClient(
             [
@@ -377,7 +402,7 @@ class PlaybackCommandTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             PlaylistContentsUnavailable,
-            "Press Control P",
+            "Press F4",
         ):
             client.children(playlist)
 
@@ -518,6 +543,71 @@ class PlaybackCommandTests(unittest.TestCase):
 
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0].raw["played_at"], "2026-07-25T01:00:00Z")
+
+    def test_saved_audiobooks_maps_authors_and_chapter_count(self):
+        client = CommandClient(
+            [
+                {
+                    "items": [
+                        {
+                            "id": "book-1",
+                            "name": "The Book",
+                            "uri": "spotify:audiobook:book-1",
+                            "authors": [{"name": "The Author"}],
+                            "total_chapters": 9,
+                        }
+                    ]
+                }
+            ]
+        )
+
+        items = client.saved_audiobooks()
+
+        self.assertEqual(items[0].kind, ItemKind.AUDIOBOOK)
+        self.assertEqual(items[0].artist, "The Author")
+        self.assertEqual(items[0].total, 9)
+        self.assertEqual(
+            client.calls[0][0:3],
+            ("GET", "/me/audiobooks", {"limit": 50}),
+        )
+
+    def test_audiobook_chapters_include_saved_resume_position(self):
+        client = CommandClient(
+            [
+                {
+                    "items": [
+                        {
+                            "id": "chapter-1",
+                            "name": "Chapter One",
+                            "uri": "spotify:chapter:chapter-1",
+                            "duration_ms": 600_000,
+                            "resume_point": {
+                                "fully_played": False,
+                                "resume_position_ms": 125_000,
+                            },
+                        }
+                    ]
+                }
+            ]
+        )
+        audiobook = SpotifyItem(
+            id="book-1",
+            kind=ItemKind.AUDIOBOOK,
+            name="The Book",
+            raw={"authors": [{"name": "The Author"}]},
+        )
+
+        chapters = client.audiobook_chapters(audiobook)
+
+        self.assertEqual(chapters[0].kind, ItemKind.CHAPTER)
+        self.assertEqual(chapters[0].artist, "The Author")
+        self.assertEqual(chapters[0].album, "The Book")
+        self.assertEqual(chapters[0].raw["resume_position_ms"], 125_000)
+        self.assertIn("resume at 2 minutes 5 seconds", chapters[0].accessible_label())
+        self.assertEqual(
+            client.calls[0][0:3],
+            ("GET", "/audiobooks/book-1/chapters", {"limit": 50}),
+        )
 
     def test_transfer_playback_targets_one_device_and_starts_playing(self):
         client = CommandClient([])
@@ -670,6 +760,17 @@ class PlaybackCommandTests(unittest.TestCase):
         self.assertEqual(
             client.calls[-1][2],
             {"volume_percent": 100, "device_id": "blindspot-device"},
+        )
+
+    def test_absolute_volume_is_clamped_and_sent_to_device(self):
+        client = CommandClient([])
+
+        volume = client.set_volume(-5, "blindspot-device")
+
+        self.assertEqual(volume, 0)
+        self.assertEqual(
+            client.calls[-1][2],
+            {"volume_percent": 0, "device_id": "blindspot-device"},
         )
 
     def test_toggle_saved_removes_an_existing_like(self):

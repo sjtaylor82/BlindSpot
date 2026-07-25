@@ -27,6 +27,7 @@ SCOPES = (
     "user-read-private user-read-email user-library-read user-library-modify "
     "playlist-read-private playlist-modify-public playlist-modify-private "
     "user-read-playback-state user-read-currently-playing "
+    "user-read-playback-position "
     "user-read-recently-played "
     "user-modify-playback-state streaming"
 )
@@ -226,7 +227,7 @@ class SpotifyClient:
                     raise
                 raise PlaylistContentsUnavailable(
                     "Individual tracks can't be browsed. "
-                    "Press Control P to play the playlist."
+                    "Press F4 to play the playlist."
                 ) from error
             values = []
             for entry in data.get("items", []):
@@ -288,6 +289,48 @@ class SpotifyClient:
             )
             items.append(item)
         return items
+
+    def saved_audiobooks(self) -> list[SpotifyItem]:
+        data = self._request("GET", "/me/audiobooks", query={"limit": 50})
+        return [
+            self._map_item(value, ItemKind.AUDIOBOOK)
+            for value in data.get("items", [])
+            if value and value.get("id")
+        ]
+
+    def audiobook_chapters(self, audiobook: SpotifyItem) -> list[SpotifyItem]:
+        data = self._request(
+            "GET",
+            f"/audiobooks/{audiobook.id}/chapters",
+            query={"limit": 50},
+        )
+        chapters = []
+        for value in data.get("items", []):
+            if not value or not value.get("id"):
+                continue
+            chapter = self._map_item(
+                value,
+                ItemKind.CHAPTER,
+                album=audiobook.name,
+            )
+            authors = audiobook.raw.get("authors") or []
+            chapter.artist = ", ".join(
+                author.get("name", "")
+                for author in authors
+                if author.get("name")
+            )
+            resume = value.get("resume_point") or {}
+            resume_ms = int(resume.get("resume_position_ms") or 0)
+            chapter.raw["resume_position_ms"] = resume_ms
+            if resume.get("fully_played"):
+                chapter.raw["resume_position_label"] = "finished"
+            elif resume_ms:
+                minutes, seconds = divmod(resume_ms // 1000, 60)
+                chapter.raw["resume_position_label"] = (
+                    f"resume at {minutes} minutes {seconds} seconds"
+                )
+            chapters.append(chapter)
+        return chapters
 
     def user_playlists(self) -> list[SpotifyItem]:
         profile = self._request("GET", "/me")
@@ -627,6 +670,16 @@ class SpotifyClient:
         )
         return target
 
+    def set_volume(self, volume_percent: int, device_id: str) -> int:
+        target = min(100, max(0, int(volume_percent)))
+        self._request(
+            "PUT",
+            "/me/player/volume",
+            query={"volume_percent": target, "device_id": device_id},
+            allow_empty=True,
+        )
+        return target
+
     def next_track(self, device_id: str) -> None:
         self._request(
             "POST",
@@ -656,6 +709,20 @@ class SpotifyClient:
         artists = ", ".join(x.get("name", "") for x in value.get("artists", []))
         album_value = value.get("album") or {}
         release_date = value.get("release_date", "")
+        total = None
+        if kind == ItemKind.ALBUM:
+            total = value.get("total_tracks")
+        elif kind == ItemKind.PLAYLIST:
+            tracks = value.get("tracks") or {}
+            if isinstance(tracks, dict):
+                total = tracks.get("total")
+        elif kind == ItemKind.SHOW:
+            total = value.get("total_episodes")
+        elif kind == ItemKind.AUDIOBOOK:
+            total = value.get("total_chapters")
+            artists = ", ".join(
+                x.get("name", "") for x in value.get("authors", [])
+            )
         return SpotifyItem(
             id=value.get("id", ""),
             kind=kind,
@@ -665,7 +732,7 @@ class SpotifyClient:
             duration_ms=value.get("duration_ms", 0) or 0,
             explicit=bool(value.get("explicit")),
             year=release_date[:4],
-            total=value.get("total_tracks"),
+            total=total,
             uri=value.get("uri", ""),
             raw=value,
         )

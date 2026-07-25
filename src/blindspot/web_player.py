@@ -30,6 +30,7 @@ PLAYER_HTML = """<!doctype html>
       let accessToken = "";
       let waitingForToken = null;
       let volumeCommands = Promise.resolve();
+      let volumeBeforeMute = 0.8;
       let playbackSnapshotTimer = null;
 
       function send(type, detail = {}) {
@@ -206,6 +207,28 @@ PLAYER_HTML = """<!doctype html>
           send("volume_result", {volume: null});
         });
       };
+      window.blindSpotToggleMute = () => {
+        volumeCommands = volumeCommands.then(() => {
+          if (!player) {
+            return;
+          }
+          return player.getVolume().then(volume => {
+            let target;
+            if (volume > 0.001) {
+              volumeBeforeMute = volume;
+              target = 0;
+            } else {
+              target = volumeBeforeMute > 0.001 ? volumeBeforeMute : 0.8;
+            }
+            return player.setVolume(target).then(() => {
+              send("volume_result", {volume: Math.round(target * 100)});
+            });
+          });
+        }).catch(error => {
+          reportCommandError("volume", error);
+          send("volume_result", {volume: null});
+        });
+      };
       window.onSpotifyWebPlaybackSDKReady = () => {
         sdkReady = true;
         send("sdk_ready");
@@ -365,6 +388,10 @@ class WebPlaybackController:
     ) -> None:
         self.volume_callbacks.append(callback)
         self._run_script(f"window.blindSpotAdjustVolume({int(delta_percent)});")
+
+    def toggle_mute(self, callback: Callable[[int | None], None]) -> None:
+        self.volume_callbacks.append(callback)
+        self._run_script("window.blindSpotToggleMute();")
 
     def _run_script(self, script: str) -> None:
         if not self.closed and self.webview:

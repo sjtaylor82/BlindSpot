@@ -33,6 +33,40 @@ class SpotifyItemTests(unittest.TestCase):
             "Song — bookmarked at 2 minutes 5 seconds",
         )
 
+    def test_show_total_is_announced_as_episodes(self) -> None:
+        item = SpotifyItem(
+            id="show-id",
+            kind=ItemKind.SHOW,
+            name="Podcast",
+            total=12,
+        )
+
+        self.assertEqual(
+            item.accessible_label(),
+            "Podcast — 12 episodes",
+        )
+
+    def test_audiobook_total_and_chapter_resume_are_announced(self) -> None:
+        audiobook = SpotifyItem(
+            id="book-id",
+            kind=ItemKind.AUDIOBOOK,
+            name="Book",
+            total=7,
+        )
+        chapter = SpotifyItem(
+            id="chapter-id",
+            kind=ItemKind.CHAPTER,
+            name="Chapter One",
+            raw={"resume_position_label": "resume at 2 minutes 5 seconds"},
+        )
+
+        self.assertEqual(audiobook.accessible_label(), "Book — 7 chapters")
+        self.assertEqual(
+            chapter.accessible_label(),
+            "Chapter One — resume at 2 minutes 5 seconds",
+        )
+        self.assertTrue(chapter.playable)
+
 
 if __name__ == "__main__":
     unittest.main()

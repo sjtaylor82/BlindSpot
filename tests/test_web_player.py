@@ -17,6 +17,7 @@ class PlayerPageServerTests(unittest.TestCase):
         self.assertIn("https://sdk.scdn.co/spotify-player.js", html)
         self.assertIn("window.blindSpotProvideToken", html)
         self.assertIn("window.blindSpotAdjustVolume", html)
+        self.assertIn("window.blindSpotToggleMute", html)
         self.assertIn("window.blindSpotPreviousTrack", html)
         self.assertIn("window.blindSpotNextTrack", html)
         self.assertIn("player.getVolume()", html)

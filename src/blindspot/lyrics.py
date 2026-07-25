@@ -17,6 +17,24 @@ TIMESTAMP = re.compile(r"^\[\d{1,3}:\d{2}(?:\.\d+)?\]\s*")
 SYNCED_LINE = re.compile(
     r"^\[(\d{1,3}):(\d{2})(?:\.(\d+))?\]\s*(.*)$"
 )
+INSTRUMENTAL_WORDS = (
+    r"instrumental|karaoke|backing track|no vocals?|minus one"
+)
+INSTRUMENTAL_QUALIFIER = re.compile(
+    rf"\s*[\(\[].*?\b(?:{INSTRUMENTAL_WORDS})\b.*?[\)\]]",
+    re.IGNORECASE,
+)
+KARAOKE_ATTRIBUTION = re.compile(
+    (
+        r"\s*[\(\[].*?\b(?:originally performed by|in the style of|"
+        r"made famous by)\b.*?[\)\]]"
+    ),
+    re.IGNORECASE,
+)
+INSTRUMENTAL_SUFFIX = re.compile(
+    rf"\s*(?:[-–—]\s*)?(?:{INSTRUMENTAL_WORDS})(?:\s+version)?\s*$",
+    re.IGNORECASE,
+)
 
 
 class LyricsError(RuntimeError):
@@ -36,6 +54,7 @@ class Lyrics:
     instrumental: bool = False
     track_id: str = ""
     synced_lines: list[tuple[int, str]] = field(default_factory=list)
+    substitute: bool = False
 
 
 class LRCLibClient:
@@ -64,11 +83,52 @@ class LRCLibClient:
                 },
             )
             result = self._best_match(item, matches)
+        substitute = False
+        title_is_instrumental = (
+            _normalized(_commercial_title(item.name)) != _normalized(item.name)
+        )
+        if (
+            bool(result and result.get("instrumental"))
+            or (not result and title_is_instrumental)
+        ):
+            substitute_result = self._instrumental_match(item)
+            if substitute_result:
+                result = substitute_result
+                substitute = True
         if not result:
             raise LyricsUnavailable(f"Lyrics are unavailable for {item.name}.")
         lyrics = self._map_result(result)
         lyrics.track_id = item.id
+        lyrics.substitute = substitute
         return lyrics
+
+    def _instrumental_match(
+        self,
+        item: SpotifyItem,
+    ) -> dict[str, Any] | None:
+        title = _commercial_title(item.name)
+        matches = self._request("/search", {"track_name": title})
+        wanted_title = _normalized(title)
+        wanted_artist = _normalized(item.artist)
+        wanted_duration = round(item.duration_ms / 1000) if item.duration_ms else 0
+        ranked: list[tuple[int, dict[str, Any]]] = []
+        for match in matches:
+            if bool(match.get("instrumental")) or not match.get("syncedLyrics"):
+                continue
+            if _normalized(str(match.get("trackName") or "")) != wanted_title:
+                continue
+            duration = int(match.get("duration") or 0)
+            if wanted_duration and (
+                not duration or abs(duration - wanted_duration) > 10
+            ):
+                continue
+            score = 100
+            if _normalized(str(match.get("artistName") or "")) == wanted_artist:
+                score += 50
+            if wanted_duration and duration:
+                score += 10 - abs(duration - wanted_duration)
+            ranked.append((score, match))
+        return max(ranked, key=lambda value: value[0])[1] if ranked else None
 
     def _request(
         self,
@@ -153,6 +213,13 @@ class LRCLibClient:
 
 def _normalized(value: str) -> str:
     return " ".join(value.casefold().split())
+
+
+def _commercial_title(value: str) -> str:
+    title = INSTRUMENTAL_QUALIFIER.sub("", value)
+    title = KARAOKE_ATTRIBUTION.sub("", title)
+    title = INSTRUMENTAL_SUFFIX.sub("", title)
+    return " ".join(title.split()).strip(" -–—") or value
 
 
 def _plain_from_synced(value: str) -> str:

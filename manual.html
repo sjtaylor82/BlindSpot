@@ -8,7 +8,7 @@
 <body>
   <main>
     <h1>BlindSpot manual</h1>
-    <p>Build 2026.7.0.3</p>
+    <p>Build 2026.7.0.4</p>
     <p>BlindSpot is a portable, keyboard-first Spotify client for Windows and macOS.</p>
 
     <h2>Main interface</h2>
@@ -18,58 +18,84 @@
 
     <h2>Keyboard commands</h2>
     <ul>
-      <li>Ctrl+1 through Ctrl+6: Search, Liked Songs, Queue, Playlists,
-        Recently Played, and Bookmarks respectively.</li>
+      <li>Ctrl+1 through Ctrl+7: Search, Liked Songs, Queue, Playlists,
+        Recently Played, Bookmarks, and Audiobooks respectively.</li>
       <li>Ctrl+Tab and Ctrl+Shift+Tab: cycle through the main tabs.</li>
       <li>Ctrl+F: focus the search box.</li>
       <li>Ctrl+Comma: open Preferences.</li>
-      <li>Ctrl+P: play selected track.</li>
-      <li>Ctrl+Space: play/pause.</li>
-      <li>Ctrl+Z / Ctrl+B: previous and next track.</li>
-      <li>Ctrl+Left bracket / Ctrl+Right bracket: seek back/forward five seconds.</li>
-      <li>Ctrl+Semicolon/Ctrl+Apostrophe: decrease/increase volume by five percent.</li>
-      <li>Ctrl+Q: add the selected track to the queue.</li>
-      <li>Ctrl+L: like or unlike the selected track.</li>
-      <li>Ctrl+Shift+A: add the selected track to a playlist.</li>
-      <li>Ctrl+N: create playlist.</li>
+      <li>Enter: open a container, or play a track or episode.</li>
+      <li>F4: play the focused track, playlist, album, or artist.</li>
+      <li>F5 / F6: seek backward and forward five seconds.</li>
+      <li>F7 / F9: previous and next track.</li>
+      <li>F8: pause or resume. After launch, F8 also starts a remembered
+        track when playback memory is enabled.</li>
+      <li>Ctrl+F5 / Ctrl+F6: decrease and increase volume by five percent.</li>
+      <li>Ctrl+F4: mute or restore the previous volume.</li>
+      <li>Space: no playback command. It remains available for normal
+        controls such as checkboxes.</li>
+      <li>Ctrl+Space: mark or unmark the focused list item.</li>
+      <li>Ctrl+Q: queue selected track or tracks.</li>
+      <li>Ctrl+L: like or unlike selected track.</li>
+      <li>Ctrl+Shift+A: add selected track to a playlist.</li>
+      <li>Ctrl+Shift+N: create playlist.</li>
       <li>Ctrl+Shift+B: bookmark current playback position.</li>
       <li>Ctrl+R: cycle repeat mode.</li>
       <li>Ctrl+S: toggle shuffle.</li>
       <li>Ctrl+J: jump to playback time.</li>
       <li>Ctrl+Shift+J: open sleep timer.</li>
-      <li>Ctrl+Shift+N: speak current track name.</li>
+      <li>Ctrl+Shift+I: speak current track name.</li>
       <li>Ctrl+Shift+U: speak upcoming track.</li>
-      <li>Ctrl+Y: retrieve and open lyrics for the current track.</li>
+      <li>Ctrl+Y: retrieve lyrics for the focused playable item, or for the
+        current track when focus is elsewhere.</li>
       <li>Ctrl+Shift+T: speak total track time.</li>
       <li>Ctrl+Shift+E: speak elapsed time.</li>
       <li>Ctrl+Shift+R: speak remaining time.</li>
-      <li>Delete: remove the selected track from Liked Songs.</li>
+      <li>Delete: remove the selected playlist, or track from Liked Songs.</li>
       <li>Delete inside a playlist: remove the selected track when editable.</li>
-      <li>F5: refresh active list.</li>
+            <li>Backspace or Alt+Left: return to the previous remembered view.</li>
       <li>Shift+F10 or the Applications key: open item actions.</li>
     </ul>
 
     <h2>Playlists</h2>
     <p>Followed playlists that cannot be edited are announced as read only.
-      Within a browsable playlist, Enter or Ctrl+P starts at the selected song
-      and continues through the remaining playlist.</p>
+      Enter opens a focused playlist. F4 plays the focused playlist, or starts
+      at the focused song when browsing inside one. A song started from inside
+      a playlist continues through that playlist.</p>
+    <p>Use Ctrl+Space to mark more than one song and Ctrl+Q to add all marked
+      songs to the queue in list order. Delete removes the focused song from
+      an editable playlist. At the main playlist list, Delete removes the
+      focused playlist from your library after confirmation.</p>
     <p>The playlist context menu provides Open, Play, New playlist, Rename for
       playlists you own, and Remove from library.</p>
 
     <h2>Lyrics</h2>
-    <p>Press Ctrl+Y while a track is playing to retrieve its lyrics from
-      LRCLIB. Lyrics open in a read-only text control for ordinary
-      screen-reader and braille navigation. Retrieval is performed only when
-      requested and does not require an account or API key.</p>
-    <p>Select Follow playback on      braille display to have lyrics appear on your braille display in sync with the track.
-      Following stops when the option is cleared, the track changes, or the lyrics window closes.
-      Timing is calculated locally and does not make repeated Spotify or
-      LRCLIB requests.</p>
-    <p>On macOS, VoiceOver does not provide BlindSpot with a separate
+    <p>Press Ctrl+Y to retrieve lyrics, either on a focused track, or a currently playing song.</p>
+    <p>Select Follow playback on braille display to read the lyrics in real-time
+      as the song plays. BlindSpot changes lines
+      around 1 second early by default, giving you time to read the
+      incoming line. Ctrl+Less-than moves changes 0.5 seconds earlier and
+      Ctrl+Greater-than moves them 0.5 seconds later. Fine-tuning is saved
+      separately for each Spotify song in <code>data/lyrics.json</code>.
+      You can move the cursor to a line of a song, and press Spacebar to start or
+      resume audio playback from that line. Use F8 to stop audio playback. When focus is on the follow-playback checkbox, Spacebar toggles the
+      checkbox normally.
+      Ctrl+Up Arrow and Ctrl+Down Arrow move to the previous or next synced
+      lyric line and play the audio from that position.
+      BlindSpot reports when synced lyrics are unavailable and if line seeking
+      cannot be used.</p>
+            <p>On macOS, VoiceOver does not provide BlindSpot with a separate
       braille-only scripting channel. Following therefore uses a VoiceOver
       announcement, which may also speak each line. VoiceOver speech can be
       muted temporarily when braille-only reading is preferred. This macOS
-      behaviour is experimental.</p>
+      behaviour is experimental. The same 1-second lead and saved per-song
+      fine-tuning apply.</p>
+
+    <h2>Karaoke and instrumental tracks</h2>
+    <p>BlindSpot has been programmed to display lyrics for Karaoke/instrumental versions of tracks too, so you can read the lyrics and sing along to your favourite songs! A synced result is accepted when its duration
+      is within ten seconds of the original Spotify recording.</p>
+    <p>The matched lyric source is cached for that Spotify song in
+      <code>data/lyrics.json</code>. Its timing adjustment is also song-specific,
+      allowing a karaoke recording to be aligned once and reused later.</p>
 
     <h2>Playback devices</h2>
     <p>Choose playback device under the "Go" menu lists the controllable Spotify
@@ -87,11 +113,22 @@
       BlindSpot retrieves a fresh device list whenever the picker opens.</p>
 
     <h2>Recently Played</h2>
-    <p>Press Ctrl+5 to open Recently Played. The list loads when focus first
-      enters it and can be refreshed with F5. Enter plays the selected track,
-      and its context menu provides the usual album, queue, and library
-      actions. The first time it is opened, BlindSpot may ask to authorize
-      access to Spotify listening history.</p>
+    <p>Press Ctrl+5 to open Recently Played. The list refreshes whenever the
+      tab is opened. Enter plays the selected track, and its context menu
+      provides the usual album, queue, and library actions. The first time it
+      is opened, BlindSpot may ask to authorize access to Spotify listening
+      history. BlindSpot also keeps a local record of confirmed playback, so
+      tracks started from playlists are retained even when Spotify's history
+      feed is delayed or omits them. This local history is stored in
+      <code>data/recently_played.json</code>.</p>
+
+    <h2>Audiobooks</h2>
+    <p>Press Ctrl+7 to open saved Spotify audiobooks. Enter opens a book and
+      lists its chapters. Each chapter announces its saved Spotify resume
+      position when one is available; Enter plays from that position.
+      Backspace returns to the saved-book list. </p>
+    <p>Audiobook availability, included listening time, and playback are
+      determined by the individual's Spotify plan. </p>
 
     <h2>Sleep timer</h2>
     <p>Press Ctrl+Shift+J to activate the sleep timer dialog. BlindSpot can sleep after 15, 30, or 60 minutes. The timer controls BlindSpot's internal player
@@ -113,14 +150,16 @@
     <p>Use Options, Preferences to adjust settings such as speaking the track name whenever
       playback changes. Track-change announcements use the configured
       accessible-output2 screen-reader output and are disabled by default.
-      Startup playback memory can remember nothing, remember the last track
+      Startup playback memory can either remember nothing, remember the last track
       from its beginning, or remember both the track and its elapsed position.
-      Press Ctrl+Space after the next launch to resume the remembered track.
-      Enable global seek and volume shortcuts to make Ctrl+Left bracket, Ctrl+Right bracket,
-      Ctrl+Semicolon, and Ctrl+Apostrophe work while another application has
-      focus. No other BlindSpot commands are registered globally. If another
-      application already owns one of these combinations, BlindSpot leaves
-      all four global shortcuts disabled and reports the conflict.</p>
+      Press F8 after the next launch to start the remembered track.</p>
+    <p>Choose Configure global keyboard shortcuts to assign any desired
+      combination separately to previous, pause/resume, next, seek, volume,
+      or mute. No global shortcuts are assigned by default. An assignment
+      works while BlindSpot is in the background and may override the same
+      command in another application. If another application already owns a
+      combination, BlindSpot reports that assignment but continues registering
+      the others.</p>
     <p>Logging is off by default. It can be enabled when diagnostic information is needed.</p>
 
     <h2>Portable data</h2>
@@ -144,6 +183,10 @@
       restart automatically. macOS opens the release page because a running
       app bundle cannot safely replace itself. Use Help, Check for updates to
       check on demand.</p>
+
+    <h2>Supporting BlindSpot</h2>
+    <p>Choose Help, Donate to Project to open BlindSpot's PayPal donation page
+      in your default browser.</p>
 
     <h2>License and copyright</h2>
     <p>Copyright © 2026 Sam Taylor. BlindSpot is free software licensed under

@@ -43,11 +43,13 @@ class DemoSpotifyClientTests(unittest.TestCase):
         client.play(track, "demo-device")
         client.seek_relative(5_000, "demo-device")
         volume = client.adjust_volume(-5, "demo-device")
+        muted_volume = client.set_volume(0, "demo-device")
 
         self.assertIs(client.current, track)
         self.assertTrue(client.is_playing)
         self.assertEqual(client.progress_ms, 5_000)
         self.assertEqual(volume, 75)
+        self.assertEqual(muted_volume, 0)
 
     def test_demo_queue_contains_only_explicit_additions(self):
         client = DemoSpotifyClient()

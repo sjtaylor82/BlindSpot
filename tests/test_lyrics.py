@@ -105,6 +105,42 @@ class LRCLibClientTests(unittest.TestCase):
         with self.assertRaisesRegex(LyricsUnavailable, "Example Song"):
             LRCLibClient().lyrics_for(self.item)
 
+    @patch("blindspot.lyrics.urllib.request.urlopen")
+    def test_instrumental_uses_synced_commercial_match_within_ten_seconds(
+        self,
+        urlopen,
+    ):
+        self.item.name = (
+            "Example Song (Karaoke Version) "
+            "[Originally Performed By Example Artist]"
+        )
+        urlopen.side_effect = [
+            FakeResponse({"instrumental": True}),
+            FakeResponse(
+                [
+                    {
+                        "trackName": "Example Song",
+                        "artistName": "Example Artist",
+                        "duration": 192,
+                        "syncedLyrics": "[00:01.00] First line",
+                    },
+                    {
+                        "trackName": "Example Song",
+                        "artistName": "Example Artist",
+                        "duration": 194,
+                        "syncedLyrics": "[00:01.00] Too long",
+                    },
+                ]
+            ),
+        ]
+
+        lyrics = LRCLibClient().lyrics_for(self.item)
+
+        self.assertTrue(lyrics.substitute)
+        self.assertEqual(lyrics.track_name, "Example Song")
+        self.assertEqual(lyrics.synced_lines, [(1_000, "First line")])
+        self.assertIn("track_name=Example+Song", urlopen.call_args.args[0].full_url)
+
 
 if __name__ == "__main__":
     unittest.main()

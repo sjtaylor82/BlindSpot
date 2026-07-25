@@ -12,6 +12,8 @@ class ItemKind(StrEnum):
     PLAYLIST = "playlist"
     SHOW = "show"
     EPISODE = "episode"
+    AUDIOBOOK = "audiobook"
+    CHAPTER = "chapter"
     HEADING = "heading"
 
 
@@ -31,7 +33,11 @@ class SpotifyItem:
 
     @property
     def playable(self) -> bool:
-        return self.kind in {ItemKind.TRACK, ItemKind.EPISODE}
+        return self.kind in {
+            ItemKind.TRACK,
+            ItemKind.EPISODE,
+            ItemKind.CHAPTER,
+        }
 
     @property
     def container(self) -> bool:
@@ -40,6 +46,7 @@ class SpotifyItem:
             ItemKind.ARTIST,
             ItemKind.PLAYLIST,
             ItemKind.SHOW,
+            ItemKind.AUDIOBOOK,
         }
 
     def accessible_label(self) -> str:
@@ -54,7 +61,12 @@ class SpotifyItem:
             minutes, seconds = divmod(self.duration_ms // 1000, 60)
             parts.append(f"{minutes} minutes {seconds} seconds")
         if self.total is not None:
-            noun = "song" if self.total == 1 else "songs"
+            if self.kind == ItemKind.SHOW:
+                noun = "episode" if self.total == 1 else "episodes"
+            elif self.kind == ItemKind.AUDIOBOOK:
+                noun = "chapter" if self.total == 1 else "chapters"
+            else:
+                noun = "song" if self.total == 1 else "songs"
             parts.append(f"{self.total} {noun}")
         if self.explicit:
             parts.append("explicit")
@@ -64,6 +76,8 @@ class SpotifyItem:
             parts.append(str(self.raw["played_at_label"]))
         if self.raw.get("bookmark_position_label"):
             parts.append(str(self.raw["bookmark_position_label"]))
+        if self.raw.get("resume_position_label"):
+            parts.append(str(self.raw["resume_position_label"]))
         return " — ".join(parts)
 
 
