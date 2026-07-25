@@ -4,6 +4,7 @@ import http.server
 import logging
 import queue
 import urllib.parse
+from collections.abc import Callable
 
 logger = logging.getLogger("blindspot.auth_callback")
 
@@ -15,7 +16,12 @@ class CallbackServer:
         self.expected_state = expected_state
         self.result: queue.Queue[tuple[str, str]] = queue.Queue(maxsize=1)
 
-    def wait(self, timeout: float = 180) -> str:
+    def wait(
+        self,
+        timeout: float = 180,
+        *,
+        on_ready: Callable[[], None] | None = None,
+    ) -> str:
         owner = self
         logger.info("Waiting for Spotify callback on 127.0.0.1:43821")
 
@@ -48,8 +54,10 @@ class CallbackServer:
             def log_message(self, format: str, *args: object) -> None:
                 return
 
-        with http.server.ThreadingHTTPServer(("127.0.0.1", 43821), Handler) as server:
+        with http.server.HTTPServer(("127.0.0.1", 43821), Handler) as server:
             server.timeout = timeout
+            if on_ready:
+                on_ready()
             server.handle_request()
         try:
             code, error = self.result.get_nowait()

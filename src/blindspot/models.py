@@ -88,3 +88,7 @@ class ViewState:
     selected: int = 0
     query: str = ""
     category: str = "track"
+    parent_id: str = ""
+    parent_kind: ItemKind | None = None
+    parent_artist_names: tuple[str, ...] = ()
+    parent_artist_ids: tuple[str, ...] = ()

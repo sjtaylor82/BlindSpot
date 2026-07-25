@@ -8,6 +8,8 @@ from blindspot.ui import (
     LyricsDialog,
     MainFrame,
     PlaylistsPanel,
+    SearchPanel,
+    album_track_label,
     playback_state_for_resume,
     resume_mode_from_settings,
 )
@@ -254,6 +256,100 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
             MainFrame.on_tab_changed(frame, event)
 
         self.assertEqual(refreshed, [True])
+
+
+class SearchContextMenuTests(unittest.TestCase):
+    def test_album_track_label_keeps_only_number_name_and_guest_artist(self):
+        state = ui.ViewState(
+            "Album",
+            [],
+            parent_kind=ui.ItemKind.ALBUM,
+            parent_artist_names=("Main Artist",),
+            parent_artist_ids=("main",),
+        )
+        track = ui.SpotifyItem(
+            id="track",
+            kind=ui.ItemKind.TRACK,
+            name="The Song",
+            artist="Main Artist, Guest Artist",
+            album="Album",
+            duration_ms=240_000,
+            raw={
+                "track_number": 3,
+                "disc_number": 1,
+                "artists": [
+                    {"id": "main", "name": "Main Artist"},
+                    {"id": "guest", "name": "Guest Artist"},
+                ],
+            },
+        )
+
+        self.assertEqual(
+            album_track_label(track, 2, state, False),
+            "3 The Song — featuring Guest Artist",
+        )
+
+    def test_multi_disc_album_label_includes_disc_number(self):
+        state = ui.ViewState(
+            "Album",
+            [],
+            parent_kind=ui.ItemKind.ALBUM,
+            parent_artist_names=("Artist",),
+        )
+        track = ui.SpotifyItem(
+            id="track",
+            kind=ui.ItemKind.TRACK,
+            name="Finale",
+            raw={"track_number": 1, "disc_number": 2},
+        )
+
+        self.assertEqual(
+            album_track_label(track, 0, state, True),
+            "Disc 2 track 1 Finale",
+        )
+
+    def test_album_track_does_not_offer_to_open_current_album(self):
+        calls = []
+        track = ui.SpotifyItem(
+            id="track",
+            kind=ui.ItemKind.TRACK,
+            name="Song",
+        )
+        frame = type(
+            "Frame",
+            (),
+            {
+                "popup_item_menu": (
+                    lambda self, owner, item, **options: calls.append(options)
+                )
+            },
+        )()
+        results = type(
+            "Results",
+            (),
+            {"selected_item": lambda self: track},
+        )()
+        panel = type(
+            "Panel",
+            (),
+            {
+                "frame": frame,
+                "results": results,
+                "history": ui.NavigationHistory(
+                    ui.ViewState(
+                        "Album",
+                        [track],
+                        parent_id="album",
+                        parent_kind=ui.ItemKind.ALBUM,
+                    )
+                ),
+                "on_open": lambda self: None,
+            },
+        )()
+
+        SearchPanel.on_context_menu(panel)
+
+        self.assertFalse(calls[0]["include_album_action"])
 
     def test_local_playlist_play_is_kept_and_merged_ahead_of_spotify(self):
         with tempfile.TemporaryDirectory() as folder:

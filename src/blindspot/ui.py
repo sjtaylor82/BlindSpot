@@ -66,6 +66,44 @@ RESUME_MODE_LABELS = (
 )
 
 
+def album_track_label(
+    item: SpotifyItem,
+    index: int,
+    state: ViewState,
+    multi_disc: bool,
+) -> str:
+    track_number = int(item.raw.get("track_number") or index + 1)
+    disc_number = int(item.raw.get("disc_number") or 1)
+    if multi_disc:
+        label = f"Disc {disc_number} track {track_number} {item.name}"
+    else:
+        label = f"{track_number} {item.name}"
+
+    album_artist_ids = set(state.parent_artist_ids)
+    album_artist_names = {
+        name.casefold() for name in state.parent_artist_names
+    }
+    track_artists = item.raw.get("artists") or []
+    featured = []
+    for artist in track_artists:
+        name = str(artist.get("name") or "")
+        artist_id = str(artist.get("id") or "")
+        if not name:
+            continue
+        if artist_id and album_artist_ids:
+            additional = artist_id not in album_artist_ids
+        else:
+            additional = name.casefold() not in album_artist_names
+        if additional and name not in featured:
+            featured.append(name)
+    if not track_artists and item.artist:
+        if item.artist.casefold() not in album_artist_names:
+            featured.append(item.artist)
+    if featured:
+        label += f" — featuring {', '.join(featured)}"
+    return label
+
+
 def normalized_global_shortcuts(value: object) -> dict[str, dict[str, int]]:
     if not isinstance(value, dict):
         return {}
@@ -907,13 +945,20 @@ class ItemList(wx.ListView):
             self.SetColumnWidth(0, width)
         event.Skip()
 
-    def set_items(self, items: list[SpotifyItem], selected: int = 0) -> None:
+    def set_items(
+        self,
+        items: list[SpotifyItem],
+        selected: int = 0,
+        *,
+        labels: list[str] | None = None,
+    ) -> None:
         self.items = items
         self.Freeze()
         try:
             self.DeleteAllItems()
-            for item in items:
-                self.InsertItem(self.GetItemCount(), item.accessible_label())
+            for index, item in enumerate(items):
+                label = labels[index] if labels is not None else item.accessible_label()
+                self.InsertItem(self.GetItemCount(), label)
         finally:
             self.Thaw()
         if items:
@@ -1065,7 +1110,29 @@ class SearchPanel(wx.Panel):
 
     def open_children(self, parent: SpotifyItem, items: list[SpotifyItem]) -> None:
         logger.info("Displaying %d children for %r", len(items), parent.name)
-        self.history.push(ViewState(parent.name, items))
+        parent_artists = parent.raw.get("artists") or []
+        parent_artist_names = tuple(
+            artist.get("name", "")
+            for artist in parent_artists
+            if artist.get("name")
+        )
+        parent_artist_ids = tuple(
+            artist.get("id", "")
+            for artist in parent_artists
+            if artist.get("id")
+        )
+        if not parent_artist_names and parent.artist:
+            parent_artist_names = (parent.artist,)
+        self.history.push(
+            ViewState(
+                parent.name,
+                items,
+                parent_id=parent.id,
+                parent_kind=parent.kind,
+                parent_artist_names=parent_artist_names,
+                parent_artist_ids=parent_artist_ids,
+            )
+        )
         self.render(self.history.current, focus=True)
         self.frame.say(f"{parent.name}. {len(items)} items.")
 
@@ -1080,7 +1147,22 @@ class SearchPanel(wx.Panel):
     def render(self, state: ViewState, *, focus: bool) -> None:
         self.heading.SetLabel(state.title)
         self.frame.update_title_for_page(self, state.title)
-        self.results.set_items(state.items, state.selected)
+        if state.parent_kind == ItemKind.ALBUM:
+            multi_disc = any(
+                int(item.raw.get("disc_number") or 1) > 1
+                for item in state.items
+            )
+            labels = [
+                album_track_label(item, index, state, multi_disc)
+                for index, item in enumerate(state.items)
+            ]
+            self.results.set_items(
+                state.items,
+                state.selected,
+                labels=labels,
+            )
+        else:
+            self.results.set_items(state.items, state.selected)
         if focus and state.items:
             self.results.SetFocus()
 
@@ -1123,6 +1205,9 @@ class SearchPanel(wx.Panel):
             self.results,
             item,
             open_callback=self.on_open if item.container else None,
+            include_album_action=(
+                self.history.current.parent_kind != ItemKind.ALBUM
+            ),
         )
 
     def on_navigation(self, event: wx.NavigationKeyEvent) -> None:
@@ -2359,8 +2444,9 @@ class MainFrame(wx.Frame):
         def authorize() -> None:
             try:
                 server = CallbackServer(request.state)
-                webbrowser.open(request.url)
-                code = server.wait()
+                code = server.wait(
+                    on_ready=lambda: webbrowser.open(request.url),
+                )
                 self.spotify.complete_authorization(code, request.verifier)
             except TimeoutError as error:
                 wx.CallAfter(self.say, str(error))
@@ -4217,7 +4303,25 @@ class MainFrame(wx.Frame):
         tracks: list[SpotifyItem],
     ) -> None:
         self.notebook.SetSelection(0)
-        self.search.history.push(ViewState(album.name, tracks))
+        self.search.history.push(
+            ViewState(
+                album.name,
+                tracks,
+                parent_id=album.id,
+                parent_kind=ItemKind.ALBUM,
+                parent_artist_names=tuple(
+                    artist.get("name", "")
+                    for artist in album.raw.get("artists") or []
+                    if artist.get("name")
+                )
+                or ((album.artist,) if album.artist else ()),
+                parent_artist_ids=tuple(
+                    artist.get("id", "")
+                    for artist in album.raw.get("artists") or []
+                    if artist.get("id")
+                ),
+            )
+        )
         self.search.render(self.search.history.current, focus=True)
         self.say(f"{album.name}. {len(tracks)} items.")
 
@@ -4229,6 +4333,7 @@ class MainFrame(wx.Frame):
         open_callback: Callable[[], None] | None = None,
         play_callback: Callable[[], None] | None = None,
         remove_callback: Callable[[], None] | None = None,
+        include_album_action: bool = True,
     ) -> None:
         menu = wx.Menu()
         actions: list[tuple[wx.MenuItem, Callable[[], None]]] = []
@@ -4242,12 +4347,13 @@ class MainFrame(wx.Frame):
                 )
             )
         if item.kind == ItemKind.TRACK:
-            actions.append(
-                (
-                    menu.Append(wx.ID_ANY, "Open &album"),
-                    lambda: self.open_album_for_track(item),
+            if include_album_action:
+                actions.append(
+                    (
+                        menu.Append(wx.ID_ANY, "Open &album"),
+                        lambda: self.open_album_for_track(item),
+                    )
                 )
-            )
             if self.current_player_item and item.id == self.current_player_item.id:
                 actions.append(
                     (
