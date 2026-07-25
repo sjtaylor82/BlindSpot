@@ -1736,6 +1736,7 @@ class MainFrame(wx.Frame):
                 if supports_automatic_update(release)
                 else "Open the download page now?"
             )
+            previous_focus = wx.Window.FindFocus()
             answer = wx.MessageBox(
                 f"BlindSpot {release.version} is available.\n\n{action}",
                 "BlindSpot update available",
@@ -1758,6 +1759,7 @@ class MainFrame(wx.Frame):
             else:
                 settings["dismissed_update"] = release.version
                 self.store.write("settings.json", settings)
+                wx.CallAfter(self._restore_focus_after_update_prompt, previous_focus)
         elif report_current:
             wx.MessageBox(
                 f"BlindSpot {__version__} is up to date.",
@@ -1765,6 +1767,22 @@ class MainFrame(wx.Frame):
                 wx.OK | wx.ICON_INFORMATION,
                 self,
             )
+
+    def _restore_focus_after_update_prompt(
+        self,
+        previous_focus: wx.Window | None,
+    ) -> None:
+        try:
+            if (
+                previous_focus
+                and previous_focus.IsShown()
+                and previous_focus.IsEnabled()
+            ):
+                previous_focus.SetFocus()
+                return
+        except RuntimeError:
+            pass
+        self.search.focus_query()
 
     def _download_update(self) -> None:
         def progress(percent: int) -> None:
@@ -1787,7 +1805,9 @@ class MainFrame(wx.Frame):
             self.update_progress.Destroy()
             self.update_progress = None
         if success and sys.platform == "win32" and getattr(sys, "frozen", False):
-            self.Close()
+            # Let wx fully unwind the app-modal progress dialog before closing
+            # the frame. Closing in the same callback can be ignored on Windows.
+            wx.CallAfter(self.Close)
         elif not success:
             self.show_error(
                 message or "The BlindSpot update could not be downloaded."

@@ -26,7 +26,39 @@ function Write-UpdateLog([string]$Message) {
 
 try {
     Write-UpdateLog "Portable update started."
-    Expand-Archive -LiteralPath $ZipPath -DestinationPath $payload -Force
+    Write-Host "Preparing the BlindSpot portable update."
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $payloadRoot = [System.IO.Path]::GetFullPath(
+        $payload + [System.IO.Path]::DirectorySeparatorChar)
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
+    $extractedFiles = 0
+    try {
+        foreach ($entry in $archive.Entries) {
+            $relativePath = $entry.FullName.Replace(
+                "/", [System.IO.Path]::DirectorySeparatorChar)
+            $destination = [System.IO.Path]::GetFullPath(
+                (Join-Path $payload $relativePath))
+            if (-not $destination.StartsWith(
+                    $payloadRoot,
+                    [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "The update archive contains an unsafe path."
+            }
+            if ([string]::IsNullOrEmpty($entry.Name)) {
+                New-Item -ItemType Directory -Path $destination -Force |
+                    Out-Null
+                continue
+            }
+            $destinationParent = Split-Path -Parent $destination
+            New-Item -ItemType Directory -Path $destinationParent -Force |
+                Out-Null
+            [System.IO.Compression.ZipFileExtensions]::ExtractToFile(
+                $entry, $destination, $true)
+            $extractedFiles++
+        }
+    } finally {
+        $archive.Dispose()
+    }
+    Write-UpdateLog ("Archive prepared: " + $extractedFiles + " files extracted.")
     $newApp = Get-ChildItem -LiteralPath $payload -Recurse -Filter "BlindSpot.exe" -File |
         Select-Object -First 1
     if ($null -eq $newApp) {
@@ -34,8 +66,12 @@ try {
     }
     $newRoot = $newApp.Directory.FullName
     Set-Content -LiteralPath $ReadyPath -Value "ready" -Encoding ASCII
+    Write-UpdateLog "Preparation complete; waiting for BlindSpot to close."
+    Write-Host "Preparation complete. Closing BlindSpot."
     Wait-Process -Id $BlindSpotProcessId -ErrorAction SilentlyContinue
     $appWasClosed = $true
+    Write-UpdateLog "BlindSpot closed; installing prepared files."
+    Write-Host "Installing the update. Please keep this window open."
 
     Get-ChildItem -LiteralPath $AppDirectory -Force |
         Where-Object { $_.Name -ne "data" } |
@@ -46,8 +82,10 @@ try {
 
     $success = $true
     Write-UpdateLog "Portable update completed."
+    Write-Host "Update complete. Restarting BlindSpot."
 } catch {
     Write-UpdateLog ("Portable update failed: " + $_.Exception.Message)
+    Write-Host ("The portable update failed: " + $_.Exception.Message)
     if ($appWasClosed) {
         Get-ChildItem -LiteralPath $AppDirectory -Force |
             Where-Object { $_.Name -ne "data" } |
