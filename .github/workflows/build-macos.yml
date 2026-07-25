@@ -1,0 +1,68 @@
+name: Build macOS app
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install application and build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --requirement requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Verify macOS dependencies
+        run: python -c "import appscript, wx, wx.html2"
+
+      - name: Verify unsigned-build helper
+        run: sh -n prepare-macos.sh
+
+      - name: Run tests
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests -v
+
+      - name: Build BlindSpot.app
+        run: python -m PyInstaller --noconfirm --clean BlindSpot.spec
+
+      - name: Verify app bundle
+        run: |
+          test -d dist/BlindSpot.app
+          test -x dist/BlindSpot.app/Contents/MacOS/BlindSpot
+          test -f dist/BlindSpot.app/Contents/Resources/manual.html
+
+      - name: Package app bundle
+        run: |
+          mkdir -p dist/BlindSpot-macOS
+          ditto dist/BlindSpot.app dist/BlindSpot-macOS/BlindSpot.app
+          cp prepare-macos.sh dist/BlindSpot-macOS/prepare-macos.sh
+          chmod +x dist/BlindSpot-macOS/prepare-macos.sh
+          ditto -c -k --sequesterRsrc --keepParent \
+            dist/BlindSpot-macOS dist/BlindSpot-macOS.zip
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlindSpot-macOS
+          path: dist/BlindSpot-macOS.zip
+          if-no-files-found: error

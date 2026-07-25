@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BlindSpot manual</title>
+</head>
+<body>
+  <main>
+    <h1>BlindSpot manual</h1>
+    <p>Build 2026.7.0.0</p>
+    <p>BlindSpot is a portable, keyboard-first Spotify client for Windows and macOS.</p>
+
+    <h2>Main interface</h2>
+    <p>Use Tab and Shift+Tab to move throughout the interface. Enter opens
+      an album, artist, playlist, or podcast, and plays a track or episode.
+      Backspace returns to the previous remembered list position. A horizontal tab-bar, as well as a menu bar, is where the program's features are located</p>
+
+    <h2>Keyboard commands</h2>
+    <ul>
+      <li>Ctrl+1 through Ctrl+6: Search, Liked Songs, Queue, Playlists,
+        Recently Played, and Bookmarks respectively.</li>
+      <li>Ctrl+Tab and Ctrl+Shift+Tab: cycle through the main tabs.</li>
+      <li>Ctrl+F: focus the search box.</li>
+      <li>Ctrl+Comma: open Preferences.</li>
+      <li>Ctrl+P: play selected track.</li>
+      <li>Ctrl+Space: play/pause.</li>
+      <li>Ctrl+Z / Ctrl+B: previous and next track.</li>
+      <li>Ctrl+Left bracket / Ctrl+Right bracket: seek back/forward five seconds.</li>
+      <li>Ctrl+Semicolon/Ctrl+Apostrophe: decrease/increase volume by five percent.</li>
+      <li>Ctrl+Q: add the selected track to the queue.</li>
+      <li>Ctrl+L: like or unlike the selected track.</li>
+      <li>Ctrl+Shift+A: add the selected track to a playlist.</li>
+      <li>Ctrl+N: create playlist.</li>
+      <li>Ctrl+Shift+B: bookmark current playback position.</li>
+      <li>Ctrl+R: cycle repeat mode.</li>
+      <li>Ctrl+S: toggle shuffle.</li>
+      <li>Ctrl+J: jump to playback time.</li>
+      <li>Ctrl+Shift+J: open sleep timer.</li>
+      <li>Ctrl+Shift+N: speak current track name.</li>
+      <li>Ctrl+Shift+U: speak upcoming track.</li>
+      <li>Ctrl+Y: retrieve and open lyrics for the current track.</li>
+      <li>Ctrl+Shift+T: speak total track time.</li>
+      <li>Ctrl+Shift+E: speak elapsed time.</li>
+      <li>Ctrl+Shift+R: speak remaining time.</li>
+      <li>Delete: remove the selected track from Liked Songs.</li>
+      <li>Delete inside a playlist: remove the selected track when editable.</li>
+      <li>F5: refresh active list.</li>
+      <li>Shift+F10 or the Applications key: open item actions.</li>
+    </ul>
+
+    <h2>Playlists</h2>
+    <p>Followed playlists that cannot be edited are announced as read only.
+      Within a browsable playlist, Enter or Ctrl+P starts at the selected song
+      and continues through the remaining playlist.</p>
+    <p>The playlist context menu provides Open, Play, New playlist, Rename for
+      playlists you own, and Remove from library.</p>
+
+    <h2>Lyrics</h2>
+    <p>Press Ctrl+Y while a track is playing to retrieve its lyrics from
+      LRCLIB. Lyrics open in a read-only text control for ordinary
+      screen-reader and braille navigation. Retrieval is performed only when
+      requested and does not require an account or API key.</p>
+    <p>Select Follow playback on      braille display to have lyrics appear on your braille display in sync with the track.
+      Following stops when the option is cleared, the track changes, or the lyrics window closes.
+      Timing is calculated locally and does not make repeated Spotify or
+      LRCLIB requests.</p>
+    <p>On macOS, VoiceOver does not provide BlindSpot with a separate
+      braille-only scripting channel. Following therefore uses a VoiceOver
+      announcement, which may also speak each line. VoiceOver speech can be
+      muted temporarily when braille-only reading is preferred. This macOS
+      behaviour is experimental.</p>
+
+    <h2>Playback devices</h2>
+    <p>Choose playback device under the "Go" menu lists the controllable Spotify
+      Connect devices currently available on the account. Selecting a device
+      transfers and starts playback. Choose BlindSpot from the same
+      dialog to return playback to the internal player. Remote playback
+      controls use Spotify's network service and may respond less quickly
+      than the internal player. Devices marked as restricted by Spotify are
+      not shown, and some devices do not support remote volume adjustment.</p>
+    <p>If a phone or speaker is missing, open Spotify on a linked account such as a mobile device, and start
+      playback on that device first. For a Sonos, Google Cast, or similar
+      speaker, transfer playback to the speaker from Spotify's phone app,
+      leave it active, and then reopen BlindSpot's device picker. Spotify may
+      report only devices that are active or have been used recently, and
+      BlindSpot retrieves a fresh device list whenever the picker opens.</p>
+
+    <h2>Recently Played</h2>
+    <p>Press Ctrl+5 to open Recently Played. The list loads when focus first
+      enters it and can be refreshed with F5. Enter plays the selected track,
+      and its context menu provides the usual album, queue, and library
+      actions. The first time it is opened, BlindSpot may ask to authorize
+      access to Spotify listening history.</p>
+
+    <h2>Sleep timer</h2>
+    <p>Press Ctrl+Shift+J to activate the sleep timer dialog. BlindSpot can sleep after 15, 30, or 60 minutes. The timer controls BlindSpot's internal player
+      and selected Spotify Connect devices. The same submenu cancels an active
+      timer. After current track uses a local deadline corrected by ordinary
+      playback updates; it does not increase Spotify Connect polling.</p>
+
+    <h2>Bookmarks</h2>
+    <p>Use Go, Bookmark current position while a track is playing, or choose
+      Bookmark current position from that track's context menu. Press Ctrl+6
+      to open Bookmarks. Each entry includes its saved playback position.
+      Press Enter to resume from that position, Delete to remove it, or use
+      the context menu for resume, album, queue, library, and delete actions.</p>
+    <p>Bookmarks are stored locally in data/bookmarks.json in BlindSpot's
+      portable folder. They are separate from Spotify's saved library and do
+      not synchronize to other Spotify applications.</p>
+
+    <h2>Preferences</h2>
+    <p>Use Options, Preferences to adjust settings such as speaking the track name whenever
+      playback changes. Track-change announcements use the configured
+      accessible-output2 screen-reader output and are disabled by default.
+      Startup playback memory can remember nothing, remember the last track
+      from its beginning, or remember both the track and its elapsed position.
+      Press Ctrl+Space after the next launch to resume the remembered track.
+      Enable global seek and volume shortcuts to make Ctrl+Left bracket, Ctrl+Right bracket,
+      Ctrl+Semicolon, and Ctrl+Apostrophe work while another application has
+      focus. No other BlindSpot commands are registered globally. If another
+      application already owns one of these combinations, BlindSpot leaves
+      all four global shortcuts disabled and reports the conflict.</p>
+    <p>Logging is off by default. It can be enabled when diagnostic information is needed.</p>
+
+    <h2>Portable data</h2>
+    <p>Settings, authentication, and logs are stored in the data folder beside
+      BlindSpot. Use Options, Account, Sign out and erase credentials before
+      sharing the portable folder.</p>
+    <p>On macOS, BlindSpot uses a data folder beside BlindSpot.app when that
+      location is writable. If the app is installed in a read-only location,
+      BlindSpot uses Library/Application Support/BlindSpot in the current
+      user's home folder instead.</p>
+    <p>This application is unsigned. After extracting the download, open
+      Terminal in the BlindSpot-macOS folder and run sh prepare-macos.sh. The
+      helper changes the adjacent BlindSpot.app, removes its downloaded
+      quarantine attribute, and opens it. It does not require administrator
+      access.</p>
+
+    <h2>Updates</h2>
+    <p>BlindSpot checks its GitHub release feed when it starts. When a newer
+      build is available, it offers to install it. Portable Windows builds
+      preserve the data folder, replace the program after it closes, and
+      restart automatically. macOS opens the release page because a running
+      app bundle cannot safely replace itself. Use Help, Check for updates to
+      check on demand.</p>
+
+    <h2>License and copyright</h2>
+    <p>Copyright © 2026 Sam Taylor. BlindSpot is free software licensed under
+      the GNU General Public License version 3 or later.</p>
+  </main>
+</body>
+</html>

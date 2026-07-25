@@ -1,0 +1,3 @@
+wxPython>=4.2.2
+accessible-output2>=0.17
+appscript>=1.2.5; sys_platform == "darwin"
