@@ -12,6 +12,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 from .models import SpotifyItem
+from .network import TLS_CONTEXT
 
 
 DIRECTORY_URL = "https://itunes.apple.com/search"
@@ -39,7 +40,11 @@ def _similarity(left: str, right: str) -> float:
 
 def _read_url(url: str, *, limit: int) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=20) as response:
+    with urllib.request.urlopen(
+        request,
+        timeout=20,
+        context=TLS_CONTEXT,
+    ) as response:
         value = response.read(limit + 1)
     if len(value) > limit:
         raise PodcastDownloadUnavailable("Podcast feed too large.")
@@ -131,7 +136,11 @@ def download_episode(download: PodcastDownload, destination: Path) -> None:
     temporary = destination.with_name(f"{destination.name}.part")
     try:
         with (
-            urllib.request.urlopen(request, timeout=30) as response,
+            urllib.request.urlopen(
+                request,
+                timeout=30,
+                context=TLS_CONTEXT,
+            ) as response,
             temporary.open("wb") as output,
         ):
             shutil.copyfileobj(response, output, length=1024 * 1024)

@@ -16,6 +16,7 @@ from typing import Any
 
 from .models import ItemKind, SpotifyItem
 from . import messages as msg
+from .network import TLS_CONTEXT
 from .portable import PortableStore
 
 logger = logging.getLogger("blindspot.spotify")
@@ -913,7 +914,11 @@ class SpotifyClient:
         self, request: urllib.request.Request, *, allow_empty: bool = False
     ) -> Any:
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
+            with urllib.request.urlopen(
+                request,
+                timeout=20,
+                context=TLS_CONTEXT,
+            ) as response:
                 logger.debug(
                     "Spotify response status=%s endpoint=%s",
                     response.status,

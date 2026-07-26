@@ -1,10 +1,20 @@
+import inspect
 import unittest
 from unittest.mock import patch
 
-from blindspot.auth_callback import CallbackServer
+from blindspot.auth_callback import (
+    AUTHORIZATION_TIMEOUT_SECONDS,
+    CallbackServer,
+)
 
 
 class CallbackOrderingTests(unittest.TestCase):
+    def test_default_authorization_window_is_ten_minutes(self):
+        timeout = inspect.signature(CallbackServer.wait).parameters["timeout"]
+
+        self.assertEqual(timeout.default, AUTHORIZATION_TIMEOUT_SECONDS)
+        self.assertEqual(AUTHORIZATION_TIMEOUT_SECONDS, 600)
+
     def test_listener_is_bound_before_browser_is_opened(self):
         events = []
 

@@ -11,6 +11,7 @@ from typing import Any
 from . import __version__
 from .models import SpotifyItem
 from . import messages as msg
+from .network import TLS_CONTEXT
 
 API_ROOT = "https://lrclib.net/api"
 USER_AGENT = f"BlindSpot/{__version__} (accessible Spotify client)"
@@ -147,7 +148,11 @@ class LRCLibClient:
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=15) as response:
+            with urllib.request.urlopen(
+                request,
+                timeout=15,
+                context=TLS_CONTEXT,
+            ) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as error:
             if error.code == 404 and missing_ok:

@@ -11,6 +11,7 @@ import urllib.request
 import webbrowser
 
 from . import messages as msg
+from .network import TLS_CONTEXT
 from .portable import application_directory, resource_directory
 
 
@@ -56,7 +57,11 @@ def latest_release(timeout: float = 10) -> Release:
             "X-GitHub-Api-Version": "2022-11-28",
         },
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    with urllib.request.urlopen(
+        request,
+        timeout=timeout,
+        context=TLS_CONTEXT,
+    ) as response:
         payload = json.load(response)
     return Release(
         version=str(payload["tag_name"]).removeprefix("v"),

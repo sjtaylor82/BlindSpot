@@ -10,6 +10,7 @@ from collections.abc import Callable
 from . import messages as msg
 
 logger = logging.getLogger("blindspot.auth_callback")
+AUTHORIZATION_TIMEOUT_SECONDS = 600
 
 
 class CallbackServer:
@@ -21,7 +22,7 @@ class CallbackServer:
 
     def wait(
         self,
-        timeout: float = 180,
+        timeout: float = AUTHORIZATION_TIMEOUT_SECONDS,
         *,
         on_ready: Callable[[], None] | None = None,
     ) -> str:
