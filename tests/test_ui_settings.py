@@ -23,6 +23,30 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
         self.assertEqual(menu_function_shortcut("F8", "darwin"), "")
         self.assertEqual(menu_function_shortcut("F8", "win32"), "\tF8")
 
+    def test_mac_raw_control_function_accelerators_are_hidden_entries(self):
+        entries = ui.raw_control_function_accelerators(
+            [(ui.wx.WXK_F4, 41), (ui.wx.WXK_F5, 42)],
+            "darwin",
+        )
+
+        self.assertEqual(
+            [
+                (entry.GetFlags(), entry.GetKeyCode(), entry.GetCommand())
+                for entry in entries
+            ],
+            [
+                (ui.wx.ACCEL_RAW_CTRL, ui.wx.WXK_F4, 41),
+                (ui.wx.ACCEL_RAW_CTRL, ui.wx.WXK_F5, 42),
+            ],
+        )
+        self.assertEqual(
+            ui.raw_control_function_accelerators(
+                [(ui.wx.WXK_F4, 41)],
+                "win32",
+            ),
+            [],
+        )
+
     def test_windows_lyric_positions_account_for_crlf(self):
         positions = [0, 4, 8]
 
@@ -475,6 +499,69 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
         MainFrame.refresh_current_view(frame)
 
         self.assertEqual(refreshed, [True])
+
+    def test_control_enter_action_opens_selected_tracks_album(self):
+        opened = []
+        track = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Track")
+        frame = type(
+            "Frame",
+            (),
+            {
+                "open_album_for_track": (
+                    lambda self, item: opened.append(item)
+                )
+            },
+        )()
+
+        MainFrame.open_selected_track_album(frame, track)
+
+        self.assertEqual(opened, [track])
+
+    def test_selected_actions_routes_to_current_tab(self):
+        called = []
+        panels = [
+            type(
+                "Panel",
+                (),
+                {
+                    "on_context_menu": (
+                        lambda self, index=index: called.append(index)
+                    )
+                },
+            )()
+            for index in range(8)
+        ]
+        notebook = type(
+            "Notebook",
+            (),
+            {"GetSelection": lambda self: 6},
+        )()
+        frame = type(
+            "Frame",
+            (),
+            dict(
+                notebook=notebook,
+                **dict(
+                    zip(
+                        (
+                            "search",
+                            "liked",
+                            "queue",
+                            "playlists",
+                            "recently_played",
+                            "bookmarks",
+                            "audiobooks",
+                            "podcasts",
+                        ),
+                        panels,
+                    )
+                ),
+            ),
+        )()
+
+        MainFrame.show_selected_actions(frame)
+
+        self.assertEqual(called, [6])
 
 
 class SearchContextMenuTests(unittest.TestCase):

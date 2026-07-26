@@ -38,6 +38,7 @@ Register this redirect URI in the Spotify developer dashboard:
 - Ctrl+F: focus Search.
 - Ctrl+Comma: open Preferences.
 - Enter: open a container or play a track/episode.
+- Ctrl+Enter: open the focused track's album.
 - Backspace or Alt+Left: return to the previous remembered view.
 - F4: play the focused track, playlist, album, or artist. An open album track
   plays within its album context.

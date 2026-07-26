@@ -260,6 +260,18 @@ def menu_function_shortcut(
     return "" if platform == "darwin" else f"\t{shortcut}"
 
 
+def raw_control_function_accelerators(
+    commands: list[tuple[int, int]],
+    platform: str = sys.platform,
+) -> list[wx.AcceleratorEntry]:
+    if platform != "darwin":
+        return []
+    return [
+        wx.AcceleratorEntry(wx.ACCEL_RAW_CTRL, keycode, command_id)
+        for keycode, command_id in commands
+    ]
+
+
 def native_text_positions(
     text: str,
     positions: list[int],
@@ -2460,6 +2472,14 @@ class MainFrame(wx.Frame):
             wx.ID_ANY,
             f"Add selected to a pl&aylist...\t{ctrl}+Shift+A",
         )
+        selected_actions = go.Append(
+            wx.ID_ANY,
+            (
+                "Selected item &actions...\tAlt+M"
+                if sys.platform == "darwin"
+                else "Selected item &actions..."
+            ),
+        )
         create_playlist = go.Append(
             wx.ID_ANY,
             f"&New playlist...\t{ctrl}+Shift+N",
@@ -2524,6 +2544,15 @@ class MainFrame(wx.Frame):
         about = help_menu.Append(wx.ID_ABOUT, "&About BlindSpot...")
         menu_bar.Append(help_menu, "&Help")
         self.SetMenuBar(menu_bar)
+        mac_accelerators = raw_control_function_accelerators(
+            [
+                (wx.WXK_F4, mute.GetId()),
+                (wx.WXK_F5, volume_down.GetId()),
+                (wx.WXK_F6, volume_up.GetId()),
+            ]
+        )
+        if mac_accelerators:
+            self.SetAcceleratorTable(wx.AcceleratorTable(mac_accelerators))
         self.Bind(wx.EVT_MENU, lambda event: self.play_selected(), play_selected)
         self.Bind(
             wx.EVT_MENU,
@@ -2643,6 +2672,11 @@ class MainFrame(wx.Frame):
             wx.EVT_MENU,
             lambda event: self.choose_playlist_for_selected(),
             add_to_playlist,
+        )
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.show_selected_actions(),
+            selected_actions,
         )
         self.Bind(
             wx.EVT_MENU,
@@ -3152,23 +3186,7 @@ class MainFrame(wx.Frame):
         elif key == wx.WXK_TAB:
             self.move_focus(backward=event.ShiftDown())
         elif key == wx.WXK_F10 and event.ShiftDown():
-            page = self.notebook.GetSelection()
-            if page == 0:
-                self.search.on_context_menu()
-            elif page == 1:
-                self.liked.on_context_menu()
-            elif page == 2:
-                self.queue.on_context_menu()
-            elif page == 3:
-                self.playlists.on_context_menu()
-            elif page == 4:
-                self.recently_played.on_context_menu()
-            elif page == 5:
-                self.bookmarks.on_context_menu()
-            elif page == 6:
-                self.audiobooks.on_context_menu()
-            elif page == 7:
-                self.podcasts.on_context_menu()
+            self.show_selected_actions()
         elif physical_control_down(event) and event.ShiftDown() and key in (ord("T"), ord("t")):
             self.announce_time("total")
         elif physical_control_down(event) and event.ShiftDown() and key in (ord("E"), ord("e")):
@@ -3224,6 +3242,12 @@ class MainFrame(wx.Frame):
             and key in (ord("B"), ord("b"))
         ):
             self.save_current_bookmark()
+        elif (
+            physical_control_down(event)
+            and key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER)
+            and focused_list
+        ):
+            self.open_selected_track_album(focused_list.selected_item())
         elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
             if focused is self.search.categories:
                 logger.debug("Frame routed Enter from search category")
@@ -4430,6 +4454,25 @@ class MainFrame(wx.Frame):
     def open_tab(self, index: int) -> None:
         self.notebook.SetSelection(index)
         self.notebook.SetFocus()
+
+    def show_selected_actions(self) -> None:
+        page = self.notebook.GetSelection()
+        panels = (
+            self.search,
+            self.liked,
+            self.queue,
+            self.playlists,
+            self.recently_played,
+            self.bookmarks,
+            self.audiobooks,
+            self.podcasts,
+        )
+        if 0 <= page < len(panels):
+            panels[page].on_context_menu()
+
+    def open_selected_track_album(self, item: SpotifyItem | None) -> None:
+        if item and item.kind == ItemKind.TRACK:
+            self.open_album_for_track(item)
 
     def refresh_current_view(self) -> None:
         page = self.notebook.GetCurrentPage()
