@@ -249,10 +249,13 @@ def playback_state_for_resume(state: dict, mode: str) -> dict:
 def physical_control_down(event: wx.KeyEvent) -> bool:
     if sys.platform != "darwin":
         return event.ControlDown()
-    modifiers = int(event.GetModifiers())
-    return bool(modifiers & wx.MOD_RAW_CONTROL) or bool(
-        wx.GetKeyState(wx.WXK_RAW_CONTROL)
-    )
+    get_modifiers = getattr(event, "GetModifiers", None)
+    if get_modifiers and bool(int(get_modifiers()) & wx.MOD_RAW_CONTROL):
+        return True
+    raw_control_down = getattr(event, "RawControlDown", None)
+    if raw_control_down:
+        return bool(raw_control_down())
+    return bool(wx.GetKeyState(wx.WXK_RAW_CONTROL))
 
 
 def menu_function_shortcut(
