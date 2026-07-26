@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Any
 
 from .models import ItemKind, SpotifyItem
+from . import messages as msg
 from .portable import PortableStore
 
 logger = logging.getLogger("blindspot.spotify")
@@ -94,7 +95,7 @@ class SpotifyClient:
         self._refresh_if_needed()
         token = self.token.get("access_token")
         if not token:
-            raise SpotifyError("Connect BlindSpot to Spotify first.")
+            raise SpotifyError(msg.CONNECT_FIRST)
         return str(token)
 
     def set_client_id(self, client_id: str) -> None:
@@ -107,7 +108,7 @@ class SpotifyClient:
         force_dialog: bool = False,
     ) -> AuthorizationRequest:
         if not self.client_id:
-            raise SpotifyError("Enter a Spotify Client ID first.")
+            raise SpotifyError(msg.ENTER_CLIENT_ID)
         verifier = secrets.token_urlsafe(64)
         challenge = base64.urlsafe_b64encode(
             hashlib.sha256(verifier.encode("ascii")).digest()
@@ -148,15 +149,28 @@ class SpotifyClient:
         self.token = {}
         self.store.remove("authentication.json")
 
-    def search(self, query: str, category: str) -> list[SpotifyItem]:
-        logger.info("Searching Spotify category=%s", category)
+    def search(
+        self,
+        query: str,
+        category: str,
+        offset: int = 0,
+    ) -> list[SpotifyItem]:
+        logger.info(
+            "Searching Spotify category=%s offset=%d",
+            category,
+            offset,
+        )
         types = (
-            "track,album,artist,playlist,show"
+            "track,album,artist,playlist,show,episode,audiobook"
             if category == "all"
             else category
         )
         request_limit = 4 if category == "all" else 10
-        offsets = [0] if category == "all" else [0, 10]
+        offsets = (
+            [offset]
+            if category == "all"
+            else [value for value in (offset, offset + 10) if value <= 1000]
+        )
         payloads = [
             self._request(
                 "GET",
@@ -166,6 +180,7 @@ class SpotifyClient:
                     "type": types,
                     "limit": request_limit,
                     "offset": offset,
+                    "include_external": "audio",
                 },
             )
             for offset in offsets
@@ -177,6 +192,8 @@ class SpotifyClient:
             ("artists", ItemKind.ARTIST),
             ("playlists", ItemKind.PLAYLIST),
             ("shows", ItemKind.SHOW),
+            ("episodes", ItemKind.EPISODE),
+            ("audiobooks", ItemKind.AUDIOBOOK),
         )
         for key, kind in keys:
             values = [
@@ -194,6 +211,24 @@ class SpotifyClient:
             items.extend(
                 self._map_item(value, kind)
                 for value in values
+            )
+        next_offset = offset + (request_limit if category == "all" else 20)
+        has_more = next_offset <= 1000 and any(
+            int((payload.get(key) or {}).get("total") or 0) > next_offset
+            for payload in payloads
+            for key, _kind in keys
+        )
+        if has_more:
+            items.append(
+                SpotifyItem(
+                    "__load_more__",
+                    ItemKind.HEADING,
+                    "Load more results",
+                    raw={
+                        "load_more": True,
+                        "next_offset": next_offset,
+                    },
+                )
             )
         return items
 
@@ -226,8 +261,7 @@ class SpotifyClient:
                 if "Spotify returned 403:" not in str(error):
                     raise
                 raise PlaylistContentsUnavailable(
-                    "Individual tracks can't be browsed. "
-                    "Press F4 to play the playlist."
+                    msg.PLAYLIST_ITEMS_UNAVAILABLE
                 ) from error
             values = []
             for entry in data.get("items", []):
@@ -238,10 +272,27 @@ class SpotifyClient:
                     values.append(self._map_item(value, self._kind_for(value)))
             return values
         if item.kind == ItemKind.SHOW:
-            data = self._request(
+            values = self._paged_items(
                 "GET", f"/shows/{item.id}/episodes", query={"limit": 50}
             )
-            return [self._map_item(x, ItemKind.EPISODE) for x in data["items"]]
+            episodes = [
+                self._map_item(x, ItemKind.EPISODE, album=item.name)
+                for x in values
+            ]
+            for episode in episodes:
+                if not episode.artist:
+                    episode.artist = item.artist
+                episode.raw.setdefault(
+                    "show",
+                    {
+                        "id": item.id,
+                        "name": item.name,
+                        "publisher": item.artist,
+                    },
+                )
+            return episodes
+        if item.kind == ItemKind.AUDIOBOOK:
+            return self.audiobook_chapters(item)
         return []
 
     def album_for_track(self, item: SpotifyItem) -> SpotifyItem:
@@ -250,7 +301,7 @@ class SpotifyClient:
             track = self._request("GET", f"/tracks/{item.id}")
             album = track.get("album") or {}
         if not album.get("id"):
-            raise SpotifyError("Spotify did not provide an album for this track.")
+            raise SpotifyError(msg.ALBUM_NOT_PROVIDED)
         return self._map_item(album, ItemKind.ALBUM)
 
     def liked_songs(self) -> list[SpotifyItem]:
@@ -264,7 +315,7 @@ class SpotifyClient:
     def recently_played(self) -> list[SpotifyItem]:
         if not self.has_scope("user-read-recently-played"):
             raise RecentlyPlayedPermissionRequired(
-                "Recently Played needs an additional Spotify permission."
+                msg.RECENT_PERMISSION_REQUIRED
             )
         data = self._request(
             "GET",
@@ -291,21 +342,45 @@ class SpotifyClient:
         return items
 
     def saved_audiobooks(self) -> list[SpotifyItem]:
-        data = self._request("GET", "/me/audiobooks", query={"limit": 50})
+        values = self._paged_items(
+            "GET",
+            "/me/audiobooks",
+            query={"limit": 50},
+        )
         return [
             self._map_item(value, ItemKind.AUDIOBOOK)
-            for value in data.get("items", [])
+            for value in values
             if value and value.get("id")
         ]
 
+    def saved_shows(self) -> list[SpotifyItem]:
+        values = self._paged_items("GET", "/me/shows", query={"limit": 50})
+        return [
+            self._map_item(entry["show"], ItemKind.SHOW)
+            for entry in values
+            if entry and entry.get("show")
+        ]
+
+    def saved_episodes(self) -> list[SpotifyItem]:
+        values = self._paged_items(
+            "GET",
+            "/me/episodes",
+            query={"limit": 50},
+        )
+        return [
+            self._map_item(entry["episode"], ItemKind.EPISODE)
+            for entry in values
+            if entry and entry.get("episode")
+        ]
+
     def audiobook_chapters(self, audiobook: SpotifyItem) -> list[SpotifyItem]:
-        data = self._request(
+        values = self._paged_items(
             "GET",
             f"/audiobooks/{audiobook.id}/chapters",
             query={"limit": 50},
         )
         chapters = []
-        for value in data.get("items", []):
+        for value in values:
             if not value or not value.get("id"):
                 continue
             chapter = self._map_item(
@@ -331,6 +406,24 @@ class SpotifyClient:
                 )
             chapters.append(chapter)
         return chapters
+
+    def _paged_items(
+        self,
+        method: str,
+        path: str,
+        *,
+        query: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        page_query = dict(query)
+        values = []
+        while True:
+            data = self._request(method, path, query=page_query)
+            page = [value for value in data.get("items", []) if value]
+            values.extend(page)
+            total = int(data.get("total") or len(values))
+            if not page or len(values) >= total:
+                return values
+            page_query["offset"] = len(values)
 
     def user_playlists(self) -> list[SpotifyItem]:
         profile = self._request("GET", "/me")
@@ -517,8 +610,7 @@ class SpotifyClient:
         devices = self.available_devices()
         if not devices:
             raise SpotifyError(
-                "No controllable Spotify device is available. "
-                "Open Spotify on your computer, phone, or speaker, then try again."
+                msg.NO_CONTROLLABLE_DEVICE
             )
         return next(
             (device for device in devices if device.get("is_active")),
@@ -623,7 +715,7 @@ class SpotifyClient:
     def seek_relative(self, delta_ms: int, device_id: str) -> int:
         state = self.playback_state()
         if not state or not state.get("item"):
-            raise SpotifyError("Nothing is currently playing.")
+            raise SpotifyError(msg.NOTHING_CURRENTLY_PLAYING)
         duration = int(state["item"].get("duration_ms", 0) or 0)
         current = int(state.get("progress_ms", 0) or 0)
         target = max(0, current + delta_ms)
@@ -640,7 +732,7 @@ class SpotifyClient:
     def seek_to(self, position_ms: int, device_id: str) -> int:
         state = self.playback_state()
         if not state or not state.get("item"):
-            raise SpotifyError("Nothing is currently playing.")
+            raise SpotifyError(msg.NOTHING_CURRENTLY_PLAYING)
         duration = int(state["item"].get("duration_ms", 0) or 0)
         target = max(0, position_ms)
         if duration:
@@ -657,10 +749,10 @@ class SpotifyClient:
         state = self.playback_state()
         device = state.get("device") if state else None
         if not device:
-            raise SpotifyError("BlindSpot's playback device is not active.")
+            raise SpotifyError(msg.PLAYBACK_DEVICE_INACTIVE)
         current = device.get("volume_percent")
         if current is None:
-            raise SpotifyError("Spotify did not report the current volume.")
+            raise SpotifyError(msg.CURRENT_VOLUME_UNAVAILABLE)
         target = min(100, max(0, int(current) + delta_percent))
         self._request(
             "PUT",
@@ -718,11 +810,26 @@ class SpotifyClient:
                 total = tracks.get("total")
         elif kind == ItemKind.SHOW:
             total = value.get("total_episodes")
+            artists = str(value.get("publisher") or "")
         elif kind == ItemKind.AUDIOBOOK:
             total = value.get("total_chapters")
             artists = ", ".join(
                 x.get("name", "") for x in value.get("authors", [])
             )
+        if kind == ItemKind.EPISODE:
+            show = value.get("show") or {}
+            album_value = show
+            artists = str(show.get("publisher") or "")
+            resume = value.get("resume_point") or {}
+            resume_ms = int(resume.get("resume_position_ms") or 0)
+            if resume.get("fully_played"):
+                value["resume_position_label"] = "finished"
+            elif resume_ms:
+                minutes, seconds = divmod(resume_ms // 1000, 60)
+                value["resume_position_label"] = (
+                    f"resume at {minutes} minutes {seconds} seconds"
+                )
+            value["resume_position_ms"] = resume_ms
         return SpotifyItem(
             id=value.get("id", ""),
             kind=kind,
@@ -749,7 +856,7 @@ class SpotifyClient:
                 return
             refresh = self.token.get("refresh_token")
             if not refresh:
-                raise SpotifyError("Connect BlindSpot to Spotify first.")
+                raise SpotifyError(msg.CONNECT_FIRST)
             refreshed = self._token_request(
                 {
                     "grant_type": "refresh_token",
@@ -827,12 +934,12 @@ class SpotifyClient:
                 urllib.parse.urlparse(request.full_url).path,
                 message,
             )
-            raise SpotifyError(f"Spotify returned {error.code}: {message}") from error
+            raise SpotifyError(msg.spotify_error(error.code, message)) from error
         except OSError as error:
             logger.exception("Spotify connection failed")
-            raise SpotifyError(f"Could not contact Spotify: {error}") from error
+            raise SpotifyError(msg.spotify_contact_failed(error)) from error
         if allow_empty or response.status == 204:
             return {}
         if not payload:
-            raise SpotifyError("Spotify returned an empty response.")
+            raise SpotifyError(msg.SPOTIFY_EMPTY_RESPONSE)
         return json.loads(payload.decode("utf-8"))

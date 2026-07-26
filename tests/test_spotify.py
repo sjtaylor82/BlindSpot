@@ -251,13 +251,19 @@ class PlaybackCommandTests(unittest.TestCase):
             ItemKind.PLAYLIST,
         )
         show = client._map_item(
-            {"id": "show", "name": "Show", "total_episodes": 33},
+            {
+                "id": "show",
+                "name": "Show",
+                "publisher": "Publisher",
+                "total_episodes": 33,
+            },
             ItemKind.SHOW,
         )
 
         self.assertEqual(album.total, 11)
         self.assertEqual(playlist.total, 22)
         self.assertEqual(show.total, 33)
+        self.assertEqual(show.artist, "Publisher")
         self.assertIn("33 episodes", show.accessible_label())
 
     def test_followed_playlist_is_marked_read_only(self):
@@ -609,6 +615,160 @@ class PlaybackCommandTests(unittest.TestCase):
             ("GET", "/audiobooks/book-1/chapters", {"limit": 50}),
         )
 
+    def test_search_supports_audiobooks_and_direct_podcast_episodes(self):
+        audiobook_client = CommandClient(
+            [
+                {
+                    "audiobooks": {
+                        "items": [
+                            {
+                                "id": "book",
+                                "name": "Book",
+                                "uri": "spotify:audiobook:book",
+                                "authors": [{"name": "Author"}],
+                            }
+                        ]
+                    }
+                },
+                {"audiobooks": {"items": []}},
+            ]
+        )
+        episode_client = CommandClient(
+            [
+                {
+                    "episodes": {
+                        "items": [
+                            {
+                                "id": "episode",
+                                "name": "Episode",
+                                "type": "episode",
+                                "uri": "spotify:episode:episode",
+                            }
+                        ]
+                    }
+                },
+                {"episodes": {"items": []}},
+            ]
+        )
+
+        books = audiobook_client.search("query", "audiobook")
+        episodes = episode_client.search("query", "episode")
+
+        self.assertEqual(books[0].kind, ItemKind.AUDIOBOOK)
+        self.assertEqual(books[0].artist, "Author")
+        self.assertEqual(episodes[0].kind, ItemKind.EPISODE)
+        self.assertEqual(
+            audiobook_client.calls[0][2]["type"],
+            "audiobook",
+        )
+        self.assertEqual(episode_client.calls[0][2]["type"], "episode")
+
+    def test_saved_podcast_library_maps_shows_and_episodes(self):
+        client = CommandClient(
+            [
+                {
+                    "items": [
+                        {
+                            "show": {
+                                "id": "show",
+                                "name": "Show",
+                                "type": "show",
+                                "uri": "spotify:show:show",
+                            }
+                        }
+                    ]
+                },
+                {
+                    "items": [
+                        {
+                            "episode": {
+                                "id": "episode",
+                                "name": "Episode",
+                                "type": "episode",
+                                "uri": "spotify:episode:episode",
+                            }
+                        }
+                    ]
+                },
+            ]
+        )
+
+        shows = client.saved_shows()
+        episodes = client.saved_episodes()
+
+        self.assertEqual(shows[0].kind, ItemKind.SHOW)
+        self.assertEqual(episodes[0].kind, ItemKind.EPISODE)
+        self.assertEqual(client.calls[0][0:3], ("GET", "/me/shows", {"limit": 50}))
+        self.assertEqual(
+            client.calls[1][0:3],
+            ("GET", "/me/episodes", {"limit": 50}),
+        )
+
+    def test_show_episode_browsing_fetches_every_page(self):
+        first_page = [
+            {
+                "id": f"episode-{number}",
+                "name": f"Episode {number}",
+                "type": "episode",
+                "uri": f"spotify:episode:{number}",
+            }
+            for number in range(50)
+        ]
+        client = CommandClient(
+            [
+                {"items": first_page, "total": 51},
+                {
+                    "items": [
+                        {
+                            "id": "episode-50",
+                            "name": "Episode 50",
+                            "type": "episode",
+                            "uri": "spotify:episode:50",
+                        }
+                    ],
+                    "total": 51,
+                },
+            ]
+        )
+        show = SpotifyItem(
+            "show",
+            ItemKind.SHOW,
+            "Show",
+            artist="Publisher",
+        )
+
+        episodes = client.children(show)
+
+        self.assertEqual(len(episodes), 51)
+        self.assertEqual(client.calls[1][2], {"limit": 50, "offset": 50})
+        self.assertEqual(episodes[0].album, "Show")
+        self.assertEqual(episodes[0].artist, "Publisher")
+        self.assertEqual(episodes[0].raw["show"]["id"], "show")
+
+    def test_episode_metadata_includes_description_and_resume_position(self):
+        client = SpotifyClient.__new__(SpotifyClient)
+        episode = client._map_item(
+            {
+                "id": "episode",
+                "name": "Episode",
+                "type": "episode",
+                "uri": "spotify:episode:episode",
+                "description": "Publisher description",
+                "show": {"name": "The Show", "publisher": "Publisher"},
+                "resume_point": {
+                    "fully_played": False,
+                    "resume_position_ms": 125_000,
+                },
+            },
+            ItemKind.EPISODE,
+        )
+
+        self.assertEqual(episode.album, "The Show")
+        self.assertEqual(episode.artist, "Publisher")
+        self.assertEqual(episode.raw["description"], "Publisher description")
+        self.assertEqual(episode.raw["resume_position_ms"], 125_000)
+        self.assertIn("resume at 2 minutes 5 seconds", episode.accessible_label())
+
     def test_transfer_playback_targets_one_device_and_starts_playing(self):
         client = CommandClient([])
 
@@ -789,8 +949,9 @@ class PlaybackCommandTests(unittest.TestCase):
 
 
 class SearchClient(SpotifyClient):
-    def __init__(self):
+    def __init__(self, total=None):
         self.calls = []
+        self.total = total
 
     def _request(
         self,
@@ -803,8 +964,7 @@ class SearchClient(SpotifyClient):
     ):
         self.calls.append((method, path, query))
         offset = query["offset"]
-        return {
-            "tracks": {
+        tracks = {
                 "items": [
                     {
                         "id": f"track-{offset + number}",
@@ -815,8 +975,10 @@ class SearchClient(SpotifyClient):
                     }
                     for number in range(10)
                 ]
-            }
         }
+        if self.total is not None:
+            tracks["total"] = self.total
+        return {"tracks": tracks}
 
 
 class SearchBatchTests(unittest.TestCase):
@@ -830,6 +992,21 @@ class SearchBatchTests(unittest.TestCase):
             [call[2]["offset"] for call in client.calls],
             [0, 10],
         )
+
+    def test_search_adds_load_more_row_and_accepts_page_offset(self):
+        client = SearchClient(total=45)
+
+        first_page = client.search("query", "track")
+        second_page = client.search("query", "track", 20)
+
+        self.assertTrue(first_page[-1].raw["load_more"])
+        self.assertEqual(first_page[-1].raw["next_offset"], 20)
+        self.assertEqual(
+            [call[2]["offset"] for call in client.calls],
+            [0, 10, 20, 30],
+        )
+        self.assertEqual(second_page[0].id, "track-20")
+        self.assertEqual(second_page[-1].raw["next_offset"], 40)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import json
 import os
 import subprocess
@@ -8,8 +9,8 @@ import tempfile
 import time
 import urllib.request
 import webbrowser
-from dataclasses import dataclass
 
+from . import messages as msg
 from .portable import application_directory, resource_directory
 
 
@@ -161,11 +162,11 @@ def schedule_windows_replacement(zip_path: str) -> None:
     deadline = time.monotonic() + 1800
     while not os.path.isfile(ready):
         if helper.poll() is not None:
-            raise RuntimeError("The update helper stopped during preparation.")
+            raise RuntimeError(msg.UPDATE_HELPER_STOPPED)
         if time.monotonic() >= deadline:
-            raise TimeoutError("Update preparation timed out.")
+            raise TimeoutError(msg.UPDATE_PREPARATION_TIMEOUT)
         time.sleep(0.2)
     status = open(ready, encoding="ascii").read().strip().lower()
     os.remove(ready)
     if status != "ready":
-        raise RuntimeError("The update could not be prepared.")
+        raise RuntimeError(msg.UPDATE_PREPARATION_FAILED)

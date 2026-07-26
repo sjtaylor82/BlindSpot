@@ -10,6 +10,7 @@ from typing import Any
 
 from . import __version__
 from .models import SpotifyItem
+from . import messages as msg
 
 API_ROOT = "https://lrclib.net/api"
 USER_AGENT = f"BlindSpot/{__version__} (accessible Spotify client)"
@@ -60,7 +61,7 @@ class Lyrics:
 class LRCLibClient:
     def lyrics_for(self, item: SpotifyItem) -> Lyrics:
         if not item.name or not item.artist:
-            raise LyricsUnavailable("There is not enough track information to find lyrics.")
+            raise LyricsUnavailable(msg.NOT_ENOUGH_LYRIC_INFO)
 
         result: dict[str, Any] | None = None
         if item.album and item.duration_ms:
@@ -96,7 +97,7 @@ class LRCLibClient:
                 result = substitute_result
                 substitute = True
         if not result:
-            raise LyricsUnavailable(f"Lyrics are unavailable for {item.name}.")
+            raise LyricsUnavailable(msg.lyrics_unavailable(item.name))
         lyrics = self._map_result(result)
         lyrics.track_id = item.id
         lyrics.substitute = substitute
@@ -152,16 +153,16 @@ class LRCLibClient:
             if error.code == 404 and missing_ok:
                 return None
             if error.code == 404:
-                raise LyricsUnavailable("Lyrics are unavailable for this track.") from error
+                raise LyricsUnavailable(msg.LYRICS_UNAVAILABLE_TRACK) from error
             if error.code == 429:
                 retry_after = error.headers.get("Retry-After")
-                message = "LRCLIB is busy. Please try again later."
+                message = msg.LRCLIB_BUSY
                 if retry_after:
-                    message = f"LRCLIB is busy. Try again in {retry_after} seconds."
+                    message = msg.lrclib_retry(retry_after)
                 raise LyricsError(message) from error
-            raise LyricsError(f"LRCLIB returned error {error.code}.") from error
+            raise LyricsError(msg.lrclib_error(error.code)) from error
         except (OSError, ValueError) as error:
-            raise LyricsError("Lyrics could not be retrieved.") from error
+            raise LyricsError(msg.LYRICS_RETRIEVAL_FAILED) from error
 
     @staticmethod
     def _best_match(
@@ -200,7 +201,7 @@ class LRCLibClient:
         synced = str(value.get("syncedLyrics") or "").strip()
         text = plain or _plain_from_synced(synced)
         if not instrumental and not text:
-            raise LyricsUnavailable("Lyrics are unavailable for this track.")
+            raise LyricsUnavailable(msg.LYRICS_UNAVAILABLE_TRACK)
         return Lyrics(
             track_name=str(value.get("trackName") or "Untitled"),
             artist_name=str(value.get("artistName") or ""),

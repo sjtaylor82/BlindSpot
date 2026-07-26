@@ -10,6 +10,7 @@ from collections.abc import Callable
 import wx
 import wx.html2
 
+from . import messages as msg
 from .spotify import SpotifyClient
 
 logger = logging.getLogger("blindspot.web_player")
@@ -313,12 +314,9 @@ class WebPlaybackController:
         if not wx.html2.WebView.IsBackendAvailable(backend):
             if sys.platform == "win32":
                 raise RuntimeError(
-                    "BlindSpot's player requires Microsoft WebView2. "
-                    "Install the Evergreen WebView2 Runtime and restart BlindSpot."
+                    msg.WEBVIEW2_REQUIRED
                 )
-            raise RuntimeError(
-                "BlindSpot could not start the system web browser component."
-            )
+            raise RuntimeError(msg.BROWSER_COMPONENT_FAILED)
 
         self.server = PlayerPageServer()
         self.server.start()
@@ -416,12 +414,9 @@ class WebPlaybackController:
                 self.on_ready(self.device_id)
         elif message_type == "not_ready":
             self.device_id = None
-            self.on_error("BlindSpot's Spotify playback device went offline.")
+            self.on_error(msg.PLAYBACK_DEVICE_OFFLINE)
         elif message_type == "autoplay_failed":
-            self.on_error(
-                "The browser blocked automatic playback. "
-                "Press Play again to activate BlindSpot's player."
-            )
+            self.on_error(msg.AUTOPLAY_BLOCKED)
         elif message_type == "playback_state":
             if self.playback_state_callbacks:
                 callback = self.playback_state_callbacks.pop(0)
@@ -435,18 +430,18 @@ class WebPlaybackController:
                 callback(int(volume) if volume is not None else None)
         elif message_type == "error":
             source = message.get("source", "player")
-            detail = message.get("message", "Unknown Spotify player error")
+            detail = message.get("message", msg.UNKNOWN_PLAYER_ERROR)
             logger.error("Web player error source=%s message=%s", source, detail)
             if (
                 source == "playback_error"
                 and "no list was loaded" in detail.casefold()
             ):
-                self.on_error("No tracks.")
+                self.on_error(msg.NO_TRACKS)
             else:
-                self.on_error(f"Spotify {source}: {detail}")
+                self.on_error(msg.spotify_player_error(source, detail))
 
     def _on_webview_error(self, event: wx.html2.WebViewEvent) -> None:
-        message = event.GetString() or "The web player page could not load."
+        message = event.GetString() or msg.WEB_PLAYER_PAGE_FAILED
         logger.error("Web player load error: %s", message)
         self.on_error(message)
 

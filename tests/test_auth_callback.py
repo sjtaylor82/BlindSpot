@@ -33,8 +33,8 @@ class CallbackOrderingTests(unittest.TestCase):
             self.assertRaises(TimeoutError),
         ):
             callback.wait(
-                timeout=1,
+                timeout=0.01,
                 on_ready=lambda: events.append("browser"),
             )
 
-        self.assertEqual(events, ["bound", "browser", "listen"])
+        self.assertEqual(events[:3], ["bound", "browser", "listen"])

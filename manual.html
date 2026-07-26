@@ -8,7 +8,7 @@
 <body>
   <main>
     <h1>BlindSpot manual</h1>
-    <p>Build 2026.7.0.5</p>
+    <p>Build 2026.7.0.6</p>
     <p>BlindSpot is a portable, keyboard-first Spotify client for Windows and macOS.</p>
 
     <h2>Main interface</h2>
@@ -18,22 +18,27 @@
 
     <h2>Keyboard commands</h2>
     <ul>
-      <li>Ctrl+1 through Ctrl+7: Search, Liked Songs, Queue, Playlists,
-        Recently Played, Bookmarks, and Audiobooks respectively.</li>
+      <li>Ctrl+1 through Ctrl+8: Search, Liked Songs, Queue, Playlists,
+        Recently Played, Bookmarks, Audiobooks, and Podcasts respectively.</li>
       <li>Ctrl+Tab and Ctrl+Shift+Tab: cycle through the main tabs.</li>
       <li>Ctrl+F: focus the search box.</li>
       <li>Ctrl+Comma: open Preferences.</li>
       <li>Enter: open a container, or play a track or episode.</li>
       <li>F4: play the focused track, playlist, album, or artist.</li>
       <li>F5 / F6: seek backward and forward five seconds.</li>
-      <li>F7 / F9: previous and next track.</li>
+      <li>F7: restart the current track after the half-second double-press
+        window. Press twice within that window to move to the previous track
+        immediately.</li>
+      <li>F9: next track.</li>
       <li>F8: pause or resume. After launch, F8 also starts a remembered
         track when playback memory is enabled.</li>
       <li>Ctrl+F5 / Ctrl+F6: decrease and increase volume by five percent.</li>
       <li>Ctrl+F4: mute or restore the previous volume.</li>
-      <li>Space: no playback command. It remains available for normal
-        controls such as checkboxes.</li>
-      <li>Ctrl+Space: mark or unmark the focused list item.</li>
+      <li>Space: pause or resume playback, except when focus is in a control
+        that uses Space itself, such as a button, radio button, checkbox, or
+        edit field.</li>
+      <li>Ctrl+Space: play from the current line in Lyrics. Elsewhere, mark
+        or unmark the focused list item.</li>
       <li>Ctrl+Q: queue selected track or tracks.</li>
       <li>Ctrl+L: like or unlike selected track.</li>
       <li>Ctrl+Shift+A: add selected track to a playlist.</li>
@@ -56,6 +61,11 @@
       <li>Shift+F10 or the Applications key: open item actions.</li>
     </ul>
 
+    <h2>Search results</h2>
+    <p>A category search initially displays up to 20 results. When Spotify has
+      more matches, activate Load more results at the end of the list to append
+      the next page. All-category searches use smaller pages for each content
+      type so their results remain balanced.</p>
     <h2>Playlists</h2>
     <p>Followed playlists that cannot be edited are announced as read only.
       Enter opens a focused playlist. F4 plays the focused playlist, or starts
@@ -73,7 +83,8 @@
       title, followed by any artist credited in addition to the album's primary
       artist. Multi-disc releases also include the disc number. The context
       menu does not repeat the Open album action while that album is already
-      open.</p>
+      open. Press F4 on an album track to start it within the album context.
+      F4 on track 1 plays the album from beginning to end.</p>
 
     <h2>Lyrics</h2>
     <p>Press Ctrl+Y to retrieve lyrics, either on a focused track, or a currently playing song.</p>
@@ -83,9 +94,10 @@
       incoming line. Ctrl+Less-than moves changes 0.5 seconds earlier and
       Ctrl+Greater-than moves them 0.5 seconds later. Fine-tuning is saved
       separately for each Spotify song in <code>data/lyrics.json</code>.
-      You can move the cursor to a line of a song, and press Spacebar to start or
-      resume audio playback from that line. Use F8 to stop audio playback. When focus is on the follow-playback checkbox, Spacebar toggles the
-      checkbox normally.
+      You can move the cursor to a line of a song, and press Ctrl+Space to
+      start or resume audio playback from that line. Press Spacebar in the
+      lyrics text, or F8, to pause or resume audio playback. Spacebar remains
+      available normally for controls such as the follow-playback checkbox.
       Ctrl+Up Arrow and Ctrl+Down Arrow move to the previous or next synced
       lyric line and play the audio from that position.
       BlindSpot reports when synced lyrics are unavailable and if line seeking
@@ -136,6 +148,21 @@
       Backspace returns to the saved-book list. </p>
     <p>Audiobook availability, included listening time, and playback are
       determined by the individual's Spotify plan. </p>
+
+    <h2>Podcasts</h2>
+    <p>Search offers Podcasts for matching whole shows and Podcast episodes
+      for matching individual episodes. Audiobooks is also available as a
+      separate search category. Opening a podcast lists all of its episodes,
+      including additional pages beyond the first 50.</p>
+    <p>Press Ctrl+8 to browse saved podcasts and saved episodes. Episodes
+      announce and use their Spotify resume positions when available. Use an
+      item's context menu and choose Description to read the description
+      supplied by its publisher or creator. Spotify does not identify
+      descriptions as automatically generated. Choose Download episode from
+      a podcast episode's context menu to save its public RSS media file.
+      BlindSpot locates the publisher's public feed independently of Spotify,
+      so downloads may be unavailable for private or Spotify-exclusive
+      episodes.</p>
 
     <h2>Sleep timer</h2>
     <p>Press Ctrl+Shift+J to activate the sleep timer dialog. BlindSpot can sleep after 15, 30, or 60 minutes. The timer controls BlindSpot's internal player
