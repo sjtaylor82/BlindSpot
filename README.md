@@ -6,8 +6,8 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
 
 - Search tab with Songs, Albums, Artists, Playlists, Podcasts, Podcast
   episodes, Audiobooks, and All filters.
-- Liked Songs, Queue, Playlists, Recently Played, Bookmarks, and saved
-  Audiobooks and Podcasts tabs.
+- Liked Songs, Queue, Playlists, Recently Played, Bookmarks, Audiobooks,
+  Podcasts, and Saved Albums tabs.
 - Enter drills into containers and plays tracks or episodes.
 - Backspace returns to the previous view and restores the selected row.
 - Q queues an item, L likes or unlikes it, and Ctrl+F returns to search.
@@ -33,7 +33,8 @@ Register this redirect URI in the Spotify developer dashboard:
 
 ## Keyboard model
 
-- Ctrl+1 through Ctrl+8: select a tab in the interface.
+- Ctrl+1 through Ctrl+9: select a tab in the interface. Ctrl+9 opens Saved
+  Albums; the existing Ctrl+1 through Ctrl+8 assignments are unchanged.
 - Ctrl+Tab and Ctrl+Shift+Tab: cycle main tabs.
 - Ctrl+F: focus Search.
 - Ctrl+Comma: open Preferences.
@@ -53,9 +54,12 @@ Register this redirect URI in the Spotify developer dashboard:
 - Space: pause or resume playback, except when focus is in a control that
   uses Space itself, such as a button, checkbox, radio button, or edit field.
 - Ctrl+Space: play from the current line in Lyrics; elsewhere, mark or
-  unmark the focused list item.
+  unmark the focused list item. In Lyrics, enable **Phrase mode** to pause at
+  the start of the next synced line. Ctrl+Up and Ctrl+Down move to and play
+  the previous or next line using the same mode.
 - Ctrl+Q: queue marked tracks in list order, or the focused track if none are marked.
 - Ctrl+L: like or unlike the selected item.
+- Ctrl+Shift+L: like or unlike the currently loaded track.
 - Ctrl+Shift+B: bookmark the current playback position.
 - Ctrl+Shift+N: new playlist.
 - Ctrl+Shift+R: refresh the current view.
@@ -70,6 +74,14 @@ episodes. Their context menus can unsubscribe or remove them. Podcast episode
 context menus offer **Download episode** when a public RSS
 enclosure can be matched through the podcast publisher's feed. Private and
 Spotify-exclusive episodes may not provide a public download.
+
+Tracks in playlists you own can be reordered from the selected track's
+**Move** context submenu. BlindSpot retains focus on the moved track and
+announces its new position.
+
+The same context menu can find alternate recordings by the track's primary
+artist. Enter reviews a candidate; the Replace button or candidate context
+menu substitutes it at the original playlist position.
 
 User-facing announcements, prompts, status text, and practical error messages
 are maintained centrally in `src/blindspot/messages.py`.

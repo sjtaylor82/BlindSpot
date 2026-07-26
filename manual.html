@@ -20,8 +20,9 @@
 
     <h2>Keyboard commands</h2>
     <ul>
-      <li>Ctrl+1 through Ctrl+8: Search, Liked Songs, Queue, Playlists,
-        Recently Played, Bookmarks, Audiobooks, and Podcasts respectively.</li>
+      <li>Ctrl+1 through Ctrl+9: Search, Liked Songs, Queue, Playlists,
+        Recently Played, Bookmarks, Audiobooks, Podcasts, and Saved Albums
+        respectively.</li>
       <li>Ctrl+Tab and Ctrl+Shift+Tab: cycle through the main tabs.</li>
       <li>Ctrl+F: focus the search box.</li>
       <li>Ctrl+Comma: open Preferences.</li>
@@ -43,6 +44,7 @@
         or unmark the focused list item.</li>
       <li>Ctrl+Q: queue selected track or tracks.</li>
       <li>Ctrl+L: like or unlike selected track.</li>
+      <li>Ctrl+Shift+L: like or unlike the currently loaded track.</li>
       <li>Ctrl+Shift+A: add selected track to a playlist.</li>
       <li>Ctrl+Shift+N: create playlist.</li>
       <li>Ctrl+Shift+B: bookmark current playback position.</li>
@@ -80,8 +82,22 @@
       focused playlist from your library after confirmation.</p>
     <p>The playlist context menu provides Open, Play, New playlist, Rename for
       playlists you own, and Remove from library.</p>
+    <p>While browsing a playlist you own, the selected track's context menu
+      contains a Move submenu. Tracks can be moved up, down, to the top or
+      bottom, or to a numbered position. Focus follows the moved track and
+      BlindSpot announces its new position. Reordering is not offered for
+      playlists owned by someone else.</p>
+    <p>The same owned-playlist track menu provides Find alternate versions.
+      BlindSpot searches for other recordings by the primary artist while
+      suppressing duplicate releases of the same recording. In the results,
+      Enter reviews a candidate. Tab to Replace, or use Replace playlist
+      track from the candidate's context menu, to substitute it at the
+      original playlist position.</p>
 
     <h2>Albums</h2>
+    <p>Press Ctrl+9 to browse albums saved in your Spotify library. Enter
+      opens the selected album, and Backspace returns to the same album in
+      Saved Albums. Ctrl+L continues to like or unlike the selected album.</p>
     <p>When browsing an album, each row contains only its track number and
       title, followed by any artist credited in addition to the album's primary
       artist. Multi-disc releases also include the disc number. Press Enter to play only the selected album track. Press F4 to play
@@ -100,7 +116,9 @@
       lyrics text, or F8, to pause or resume audio playback. Spacebar remains
       available normally for controls such as the follow-playback checkbox.
       Ctrl+Up Arrow and Ctrl+Down Arrow move to the previous or next synced
-      lyric line and play the audio from that position.
+      lyric line and play the audio from that position. Select Enable phrase
+      mode to have any of these commands pause playback when the next synced
+      line begins. Phrase mode is off each time the Lyrics window opens.
       BlindSpot reports when synced lyrics are unavailable and if line seeking
       cannot be used.</p>
             <p>On macOS, VoiceOver does not provide BlindSpot with a separate

@@ -161,6 +161,11 @@ PLAYER_HTML = """<!doctype html>
           player.togglePlay().catch(error => reportCommandError("playback", error));
         }
       };
+      window.blindSpotPause = () => {
+        if (player) {
+          player.pause().catch(error => reportCommandError("pause", error));
+        }
+      };
       window.blindSpotPreviousTrack = () => {
         if (player) {
           player.previousTrack()
@@ -366,6 +371,9 @@ class WebPlaybackController:
 
     def toggle_playback(self) -> None:
         self._run_script("window.blindSpotTogglePlayback();")
+
+    def pause(self) -> None:
+        self._run_script("window.blindSpotPause();")
 
     def previous_track(self) -> None:
         self._run_script("window.blindSpotPreviousTrack();")

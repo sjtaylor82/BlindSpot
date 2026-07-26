@@ -145,6 +145,14 @@ NOT_ENOUGH_LYRIC_INFO = "There is not enough track information to find lyrics."
 LYRICS_UNAVAILABLE_TRACK = "Lyrics unavailable for this track."
 LRCLIB_BUSY = "LRCLIB is busy. Please try again later."
 LYRICS_RETRIEVAL_FAILED = "Lyrics could not be retrieved."
+PHRASE_END_UNAVAILABLE = "The end of this lyric line is unavailable."
+INVALID_PLAYLIST_POSITION = "Enter a valid playlist position."
+NO_ALTERNATE_VERSIONS = "No alternate versions were found."
+DUPLICATE_PLAYLIST_REPLACEMENT = (
+    "This recording occurs more than once in the playlist, so BlindSpot "
+    "cannot safely replace only this occurrence."
+)
+PLAYLIST_TRACK_REPLACED = "Playlist track replaced."
 LOGS_FOLDER_OPEN_FAILED = "The BlindSpot logs folder could not be opened."
 
 PLAYLIST_ITEMS_UNAVAILABLE = (
@@ -182,6 +190,18 @@ def shortcut_replace(shortcut: str, action: str) -> str:
 
 def lyric_boundary(boundary: str) -> str:
     return f"{boundary} synced lyric line."
+
+
+def playlist_position_prompt(total: int) -> str:
+    return f"Enter a position from 1 to {total}."
+
+
+def playlist_item_moved(position: int, total: int) -> str:
+    return f"Moved to position {position} of {total}."
+
+
+def replace_playlist_track(original: str, replacement: str) -> str:
+    return f'Replace "{original}" with "{replacement}"?'
 
 
 def lyric_timing(timing: str) -> str:

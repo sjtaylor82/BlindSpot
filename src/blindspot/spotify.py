@@ -4,9 +4,11 @@ import base64
 import hashlib
 import json
 import logging
+import re
 import secrets
 import threading
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -33,6 +35,40 @@ SCOPES = (
     "user-read-recently-played "
     "user-modify-playback-state streaming"
 )
+ALTERNATE_VERSION_WORDS = (
+    r"live|acoustic|unplugged|demo|session|rehearsal|"
+    r"remaster(?:ed)?|radio edit|single edit|edit|"
+    r"mono|stereo|remix(?:ed)?|mix|version|take|re-record(?:ed|ing)?"
+)
+VERSION_QUALIFIER = re.compile(
+    rf"\s*[\(\[].*?\b(?:{ALTERNATE_VERSION_WORDS})\b.*?[\)\]]",
+    re.IGNORECASE,
+)
+VERSION_SUFFIX = re.compile(
+    rf"\s*(?:[-–—:,]\s*).*?\b(?:{ALTERNATE_VERSION_WORDS})\b.*$",
+    re.IGNORECASE,
+)
+SEARCH_WORD = re.compile(r"[^\W_]+|\d+", re.UNICODE)
+
+
+def _search_normalized(value: str) -> str:
+    value = unicodedata.normalize("NFKD", value).casefold()
+    value = "".join(
+        character
+        for character in value
+        if not unicodedata.combining(character)
+    )
+    return " ".join(SEARCH_WORD.findall(value))
+
+
+def _base_track_title(value: str) -> str:
+    title = VERSION_QUALIFIER.sub("", value)
+    title = VERSION_SUFFIX.sub("", title)
+    return " ".join(title.split()).strip(" -–—:,") or value
+
+
+def _primary_track_artist(value: str) -> str:
+    return " ".join(value.split(",", 1)[0].split())
 
 
 def _played_at_label(value: str) -> str:
@@ -255,8 +291,10 @@ class SpotifyClient:
             return [self._map_item(x, ItemKind.ALBUM) for x in data["items"]]
         if item.kind == ItemKind.PLAYLIST:
             try:
-                data = self._request(
-                    "GET", f"/playlists/{item.id}/items", query={"limit": 50}
+                entries = self._paged_items(
+                    "GET",
+                    f"/playlists/{item.id}/items",
+                    query={"limit": 50},
                 )
             except SpotifyError as error:
                 if "Spotify returned 403:" not in str(error):
@@ -265,7 +303,7 @@ class SpotifyClient:
                     msg.PLAYLIST_ITEMS_UNAVAILABLE
                 ) from error
             values = []
-            for entry in data.get("items", []):
+            for entry in entries:
                 if not entry:
                     continue
                 value = entry.get("item") or entry.get("track") or entry
@@ -352,6 +390,14 @@ class SpotifyClient:
             self._map_item(value, ItemKind.AUDIOBOOK)
             for value in values
             if value and value.get("id")
+        ]
+
+    def saved_albums(self) -> list[SpotifyItem]:
+        values = self._paged_items("GET", "/me/albums", query={"limit": 50})
+        return [
+            self._map_item(entry["album"], ItemKind.ALBUM)
+            for entry in values
+            if entry and entry.get("album")
         ]
 
     def saved_shows(self) -> list[SpotifyItem]:
@@ -488,6 +534,109 @@ class SpotifyClient:
             "DELETE",
             f"/playlists/{playlist.id}/items",
             body={"items": [{"uri": item.uri}]},
+        )
+
+    def reorder_playlist_item(
+        self,
+        playlist: SpotifyItem,
+        source_index: int,
+        target_index: int,
+    ) -> None:
+        insert_before = (
+            target_index
+            if target_index < source_index
+            else target_index + 1
+        )
+        self._request(
+            "PUT",
+            f"/playlists/{playlist.id}/items",
+            body={
+                "range_start": source_index,
+                "insert_before": insert_before,
+                "range_length": 1,
+            },
+            allow_empty=True,
+        )
+
+    def alternate_versions(self, item: SpotifyItem) -> list[SpotifyItem]:
+        title = _base_track_title(item.name)
+        artist = _primary_track_artist(item.artist)
+        query = f'track:"{title}"'
+        if artist:
+            query += f' artist:"{artist}"'
+        payloads = [
+            self._request(
+                "GET",
+                "/search",
+                query={
+                    "q": query,
+                    "type": "track",
+                    "limit": 10,
+                    "offset": offset,
+                    "include_external": "audio",
+                },
+            )
+            for offset in (0, 10)
+        ]
+        wanted_title = _search_normalized(title)
+        wanted_artist = _search_normalized(artist)
+        source_isrc = _search_normalized(
+            str((item.raw.get("external_ids") or {}).get("isrc") or "")
+        )
+        results: list[SpotifyItem] = []
+        seen: set[str] = {item.uri or item.id}
+        for payload in payloads:
+            for value in (payload.get("tracks") or {}).get("items", []):
+                if not value:
+                    continue
+                candidate = self._map_item(value, ItemKind.TRACK)
+                key = candidate.uri or candidate.id
+                candidate_artist = _search_normalized(
+                    _primary_track_artist(candidate.artist)
+                )
+                candidate_isrc = _search_normalized(
+                    str(
+                        (candidate.raw.get("external_ids") or {}).get(
+                            "isrc"
+                        )
+                        or ""
+                    )
+                )
+                if (
+                    not key
+                    or key in seen
+                    or _search_normalized(
+                        _base_track_title(candidate.name)
+                    )
+                    != wanted_title
+                    or candidate_artist != wanted_artist
+                    or (
+                        source_isrc
+                        and candidate_isrc
+                        and candidate_isrc == source_isrc
+                    )
+                ):
+                    continue
+                seen.add(key)
+                results.append(candidate)
+        return results
+
+    def replace_playlist_item(
+        self,
+        playlist: SpotifyItem,
+        original: SpotifyItem,
+        replacement: SpotifyItem,
+        position: int,
+    ) -> None:
+        self._request(
+            "POST",
+            f"/playlists/{playlist.id}/items",
+            body={"uris": [replacement.uri], "position": position},
+        )
+        self._request(
+            "DELETE",
+            f"/playlists/{playlist.id}/items",
+            body={"items": [{"uri": original.uri}]},
         )
 
     def queue(self) -> list[SpotifyItem]:

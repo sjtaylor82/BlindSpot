@@ -105,6 +105,105 @@ class LRCLibClientTests(unittest.TestCase):
         with self.assertRaisesRegex(LyricsUnavailable, "Example Song"):
             LRCLibClient().lyrics_for(self.item)
 
+    def test_classical_movement_matches_by_final_title_and_composer(self):
+        self.item.name = (
+            "Requiem in D Minor, K. 626: III. Sequenz, "
+            "No. 6, Lacrymosa"
+        )
+        self.item.artist = (
+            "Wolfgang Amadeus Mozart, Andrej Kucharsky, "
+            "London Philharmonic Orchestra"
+        )
+        self.item.duration_ms = 169_000
+        lacrimosa = {
+            "trackName": "Lacrimosa",
+            "artistName": "Wolfgang Amadeus Mozart",
+            "albumName": "Requiem KV 626",
+            "duration": 171,
+        }
+
+        result = LRCLibClient._best_match(
+            self.item,
+            [
+                {
+                    "trackName": "Dies Irae",
+                    "artistName": "Wolfgang Amadeus Mozart",
+                    "duration": 169,
+                },
+                lacrimosa,
+            ],
+        )
+
+        self.assertIs(result, lacrimosa)
+
+    def test_same_duration_cannot_override_wrong_classical_movement(self):
+        self.item.name = (
+            "Requiem in D Minor, K. 626: III. Sequenz, "
+            "No. 6, Lacrymosa"
+        )
+        self.item.artist = (
+            "Wolfgang Amadeus Mozart, London Philharmonic Orchestra"
+        )
+        self.item.duration_ms = 169_000
+
+        result = LRCLibClient._best_match(
+            self.item,
+            [
+                {
+                    "trackName": "Dies Irae",
+                    "artistName": "Wolfgang Amadeus Mozart",
+                    "duration": 169,
+                }
+            ],
+        )
+
+        self.assertIsNone(result)
+
+    @patch("blindspot.lyrics.urllib.request.urlopen")
+    def test_classical_fallback_searches_final_movement_and_primary_artist(
+        self,
+        urlopen,
+    ):
+        self.item.name = (
+            "Requiem in D Minor, K. 626: III. Sequenz, "
+            "No. 6, Lacrymosa"
+        )
+        self.item.artist = (
+            "Wolfgang Amadeus Mozart, London Philharmonic Orchestra"
+        )
+        self.item.duration_ms = 169_000
+        not_found = urllib.error.HTTPError(
+            "https://lrclib.net/api/get",
+            404,
+            "Not Found",
+            {},
+            io.BytesIO(),
+        )
+        urlopen.side_effect = [
+            not_found,
+            FakeResponse([]),
+            FakeResponse(
+                [
+                    {
+                        "trackName": "Lacrimosa",
+                        "artistName": "Wolfgang Amadeus Mozart",
+                        "duration": 171,
+                        "plainLyrics": "Lacrimosa dies illa",
+                    }
+                ]
+            ),
+        ]
+
+        lyrics = LRCLibClient().lyrics_for(self.item)
+
+        self.assertEqual(lyrics.track_name, "Lacrimosa")
+        request = urlopen.call_args.args[0]
+        self.assertIn("track_name=Lacrymosa", request.full_url)
+        self.assertIn(
+            "artist_name=wolfgang+amadeus+mozart",
+            request.full_url,
+        )
+
     @patch("blindspot.lyrics.urllib.request.urlopen")
     def test_instrumental_uses_synced_commercial_match_within_ten_seconds(
         self,

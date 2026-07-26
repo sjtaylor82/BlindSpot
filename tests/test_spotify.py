@@ -304,6 +304,172 @@ class PlaybackCommandTests(unittest.TestCase):
         self.assertEqual(client.calls[-1][3], {"name": "New name"})
         self.assertTrue(client.calls[-1][4])
 
+    def test_reorder_playlist_item_uses_position_endpoint(self):
+        client = CommandClient([])
+        playlist = SpotifyItem(
+            "playlist-1",
+            ItemKind.PLAYLIST,
+            "List",
+        )
+
+        client.reorder_playlist_item(playlist, 2, 5)
+
+        self.assertEqual(
+            client.calls[-1][0:2],
+            ("PUT", "/playlists/playlist-1/items"),
+        )
+        self.assertEqual(
+            client.calls[-1][3],
+            {
+                "range_start": 2,
+                "insert_before": 6,
+                "range_length": 1,
+            },
+        )
+        self.assertTrue(client.calls[-1][4])
+
+    def test_reorder_playlist_item_moving_up_uses_target_position(self):
+        client = CommandClient([])
+        playlist = SpotifyItem(
+            "playlist-1",
+            ItemKind.PLAYLIST,
+            "List",
+        )
+
+        client.reorder_playlist_item(playlist, 5, 2)
+
+        self.assertEqual(client.calls[-1][3]["insert_before"], 2)
+
+    def test_alternate_versions_exclude_same_recording_and_other_artist(self):
+        client = CommandClient(
+            [
+                {
+                    "tracks": {
+                        "items": [
+                            {
+                                "id": "same-recording",
+                                "name": "Example Song - Remastered",
+                                "uri": "spotify:track:same-recording",
+                                "artists": [{"name": "Example Artist"}],
+                                "external_ids": {"isrc": "SOURCE"},
+                            },
+                            {
+                                "id": "acoustic",
+                                "name": "Example Song (Acoustic Version)",
+                                "uri": "spotify:track:acoustic",
+                                "artists": [{"name": "Example Artist"}],
+                                "external_ids": {"isrc": "ACOUSTIC"},
+                            },
+                            {
+                                "id": "cover",
+                                "name": "Example Song",
+                                "uri": "spotify:track:cover",
+                                "artists": [{"name": "Other Artist"}],
+                                "external_ids": {"isrc": "COVER"},
+                            },
+                        ]
+                    }
+                },
+                {"tracks": {"items": []}},
+            ]
+        )
+        source = SpotifyItem(
+            "source",
+            ItemKind.TRACK,
+            "Example Song - Live",
+            artist="Example Artist",
+            uri="spotify:track:source",
+            raw={"external_ids": {"isrc": "SOURCE"}},
+        )
+
+        results = client.alternate_versions(source)
+
+        self.assertEqual([item.id for item in results], ["acoustic"])
+        self.assertIn('track:"Example Song"', client.calls[0][2]["q"])
+        self.assertIn('artist:"Example Artist"', client.calls[0][2]["q"])
+
+    def test_alternate_versions_strip_named_remix_suffix(self):
+        client = CommandClient(
+            [
+                {
+                    "tracks": {
+                        "items": [
+                            {
+                                "id": "studio",
+                                "name": "Never Really Over",
+                                "uri": "spotify:track:studio",
+                                "artists": [{"name": "Katy Perry"}],
+                                "external_ids": {"isrc": "STUDIO"},
+                            }
+                        ]
+                    }
+                },
+                {"tracks": {"items": []}},
+            ]
+        )
+        source = SpotifyItem(
+            "remix",
+            ItemKind.TRACK,
+            "Never Really Over - Wow & Flutter Remix",
+            artist="Katy Perry, Wow & Flutter",
+            uri="spotify:track:remix",
+            raw={"external_ids": {"isrc": "REMIX"}},
+        )
+
+        results = client.alternate_versions(source)
+
+        self.assertEqual([item.id for item in results], ["studio"])
+        self.assertIn(
+            'track:"Never Really Over"',
+            client.calls[0][2]["q"],
+        )
+        self.assertIn('artist:"Katy Perry"', client.calls[0][2]["q"])
+
+    def test_replace_playlist_item_inserts_then_removes_original(self):
+        client = CommandClient([{"snapshot_id": "one"}, {"snapshot_id": "two"}])
+        playlist = SpotifyItem("playlist", ItemKind.PLAYLIST, "List")
+        original = SpotifyItem(
+            "original",
+            ItemKind.TRACK,
+            "Live",
+            uri="spotify:track:original",
+        )
+        replacement = SpotifyItem(
+            "replacement",
+            ItemKind.TRACK,
+            "Studio",
+            uri="spotify:track:replacement",
+        )
+
+        client.replace_playlist_item(
+            playlist,
+            original,
+            replacement,
+            7,
+        )
+
+        self.assertEqual(
+            client.calls[-2][0:4],
+            (
+                "POST",
+                "/playlists/playlist/items",
+                None,
+                {
+                    "uris": ["spotify:track:replacement"],
+                    "position": 7,
+                },
+            ),
+        )
+        self.assertEqual(
+            client.calls[-1][0:4],
+            (
+                "DELETE",
+                "/playlists/playlist/items",
+                None,
+                {"items": [{"uri": "spotify:track:original"}]},
+            ),
+        )
+
     def test_remove_playlist_uses_library_endpoint(self):
         client = CommandClient([])
         playlist = SpotifyItem(
@@ -702,6 +868,33 @@ class PlaybackCommandTests(unittest.TestCase):
         self.assertEqual(
             client.calls[1][0:3],
             ("GET", "/me/episodes", {"limit": 50}),
+        )
+
+    def test_saved_album_library_maps_albums(self):
+        client = CommandClient(
+            [
+                {
+                    "items": [
+                        {
+                            "album": {
+                                "id": "album",
+                                "name": "Album",
+                                "type": "album",
+                                "uri": "spotify:album:album",
+                            }
+                        }
+                    ]
+                }
+            ]
+        )
+
+        albums = client.saved_albums()
+
+        self.assertEqual(albums[0].kind, ItemKind.ALBUM)
+        self.assertEqual(albums[0].name, "Album")
+        self.assertEqual(
+            client.calls[0][0:3],
+            ("GET", "/me/albums", {"limit": 50}),
         )
 
     def test_show_episode_browsing_fetches_every_page(self):

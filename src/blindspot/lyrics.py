@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from typing import Any
 
 from . import __version__
@@ -37,6 +39,9 @@ INSTRUMENTAL_SUFFIX = re.compile(
     rf"\s*(?:[-–—]\s*)?(?:{INSTRUMENTAL_WORDS})(?:\s+version)?\s*$",
     re.IGNORECASE,
 )
+TITLE_DIVIDER = re.compile(r"\s*(?::|[,;]|[–—]|\s+-\s+)\s*")
+TITLE_WORD = re.compile(r"[^\W_]+|\d+", re.UNICODE)
+MOVEMENT_TITLE_SIMILARITY = 0.88
 
 
 class LyricsError(RuntimeError):
@@ -85,6 +90,16 @@ class LRCLibClient:
                 },
             )
             result = self._best_match(item, matches)
+            movement = _movement_title(item.name)
+            if result is None and movement != item.name:
+                matches = self._request(
+                    "/search",
+                    {
+                        "track_name": movement,
+                        "artist_name": _primary_artist(item.artist),
+                    },
+                )
+                result = self._best_match(item, matches)
         substitute = False
         title_is_instrumental = (
             _normalized(_commercial_title(item.name)) != _normalized(item.name)
@@ -174,28 +189,35 @@ class LRCLibClient:
         item: SpotifyItem,
         matches: list[dict[str, Any]],
     ) -> dict[str, Any] | None:
-        wanted_title = _normalized(item.name)
-        wanted_artist = _normalized(item.artist)
+        wanted_artist = _primary_artist(item.artist)
         wanted_album = _normalized(item.album)
         wanted_duration = round(item.duration_ms / 1000) if item.duration_ms else 0
 
         ranked: list[tuple[int, dict[str, Any]]] = []
         for match in matches:
-            title = _normalized(str(match.get("trackName") or ""))
-            artist = _normalized(str(match.get("artistName") or ""))
-            if title != wanted_title or artist != wanted_artist:
+            title_score = _title_match_score(
+                item.name,
+                str(match.get("trackName") or ""),
+            )
+            if title_score is None or not _artist_matches(
+                wanted_artist,
+                str(match.get("artistName") or ""),
+            ):
                 continue
-            score = 100
+            score = title_score
             if wanted_album and _normalized(str(match.get("albumName") or "")) == wanted_album:
                 score += 20
             if wanted_duration:
-                difference = abs(int(match.get("duration") or 0) - wanted_duration)
+                duration = int(match.get("duration") or 0)
+                if not duration:
+                    continue
+                difference = abs(duration - wanted_duration)
                 if difference <= 2:
                     score += 30
                 elif difference <= 10:
                     score += 10
                 else:
-                    score -= difference
+                    continue
             ranked.append((score, match))
         return max(ranked, key=lambda value: value[0])[1] if ranked else None
 
@@ -219,6 +241,53 @@ class LRCLibClient:
 
 def _normalized(value: str) -> str:
     return " ".join(value.casefold().split())
+
+
+def _title_words(value: str) -> str:
+    value = unicodedata.normalize("NFKD", value).casefold()
+    value = "".join(character for character in value if not unicodedata.combining(character))
+    return " ".join(TITLE_WORD.findall(value))
+
+
+def _movement_title(value: str) -> str:
+    parts = [part.strip() for part in TITLE_DIVIDER.split(value) if part.strip()]
+    return parts[-1] if parts else value
+
+
+def _title_match_score(wanted: str, candidate: str) -> int | None:
+    wanted_title = _title_words(wanted)
+    candidate_title = _title_words(candidate)
+    if not wanted_title or not candidate_title:
+        return None
+    if wanted_title == candidate_title:
+        return 120
+
+    wanted_movement = _title_words(_movement_title(wanted))
+    candidate_movement = _title_words(_movement_title(candidate))
+    if wanted_movement == candidate_movement:
+        return 100
+    similarity = SequenceMatcher(
+        None,
+        wanted_movement,
+        candidate_movement,
+    ).ratio()
+    if similarity >= MOVEMENT_TITLE_SIMILARITY:
+        return 90
+    return None
+
+
+def _primary_artist(value: str) -> str:
+    return _normalized(value.split(",", 1)[0])
+
+
+def _artist_matches(wanted_primary: str, candidate: str) -> bool:
+    candidate_artist = _normalized(candidate)
+    if not wanted_primary or not candidate_artist:
+        return False
+    return (
+        candidate_artist == wanted_primary
+        or _primary_artist(candidate) == wanted_primary
+    )
 
 
 def _commercial_title(value: str) -> str:
