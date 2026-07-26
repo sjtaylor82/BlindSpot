@@ -618,11 +618,18 @@ class SpotifyClient:
             devices[0],
         )
 
-    def add_to_queue(self, item: SpotifyItem) -> None:
+    def add_to_queue(
+        self,
+        item: SpotifyItem,
+        device_id: str | None = None,
+    ) -> None:
+        query = {"uri": item.uri}
+        if device_id:
+            query["device_id"] = device_id
         self._request(
             "POST",
             "/me/player/queue",
-            query={"uri": item.uri},
+            query=query,
             allow_empty=True,
         )
 

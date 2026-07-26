@@ -14,38 +14,133 @@ from blindspot.ui import (
     menu_function_shortcut,
     native_text_positions,
     playback_state_for_resume,
+    radio_box_ancestor,
     resume_mode_from_settings,
 )
 
 
 class PlaybackMemorySettingsTests(unittest.TestCase):
+    def test_radio_button_focus_resolves_to_parent_radio_box(self):
+        class RadioBox:
+            def GetParent(self):
+                return None
+
+        radio_box = RadioBox()
+        radio_button = type(
+            "RadioButton",
+            (),
+            {"GetParent": lambda self: radio_box},
+        )()
+
+        with patch("blindspot.ui.wx.RadioBox", RadioBox):
+            self.assertIs(radio_box_ancestor(radio_button), radio_box)
+
+    def test_tab_loop_uses_parent_radio_box_for_native_child_focus(self):
+        focused_targets = []
+
+        class Control:
+            def SetFocus(self):
+                focused_targets.append(self)
+
+            def GetParent(self):
+                return None
+
+        class RadioBox(Control):
+            pass
+
+        notebook = Control()
+        notebook.GetSelection = lambda: 0
+        query = Control()
+        categories = RadioBox()
+        button = Control()
+        results = Control()
+        radio_button = type(
+            "RadioButton",
+            (),
+            {"GetParent": lambda self: categories},
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": notebook,
+                "search": type(
+                    "Search",
+                    (),
+                    {
+                        "query": query,
+                        "categories": categories,
+                        "search_button": button,
+                        "results": results,
+                    },
+                )(),
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.wx.RadioBox", RadioBox),
+            patch(
+                "blindspot.ui.wx.Window.FindFocus",
+                return_value=radio_button,
+            ),
+            patch("blindspot.ui.item_list_ancestor", return_value=None),
+        ):
+            MainFrame.move_focus(frame, backward=False)
+            MainFrame.move_focus(frame, backward=True)
+
+        self.assertEqual(focused_targets, [button, query])
+
     def test_mac_function_keys_are_not_menu_accelerators(self):
         self.assertEqual(menu_function_shortcut("F8", "darwin"), "")
         self.assertEqual(menu_function_shortcut("F8", "win32"), "\tF8")
+        self.assertEqual(menu_function_shortcut("RAWCTRL+Y", "darwin"), "")
+        self.assertEqual(menu_function_shortcut("Ctrl+Y", "win32"), "\tCtrl+Y")
 
-    def test_mac_raw_control_function_accelerators_are_hidden_entries(self):
-        entries = ui.raw_control_function_accelerators(
-            [(ui.wx.WXK_F4, 41), (ui.wx.WXK_F5, 42)],
-            "darwin",
-        )
+    def test_control_y_still_routes_through_global_key_handler(self):
+        shown = []
+        frame = type(
+            "Frame",
+            (),
+            {"show_lyrics": lambda self: shown.append(True)},
+        )()
+        event = type(
+            "Event",
+            (),
+            {
+                "GetKeyCode": lambda self: ord("Y"),
+                "AltDown": lambda self: False,
+                "ShiftDown": lambda self: False,
+            },
+        )()
 
-        self.assertEqual(
-            [
-                (entry.GetFlags(), entry.GetKeyCode(), entry.GetCommand())
-                for entry in entries
-            ],
-            [
-                (ui.wx.ACCEL_RAW_CTRL, ui.wx.WXK_F4, 41),
-                (ui.wx.ACCEL_RAW_CTRL, ui.wx.WXK_F5, 42),
-            ],
-        )
-        self.assertEqual(
-            ui.raw_control_function_accelerators(
-                [(ui.wx.WXK_F4, 41)],
-                "win32",
-            ),
-            [],
-        )
+        with (
+            patch("blindspot.ui.physical_control_down", return_value=True),
+            patch("blindspot.ui.wx.Window.FindFocus", return_value=None),
+        ):
+            MainFrame.on_global_key(frame, event)
+
+        self.assertEqual(shown, [True])
+
+    def test_mac_physical_control_uses_raw_modifier_bit(self):
+        raw_event = type(
+            "Event",
+            (),
+            {"GetModifiers": lambda self: ui.wx.MOD_RAW_CONTROL},
+        )()
+        command_event = type(
+            "Event",
+            (),
+            {"GetModifiers": lambda self: ui.wx.MOD_CONTROL},
+        )()
+
+        with (
+            patch("blindspot.ui.sys.platform", "darwin"),
+            patch("blindspot.ui.wx.MOD_RAW_CONTROL", 2),
+            patch("blindspot.ui.wx.MOD_CONTROL", 1),
+            patch("blindspot.ui.wx.GetKeyState", return_value=False),
+        ):
+            self.assertTrue(ui.physical_control_down(raw_event))
+            self.assertFalse(ui.physical_control_down(command_event))
 
     def test_windows_lyric_positions_account_for_crlf(self):
         positions = [0, 4, 8]
@@ -147,6 +242,39 @@ class CollectionFocusTests(unittest.TestCase):
         self.assertEqual(focused, [])
 
 class GlobalShortcutRegistrationTests(unittest.TestCase):
+    def test_preferences_open_logs_button_uses_callback(self):
+        opened = []
+        preferences = type(
+            "Preferences",
+            (),
+            {"open_logs_folder_callback": lambda self: opened.append(True)},
+        )()
+
+        ui.PreferencesDialog.on_open_logs_folder(preferences, None)
+
+        self.assertEqual(opened, [True])
+
+    def test_open_logs_folder_uses_running_store_location(self):
+        errors = []
+        root = Path("actual-data-location")
+        frame = type(
+            "Frame",
+            (),
+            {
+                "store": type("Store", (), {"root": root})(),
+                "show_error": lambda self, message: errors.append(message),
+            },
+        )()
+
+        with patch(
+            "blindspot.ui.wx.LaunchDefaultApplication",
+            return_value=True,
+        ) as launch:
+            MainFrame.open_logs_folder(frame)
+
+        launch.assert_called_once_with(str(root.resolve()))
+        self.assertEqual(errors, [])
+
     def test_shortcut_dialog_ok_saves_immediately(self):
         saved = []
         preferences = type(
@@ -517,6 +645,75 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
 
         self.assertEqual(opened, [track])
 
+    def test_search_list_handles_control_enter_before_plain_enter(self):
+        opened = []
+        played = []
+        track = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Track")
+        frame = type(
+            "Frame",
+            (),
+            {
+                "focus_tab_bar": lambda self: None,
+                "open_selected_track_album": (
+                    lambda self, item: opened.append(item)
+                ),
+            },
+        )()
+        results = type(
+            "Results",
+            (),
+            {"selected_item": lambda self: track},
+        )()
+        panel = type(
+            "Panel",
+            (),
+            {
+                "frame": frame,
+                "results": results,
+                "on_open": lambda self: played.append(True),
+            },
+        )()
+        event = type(
+            "Event",
+            (),
+            {
+                "GetKeyCode": lambda self: ui.wx.WXK_RETURN,
+                "ControlDown": lambda self: True,
+                "RawControlDown": lambda self: True,
+                "ShiftDown": lambda self: False,
+            },
+        )()
+
+        SearchPanel.on_list_key(panel, event)
+
+        self.assertEqual(opened, [track])
+        self.assertEqual(played, [])
+
+    def test_item_list_forwards_keyboard_to_global_dispatcher(self):
+        forwarded = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "on_global_key": (
+                    lambda self, event: forwarded.append(event)
+                )
+            },
+        )()
+        panel = type("Panel", (), {"frame": frame})()
+        item_list = type(
+            "List",
+            (),
+            {
+                "GetParent": lambda self: panel,
+            },
+        )()
+        event = object()
+
+        ui.ItemList.on_char_hook(item_list, event)
+
+        self.assertEqual(forwarded, [event])
+
     def test_selected_actions_routes_to_current_tab(self):
         called = []
         panels = [
@@ -565,6 +762,191 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
 
 
 class SearchContextMenuTests(unittest.TestCase):
+    def test_back_from_album_opened_in_playlist_returns_to_playlist(self):
+        initial = ui.ViewState("Search results", [])
+        album_state = ui.ViewState(
+            "Album",
+            [],
+            parent_kind=ui.ItemKind.ALBUM,
+        )
+        history = ui.NavigationHistory(initial)
+        history.push(album_state)
+        focused = []
+        selections = []
+        items = type(
+            "Items",
+            (),
+            {"SetFocus": lambda self: focused.append(True)},
+        )()
+        panel = type("Panel", (), {"items": items})()
+        rendered = []
+        search = type(
+            "Search",
+            (),
+            {
+                "history": history,
+                "render": (
+                    lambda self, state, focus: rendered.append(
+                        (state, focus)
+                    )
+                ),
+            },
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "open_album_return_page": 3,
+                "open_album_return_state": album_state,
+                "discard_transient_open_album": (
+                    MainFrame.discard_transient_open_album
+                ),
+                "notebook": type(
+                    "Notebook",
+                    (),
+                    {
+                        "SetSelection": (
+                            lambda self, page: selections.append(page)
+                        )
+                    },
+                )(),
+                "search": search,
+                "liked": panel,
+                "queue": panel,
+                "playlists": panel,
+                "recently_played": panel,
+                "bookmarks": panel,
+                "audiobooks": panel,
+                "podcasts": panel,
+            },
+        )()
+
+        self.assertTrue(
+            MainFrame.return_from_open_album(frame, album_state)
+        )
+        self.assertIs(history.current, initial)
+        self.assertEqual(selections, [3])
+        self.assertEqual(focused, [True])
+        self.assertEqual(rendered, [(initial, False)])
+
+    def test_control_one_opens_search_and_focuses_query(self):
+        selections = []
+        focused = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": type(
+                    "Notebook",
+                    (),
+                    {
+                        "SetSelection": (
+                            lambda self, page: selections.append(page)
+                        )
+                    },
+                )(),
+                "search": type(
+                    "Search",
+                    (),
+                    {"focus_query": lambda self: focused.append(True)},
+                )(),
+                "discard_transient_open_album": lambda self: False,
+            },
+        )()
+        event = type(
+            "Event",
+            (),
+            {
+                "GetKeyCode": lambda self: ord("1"),
+                "AltDown": lambda self: False,
+                "ShiftDown": lambda self: False,
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.physical_control_down", return_value=True),
+            patch("blindspot.ui.wx.Window.FindFocus", return_value=None),
+        ):
+            MainFrame.on_global_key(frame, event)
+
+        self.assertEqual(selections, [0])
+        self.assertEqual(focused, [True])
+
+    def test_search_back_delegates_cross_page_album_return(self):
+        state = ui.ViewState("Album", [])
+        returned = []
+        panel = type(
+            "Search",
+            (),
+            {
+                "history": ui.NavigationHistory(state),
+                "frame": type(
+                    "Frame",
+                    (),
+                    {
+                        "return_from_open_album": (
+                            lambda self, current: returned.append(current)
+                            or True
+                        )
+                    },
+                )(),
+            },
+        )()
+
+        self.assertTrue(SearchPanel.go_back(panel))
+        self.assertEqual(returned, [state])
+
+    def test_playlist_page_menu_contains_information_command(self):
+        labels = []
+
+        class Menu:
+            def Append(self, item_id, label):
+                labels.append(label)
+                return object()
+
+            def AppendSeparator(self):
+                pass
+
+            def Bind(self, event, callback, item):
+                pass
+
+            def Destroy(self):
+                pass
+
+        playlist = ui.SpotifyItem(
+            "playlist",
+            ui.ItemKind.PLAYLIST,
+            "Playlist",
+        )
+        frame = type(
+            "Frame",
+            (),
+            {
+                "play": lambda self, item: None,
+                "show_playlist_information": lambda self, item: None,
+                "create_playlist": lambda self: None,
+            },
+        )()
+        panel = type(
+            "Playlists",
+            (),
+            {
+                "frame": frame,
+                "items": type(
+                    "Items",
+                    (),
+                    {"PopupMenu": lambda self, menu: None},
+                )(),
+                "on_open": lambda self: None,
+                "remove_playlist": lambda self, item: None,
+            },
+        )()
+
+        with patch("blindspot.ui.wx.Menu", return_value=Menu()):
+            PlaylistsPanel.popup_playlist_menu(panel, playlist)
+
+        self.assertIn("Playlist &information...", labels)
+
     def test_f4_on_open_album_track_plays_in_album_context(self):
         track = ui.SpotifyItem(
             "track",
@@ -1119,14 +1501,16 @@ class BrailleLyricsTests(unittest.TestCase):
         self.assertEqual(text.insertion_points, [])
         self.assertEqual(announcer.braille_messages, [])
 
-    def test_macos_uses_same_one_second_lead(self):
+    def test_macos_follows_lyrics_by_moving_caret_without_flash_message(self):
         dialog, announcer, text = self.make_dialog(position_ms=1_000)
 
         with patch("blindspot.ui.sys.platform", "darwin"):
             LyricsDialog.update_braille_line(dialog)
             LyricsDialog.update_braille_line(dialog)
 
-        self.assertEqual(announcer.output_messages, ["Next lyric"])
+        self.assertEqual(text.insertion_points, [15])
+        self.assertEqual(text.shown_positions, [15])
+        self.assertEqual(announcer.output_messages, [])
 
     def test_maps_synced_lines_to_matching_read_only_text_lines(self):
         positions = LyricsDialog._synced_line_positions(
@@ -1667,11 +2051,24 @@ class MultipleQueueTests(unittest.TestCase):
             "Frame",
             (),
             {
+                "pending_resume": None,
+                "current_player_item": first,
+                "deferred_queue_items": [],
+                "queue_should_be_deferred": (
+                    MainFrame.queue_should_be_deferred
+                ),
                 "spotify": type(
                     "Spotify",
                     (),
-                    {"add_to_queue": lambda self, item: queued.append(item)},
+                    {
+                        "add_to_queue": (
+                            lambda self, item, device_id: queued.append(
+                                (item, device_id)
+                            )
+                        )
+                    },
                 )(),
+                "player_device_id": lambda self: "device",
                 "run_task": lambda self, message, worker, completed: (
                     worker(),
                     completed(None),
@@ -1685,8 +2082,201 @@ class MultipleQueueTests(unittest.TestCase):
 
         MainFrame.queue_from_list(frame, item_list)
 
-        self.assertEqual(queued, [first, second])
+        self.assertEqual(queued, [(first, "device"), (second, "device")])
         self.assertEqual(messages, [2])
+
+    def test_queue_is_deferred_without_resuming_remembered_track(self):
+        track = ui.SpotifyItem(
+            "queued",
+            ui.ItemKind.TRACK,
+            "Queued song",
+            uri="spotify:track:queued",
+        )
+        remembered = ui.SpotifyItem(
+            "remembered",
+            ui.ItemKind.TRACK,
+            "Remembered song",
+            uri="spotify:track:remembered",
+        )
+        queued_remotely = []
+        messages = []
+        item_list = type(
+            "List",
+            (),
+            {
+                "marked_items": lambda self: [],
+                "selected_item": lambda self: track,
+            },
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "pending_resume": (remembered, 0, ""),
+                "current_player_item": remembered,
+                "deferred_queue_items": [],
+                "spotify": type(
+                    "Spotify",
+                    (),
+                    {
+                        "add_to_queue": (
+                            lambda self, item, device_id: queued_remotely.append(
+                                item
+                            )
+                        )
+                    },
+                )(),
+                "player_device_id": lambda self: self.fail(
+                    "Deferred queue must not activate a device"
+                ),
+                "finish_queue_many": (
+                    lambda self, items: messages.append(len(items))
+                ),
+                "say": lambda self, message: messages.append(message),
+                "queue_should_be_deferred": (
+                    MainFrame.queue_should_be_deferred
+                ),
+            },
+        )()
+
+        MainFrame.queue_from_list(frame, item_list)
+
+        self.assertEqual(frame.deferred_queue_items, [track])
+        self.assertEqual(queued_remotely, [])
+        self.assertEqual(messages, [1])
+
+    def test_deferred_queue_flushes_after_explicit_playback(self):
+        first = ui.SpotifyItem(
+            "first",
+            ui.ItemKind.TRACK,
+            "First",
+            uri="spotify:track:first",
+        )
+        second = ui.SpotifyItem(
+            "second",
+            ui.ItemKind.TRACK,
+            "Second",
+            uri="spotify:track:second",
+        )
+        queued = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "deferred_queue_items": [first, second],
+                "deferred_queue_flushing": False,
+                "player_device_id": lambda self: "device",
+                "spotify": type(
+                    "Spotify",
+                    (),
+                    {
+                        "add_to_queue": (
+                            lambda self, item, device_id: queued.append(
+                                (item, device_id)
+                            )
+                        )
+                    },
+                )(),
+                "run_task": (
+                    lambda self, message, worker, success, **options: (
+                        worker(),
+                        success(None),
+                    )
+                ),
+            },
+        )()
+
+        MainFrame.flush_deferred_queue(frame)
+
+        self.assertEqual(queued, [(first, "device"), (second, "device")])
+        self.assertEqual(frame.deferred_queue_items, [])
+        self.assertFalse(frame.deferred_queue_flushing)
+
+    def test_queue_view_includes_deferred_items(self):
+        server_item = ui.SpotifyItem(
+            "server",
+            ui.ItemKind.TRACK,
+            "Server item",
+            uri="spotify:track:server",
+        )
+        deferred_item = ui.SpotifyItem(
+            "deferred",
+            ui.ItemKind.TRACK,
+            "Deferred item",
+            uri="spotify:track:deferred",
+        )
+        frame = type(
+            "Frame",
+            (),
+            {
+                "spotify": type(
+                    "Spotify",
+                    (),
+                    {"queue": lambda self: [server_item]},
+                )(),
+                "deferred_queue_items": [deferred_item],
+            },
+        )()
+
+        self.assertEqual(
+            MainFrame.queue_items(frame),
+            [server_item, deferred_item],
+        )
+
+    def test_queue_view_shows_deferred_items_without_active_device(self):
+        deferred_item = ui.SpotifyItem(
+            "deferred",
+            ui.ItemKind.TRACK,
+            "Deferred item",
+            uri="spotify:track:deferred",
+        )
+
+        def unavailable():
+            raise ui.SpotifyError("No active device")
+
+        frame = type(
+            "Frame",
+            (),
+            {
+                "spotify": type(
+                    "Spotify",
+                    (),
+                    {"queue": lambda self: unavailable()},
+                )(),
+                "deferred_queue_items": [deferred_item],
+            },
+        )()
+
+        self.assertEqual(MainFrame.queue_items(frame), [deferred_item])
+
+
+class PlaylistInformationTests(unittest.TestCase):
+    def test_playlist_information_shows_owner_and_details(self):
+        playlist = ui.SpotifyItem(
+            "playlist",
+            ui.ItemKind.PLAYLIST,
+            "Shared songs",
+            total=42,
+            raw={
+                "owner": {
+                    "id": "owner-id",
+                    "display_name": "Playlist Owner",
+                },
+                "public": True,
+                "collaborative": True,
+                "description": "Songs for everyone.",
+            },
+        )
+
+        with patch("blindspot.ui.wx.MessageBox") as message_box:
+            MainFrame.show_playlist_information(object(), playlist)
+
+        text = message_box.call_args.args[0]
+        self.assertIn("Owner: Playlist Owner", text)
+        self.assertIn("Tracks: 42", text)
+        self.assertIn("Visibility: Public", text)
+        self.assertIn("Collaborative: Yes", text)
+        self.assertIn("Description: Songs for everyone.", text)
 
 
 class PlaylistRefreshTests(unittest.TestCase):

@@ -6,3 +6,5 @@ dist/
 *.spec.tmp
 
 data/
+*.log
+.DS_Store

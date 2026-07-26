@@ -40,8 +40,9 @@ Register this redirect URI in the Spotify developer dashboard:
 - Enter: open a container or play a track/episode.
 - Ctrl+Enter: open the focused track's album.
 - Backspace or Alt+Left: return to the previous remembered view.
-- F4: play the focused track, playlist, album, or artist. An open album track
-  plays within its album context.
+- F4: play the focused track, playlist, album, or artist. In an open album,
+  Enter plays only the selected track, while F4 plays the album beginning at
+  that track.
 - F5 and F6: seek backward or forward five seconds.
 - F7: restart the current track after the half-second double-press window.
   Press twice within that window to move to the previous track immediately.

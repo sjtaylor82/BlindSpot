@@ -62,6 +62,7 @@ SEARCH_TYPES = [
 BRAILLE_LYRICS_TIMER_MS = 100
 BRAILLE_LYRIC_LEAD_MS = 1_000
 PREVIOUS_DOUBLE_PRESS_SECONDS = 0.5
+ENTER_KEY_CODES = (10, 13, wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER)
 DEVELOPER_DASHBOARD_URL = "https://developer.spotify.com/dashboard"
 PAYPAL_DONATE_URL = (
     "https://www.paypal.com/donate?"
@@ -246,10 +247,11 @@ def playback_state_for_resume(state: dict, mode: str) -> dict:
 
 
 def physical_control_down(event: wx.KeyEvent) -> bool:
-    return (
-        event.RawControlDown()
-        if sys.platform == "darwin"
-        else event.ControlDown()
+    if sys.platform != "darwin":
+        return event.ControlDown()
+    modifiers = int(event.GetModifiers())
+    return bool(modifiers & wx.MOD_RAW_CONTROL) or bool(
+        wx.GetKeyState(wx.WXK_RAW_CONTROL)
     )
 
 
@@ -258,18 +260,6 @@ def menu_function_shortcut(
     platform: str = sys.platform,
 ) -> str:
     return "" if platform == "darwin" else f"\t{shortcut}"
-
-
-def raw_control_function_accelerators(
-    commands: list[tuple[int, int]],
-    platform: str = sys.platform,
-) -> list[wx.AcceleratorEntry]:
-    if platform != "darwin":
-        return []
-    return [
-        wx.AcceleratorEntry(wx.ACCEL_RAW_CTRL, keycode, command_id)
-        for keycode, command_id in commands
-    ]
 
 
 def native_text_positions(
@@ -515,9 +505,11 @@ class PreferencesDialog(wx.Dialog):
         save_global_shortcuts: (
             Callable[[dict[str, dict[str, int]]], None] | None
         ) = None,
+        open_logs_folder: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(parent, title="BlindSpot preferences")
         self.save_global_shortcuts = save_global_shortcuts
+        self.open_logs_folder_callback = open_logs_folder
         outer = wx.BoxSizer(wx.VERTICAL)
         self.announce_track_changes = wx.CheckBox(
             self,
@@ -575,6 +567,16 @@ class PreferencesDialog(wx.Dialog):
             wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
             12,
         )
+        self.open_logs_folder = wx.Button(
+            self,
+            label="Open &logs folder",
+        )
+        outer.Add(
+            self.open_logs_folder,
+            0,
+            wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            12,
+        )
         buttons = self.CreateSeparatedButtonSizer(wx.OK | wx.CANCEL)
         if buttons:
             outer.Add(buttons, 0, wx.EXPAND | wx.ALL, 12)
@@ -582,6 +584,10 @@ class PreferencesDialog(wx.Dialog):
         self.configure_global_shortcuts.Bind(
             wx.EVT_BUTTON,
             self.on_global_shortcuts,
+        )
+        self.open_logs_folder.Bind(
+            wx.EVT_BUTTON,
+            self.on_open_logs_folder,
         )
         self.announce_track_changes.SetFocus()
 
@@ -598,6 +604,10 @@ class PreferencesDialog(wx.Dialog):
 
     def get_logging_level(self) -> str:
         return self.logging_level.GetStringSelection()
+
+    def on_open_logs_folder(self, event: wx.Event) -> None:
+        if self.open_logs_folder_callback:
+            self.open_logs_folder_callback()
 
     def get_announce_track_changes(self) -> bool:
         return self.announce_track_changes.GetValue()
@@ -637,11 +647,7 @@ class LyricsDialog(wx.Dialog):
         )
         self.follow_braille = wx.CheckBox(
             self,
-            label=(
-                "Follow playback on braille display; VoiceOver may also speak"
-                if sys.platform == "darwin"
-                else "Follow playback on braille display"
-            ),
+            label="Follow playback on braille display",
         )
         self.follow_braille.Enable(bool(lyrics.synced_lines))
         self.follow_braille.SetValue(
@@ -958,15 +964,12 @@ class LyricsDialog(wx.Dialog):
         self.last_braille_line = line_index
         try:
             line = self.synced_lines[line_index][1]
-            if sys.platform == "win32":
+            if sys.platform in ("win32", "darwin"):
+                # Let the screen reader follow the caret instead of sending
+                # transient output messages, which interrupt braille reading.
                 position = self.synced_line_positions[line_index]
                 self.text.SetInsertionPoint(position)
                 self.text.ShowPosition(position)
-            elif sys.platform == "darwin":
-                # AO2's VoiceOver backend has no separate braille method.
-                # VoiceOver's output command reaches its announcement and
-                # braille channels, and may also speak unless speech is muted.
-                self.frame.announcer.output(line)
             else:
                 self.frame.announcer.braille(line)
         except Exception:
@@ -1047,6 +1050,18 @@ class ItemList(ItemListBase):
         self.SetName("Items")
         self.items: list[SpotifyItem] = []
         self.Bind(wx.EVT_SIZE, self.on_size)
+        self.Bind(wx.EVT_CHAR_HOOK, self.on_char_hook)
+
+    def on_char_hook(self, event: wx.KeyEvent) -> None:
+        panel = self.GetParent()
+        frame = getattr(panel, "frame", None)
+        if frame:
+            # macOS DataView controls consume keyboard chords before their
+            # containing frame sees them. Route every key through the same
+            # global dispatcher used by the rest of the interface.
+            frame.on_global_key(event)
+        else:
+            event.Skip()
 
     def on_size(self, event: wx.SizeEvent) -> None:
         width = self.GetClientSize().width
@@ -1164,6 +1179,17 @@ class ItemList(ItemListBase):
 def item_list_ancestor(window: wx.Window | None) -> ItemList | None:
     while window:
         if isinstance(window, ItemList):
+            return window
+        try:
+            window = window.GetParent()
+        except (AttributeError, RuntimeError):
+            return None
+    return None
+
+
+def radio_box_ancestor(window: wx.Window | None) -> wx.RadioBox | None:
+    while window:
+        if isinstance(window, wx.RadioBox):
             return window
         try:
             window = window.GetParent()
@@ -1341,6 +1367,13 @@ class SearchPanel(wx.Panel):
             self.frame.say(msg.named_item_count(parent.name, 0))
 
     def go_back(self) -> bool:
+        return_from_album = getattr(
+            self.frame,
+            "return_from_open_album",
+            None,
+        )
+        if return_from_album and return_from_album(self.history.current):
+            return True
         if not self.history.can_go_back:
             return False
         state = self.history.back()
@@ -1383,6 +1416,13 @@ class SearchPanel(wx.Panel):
         key = event.GetKeyCode()
         if key == wx.WXK_TAB and not event.ShiftDown():
             self.frame.focus_tab_bar()
+        elif (
+            key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER)
+            and physical_control_down(event)
+        ):
+            self.frame.open_selected_track_album(
+                self.results.selected_item()
+            )
         elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
             self.on_open()
         elif key == wx.WXK_BACK:
@@ -1492,6 +1532,13 @@ class CollectionPanel(wx.Panel):
         key = event.GetKeyCode()
         if key == wx.WXK_TAB and not event.ShiftDown():
             self.frame.focus_tab_bar()
+        elif (
+            key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER)
+            and physical_control_down(event)
+        ):
+            self.frame.open_selected_track_album(
+                self.items.selected_item()
+            )
         elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
             self.on_open()
         elif key == wx.WXK_DELETE and self.removable:
@@ -1755,7 +1802,14 @@ class PlaylistsPanel(wx.Panel):
 
     def on_key(self, event: wx.KeyEvent) -> None:
         key = event.GetKeyCode()
-        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+        if (
+            key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER)
+            and physical_control_down(event)
+        ):
+            self.frame.open_selected_track_album(
+                self.items.selected_item()
+            )
+        elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
             self.on_open()
         elif key == wx.WXK_BACK:
             self.go_back()
@@ -1826,6 +1880,10 @@ class PlaylistsPanel(wx.Panel):
             (
                 menu.Append(wx.ID_ANY, "&Play"),
                 lambda: self.frame.play(playlist),
+            ),
+            (
+                menu.Append(wx.ID_ANY, "Playlist &information..."),
+                lambda: self.frame.show_playlist_information(playlist),
             ),
             (
                 menu.Append(wx.ID_ANY, "&New playlist..."),
@@ -2005,7 +2063,14 @@ class AudiobooksPanel(PlaylistsPanel):
 
     def on_key(self, event: wx.KeyEvent) -> None:
         key = event.GetKeyCode()
-        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+        if (
+            key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER)
+            and physical_control_down(event)
+        ):
+            self.frame.open_selected_track_album(
+                self.items.selected_item()
+            )
+        elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
             self.on_open()
         elif key == wx.WXK_BACK:
             self.go_back()
@@ -2119,7 +2184,14 @@ class PodcastsPanel(PlaylistsPanel):
 
     def on_key(self, event: wx.KeyEvent) -> None:
         key = event.GetKeyCode()
-        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+        if (
+            key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER)
+            and physical_control_down(event)
+        ):
+            self.frame.open_selected_track_album(
+                self.items.selected_item()
+            )
+        elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
             self.on_open()
         elif key == wx.WXK_BACK:
             self.go_back()
@@ -2213,6 +2285,11 @@ class MainFrame(wx.Frame):
         self.shuffle_enabled: bool | None = None
         self.repeat_state: str | None = None
         self.pending_resume: tuple[SpotifyItem, int, str] | None = None
+        self.deferred_queue_items: list[SpotifyItem] = []
+        self.deferred_queue_flushing = False
+        self.deferred_queue_start_item: SpotifyItem | None = None
+        self.open_album_return_page: int | None = None
+        self.open_album_return_state: ViewState | None = None
         self.announcer = Auto()
         self.player: WebPlaybackController | None = None
         self.current_player_item: SpotifyItem | None = None
@@ -2263,7 +2340,7 @@ class MainFrame(wx.Frame):
             self.notebook,
             self,
             "Queue",
-            spotify.queue,
+            self.queue_items,
             silent_load=True,
             load_on_first_focus=True,
         )
@@ -2370,7 +2447,7 @@ class MainFrame(wx.Frame):
             self.say(str(error))
 
     def _build_menu(self) -> None:
-        ctrl = "RawCtrl" if sys.platform == "darwin" else "Ctrl"
+        ctrl = "RAWCTRL" if sys.platform == "darwin" else "Ctrl"
         menu_bar = wx.MenuBar()
         go = wx.Menu()
         play_selected = go.Append(
@@ -2383,7 +2460,11 @@ class MainFrame(wx.Frame):
         )
         mute = go.Append(
             wx.ID_ANY,
-            f"&Mute or unmute{menu_function_shortcut(f'{ctrl}+F4')}",
+            f"&Mute or unmute\t{ctrl}+F4",
+        )
+        open_album = go.Append(
+            wx.ID_ANY,
+            f"Open focused track's &album\t{ctrl}+RETURN",
         )
         play_on_device = go.Append(
             wx.ID_ANY,
@@ -2448,16 +2529,19 @@ class MainFrame(wx.Frame):
             wx.ID_ANY,
             f"Speak &up next\t{ctrl}+Shift+U",
         )
-        lyrics = go.Append(wx.ID_ANY, f"L&yrics...\t{ctrl}+Y")
+        lyrics = go.Append(
+            wx.ID_ANY,
+            f"L&yrics...{menu_function_shortcut(f'{ctrl}+Y')}",
+        )
         repeat = go.Append(wx.ID_ANY, f"&Repeat\t{ctrl}+R")
         shuffle = go.Append(wx.ID_ANY, f"&Shuffle\t{ctrl}+S")
         volume_down = go.Append(
             wx.ID_ANY,
-            f"Volume &down 5 percent{menu_function_shortcut(f'{ctrl}+F5')}",
+            f"Volume &down 5 percent\t{ctrl}+F5",
         )
         volume_up = go.Append(
             wx.ID_ANY,
-            f"Volume &up 5 percent{menu_function_shortcut(f'{ctrl}+F6')}",
+            f"Volume &up 5 percent\t{ctrl}+F6",
         )
         go.AppendSeparator()
         queue_selected = go.Append(
@@ -2544,15 +2628,6 @@ class MainFrame(wx.Frame):
         about = help_menu.Append(wx.ID_ABOUT, "&About BlindSpot...")
         menu_bar.Append(help_menu, "&Help")
         self.SetMenuBar(menu_bar)
-        mac_accelerators = raw_control_function_accelerators(
-            [
-                (wx.WXK_F4, mute.GetId()),
-                (wx.WXK_F5, volume_down.GetId()),
-                (wx.WXK_F6, volume_up.GetId()),
-            ]
-        )
-        if mac_accelerators:
-            self.SetAcceleratorTable(wx.AcceleratorTable(mac_accelerators))
         self.Bind(wx.EVT_MENU, lambda event: self.play_selected(), play_selected)
         self.Bind(
             wx.EVT_MENU,
@@ -2560,6 +2635,13 @@ class MainFrame(wx.Frame):
             play_pause,
         )
         self.Bind(wx.EVT_MENU, lambda event: self.toggle_mute(), mute)
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.open_selected_track_album(
+                self.current_selected_item()
+            ),
+            open_album,
+        )
         self.Bind(
             wx.EVT_MENU,
             lambda event: self.choose_playback_device(),
@@ -2904,6 +2986,7 @@ class MainFrame(wx.Frame):
                 settings.get("global_shortcuts", {})
             ),
             self.save_global_shortcuts,
+            self.open_logs_folder,
         )
         if dialog.ShowModal() == wx.ID_OK:
             level = dialog.get_logging_level()
@@ -2935,6 +3018,10 @@ class MainFrame(wx.Frame):
                 )
             configure_logging(self.store.root / "blindspot.log", level)
         dialog.Destroy()
+
+    def open_logs_folder(self) -> None:
+        if not wx.LaunchDefaultApplication(str(self.store.root.resolve())):
+            self.show_error(msg.LOGS_FOLDER_OPEN_FAILED)
 
     def save_global_shortcuts(
         self,
@@ -3092,6 +3179,10 @@ class MainFrame(wx.Frame):
             self.player.provide_token()
 
     def on_tab_changed(self, event: wx.BookCtrlEvent) -> None:
+        old_selection = getattr(event, "GetOldSelection", lambda: -1)()
+        selection = getattr(event, "GetSelection", lambda: -1)()
+        if old_selection == 0 and selection != 0:
+            self.discard_transient_open_album()
         self.SetTitle("BlindSpot")
         event.Skip()
 
@@ -3244,11 +3335,11 @@ class MainFrame(wx.Frame):
             self.save_current_bookmark()
         elif (
             physical_control_down(event)
-            and key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER)
+            and key in ENTER_KEY_CODES
             and focused_list
         ):
             self.open_selected_track_album(focused_list.selected_item())
-        elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+        elif key in ENTER_KEY_CODES:
             if focused is self.search.categories:
                 logger.debug("Frame routed Enter from search category")
                 self.search.on_search()
@@ -3272,12 +3363,18 @@ class MainFrame(wx.Frame):
             else:
                 event.Skip()
         elif physical_control_down(event) and key in (ord("F"), ord("f")):
+            self.discard_transient_open_album()
             self.notebook.SetSelection(0)
             self.search.focus_query()
         elif physical_control_down(event) and key == ord(","):
             self.on_preferences()
         elif physical_control_down(event) and ord("1") <= key <= ord("8"):
-            self.notebook.SetSelection(key - ord("1"))
+            page = key - ord("1")
+            if page == 0:
+                self.discard_transient_open_album()
+            self.notebook.SetSelection(page)
+            if page == 0:
+                self.search.focus_query()
         elif event.AltDown() and key == wx.WXK_LEFT:
             if self.notebook.GetSelection() == 0 and self.search.go_back():
                 return
@@ -3369,6 +3466,10 @@ class MainFrame(wx.Frame):
         focused_list = item_list_ancestor(focused)
         if focused_list:
             focused = focused_list
+        else:
+            focused_radio_box = radio_box_ancestor(focused)
+            if focused_radio_box:
+                focused = focused_radio_box
         try:
             index = controls.index(focused)
         except ValueError:
@@ -3776,6 +3877,21 @@ class MainFrame(wx.Frame):
                     ),
                 )
         logger.info("Playback started kind=%s id=%s name=%r", item.kind, item.id, item.name)
+        if self.deferred_queue_start_item is item:
+            index = next(
+                (
+                    index
+                    for index, queued_item in enumerate(
+                        self.deferred_queue_items
+                    )
+                    if queued_item is item
+                ),
+                None,
+            )
+            if index is not None:
+                del self.deferred_queue_items[index]
+            self.deferred_queue_start_item = None
+        self.flush_deferred_queue()
 
     def play_audiobook_chapter(self, item: SpotifyItem) -> None:
         position_ms = int(item.raw.get("resume_position_ms") or 0)
@@ -3801,6 +3917,27 @@ class MainFrame(wx.Frame):
         wx.MessageBox(
             description,
             f"{item.name} description",
+            wx.OK | wx.ICON_INFORMATION,
+            self,
+        )
+
+    def show_playlist_information(self, item: SpotifyItem) -> None:
+        owner = item.raw.get("owner") or {}
+        owner_name = str(
+            owner.get("display_name")
+            or owner.get("name")
+            or owner.get("id")
+            or ""
+        )
+        wx.MessageBox(
+            msg.playlist_information(
+                owner_name,
+                item.total,
+                item.raw.get("public"),
+                bool(item.raw.get("collaborative")),
+                str(item.raw.get("description") or "").strip(),
+            ),
+            f"{item.name} information",
             wx.OK | wx.ICON_INFORMATION,
             self,
         )
@@ -3833,6 +3970,14 @@ class MainFrame(wx.Frame):
         if item.kind == ItemKind.HEADING:
             self.say(msg.SELECT_PLAYABLE_ITEM)
             return
+        if (
+            self.notebook.GetSelection() == 2
+            and any(
+                queued_item is item
+                for queued_item in self.deferred_queue_items
+            )
+        ):
+            self.deferred_queue_start_item = item
         if self.notebook.GetSelection() == 5:
             self.resume_bookmark(item)
             return
@@ -4785,9 +4930,17 @@ class MainFrame(wx.Frame):
     def queue_selected(self, item: SpotifyItem | None) -> None:
         if not item or not item.uri or not item.playable:
             return
+        if self.queue_should_be_deferred():
+            self.deferred_queue_items.append(item)
+            self.finish_queue(item)
+            logger.info("Deferred queue item id=%s name=%r", item.id, item.name)
+            return
+        device_id = self.player_device_id()
+        if not device_id:
+            return
         self.run_task(
             None,
-            lambda: self.spotify.add_to_queue(item),
+            lambda: self.spotify.add_to_queue(item, device_id),
             lambda result: self.finish_queue(item),
         )
 
@@ -4815,16 +4968,65 @@ class MainFrame(wx.Frame):
         if not marked:
             self.say(msg.NO_PLAYABLE_TRACKS)
             return
+        if self.queue_should_be_deferred():
+            self.deferred_queue_items.extend(marked)
+            self.finish_queue_many(marked)
+            logger.info("Deferred %s queue items", len(marked))
+            return
+        device_id = self.player_device_id()
+        if not device_id:
+            return
 
         def add_all() -> None:
             for item in marked:
-                self.spotify.add_to_queue(item)
+                self.spotify.add_to_queue(item, device_id)
 
         self.run_task(
             None,
             add_all,
             lambda result: self.finish_queue_many(marked),
         )
+
+    def queue_should_be_deferred(self) -> bool:
+        return bool(getattr(self, "pending_resume", None)) or (
+            getattr(self, "current_player_item", None) is None
+        )
+
+    def queue_items(self) -> list[SpotifyItem]:
+        try:
+            spotify_items = self.spotify.queue()
+        except SpotifyError:
+            if not self.deferred_queue_items:
+                raise
+            logger.info(
+                "Spotify queue unavailable; showing %s deferred items",
+                len(self.deferred_queue_items),
+            )
+            return list(self.deferred_queue_items)
+        return spotify_items + list(self.deferred_queue_items)
+
+    def flush_deferred_queue(self) -> None:
+        if self.deferred_queue_flushing or not self.deferred_queue_items:
+            return
+        device_id = self.player_device_id()
+        if not device_id:
+            return
+        items = list(self.deferred_queue_items)
+        self.deferred_queue_flushing = True
+
+        def add_all() -> None:
+            for queued_item in items:
+                self.spotify.add_to_queue(queued_item, device_id)
+
+        def finished(result: object) -> None:
+            del self.deferred_queue_items[:len(items)]
+            self.deferred_queue_flushing = False
+            logger.info("Flushed %s deferred queue items", len(items))
+
+        def failed() -> None:
+            self.deferred_queue_flushing = False
+
+        self.run_task(None, add_all, finished, failure=failed)
 
     def finish_queue_many(self, items: list[SpotifyItem]) -> None:
         if self.queue.loaded_once:
@@ -4875,29 +5077,78 @@ class MainFrame(wx.Frame):
         album: SpotifyItem,
         tracks: list[SpotifyItem],
     ) -> None:
-        self.notebook.SetSelection(0)
-        self.search.history.push(
-            ViewState(
-                album.name,
-                tracks,
-                parent_id=album.id,
-                parent_kind=ItemKind.ALBUM,
-                parent_artist_names=tuple(
-                    artist.get("name", "")
-                    for artist in album.raw.get("artists") or []
-                    if artist.get("name")
-                )
-                or ((album.artist,) if album.artist else ()),
-                parent_artist_ids=tuple(
-                    artist.get("id", "")
-                    for artist in album.raw.get("artists") or []
-                    if artist.get("id")
-                ),
+        origin_page = self.notebook.GetSelection()
+        state = ViewState(
+            album.name,
+            tracks,
+            parent_id=album.id,
+            parent_kind=ItemKind.ALBUM,
+            parent_artist_names=tuple(
+                artist.get("name", "")
+                for artist in album.raw.get("artists") or []
+                if artist.get("name")
             )
+            or ((album.artist,) if album.artist else ()),
+            parent_artist_ids=tuple(
+                artist.get("id", "")
+                for artist in album.raw.get("artists") or []
+                if artist.get("id")
+            ),
         )
+        if origin_page != 0:
+            self.open_album_return_page = origin_page
+            self.open_album_return_state = state
+        self.notebook.SetSelection(0)
+        self.search.history.push(state)
         self.search.render(self.search.history.current, focus=True)
+        # Cocoa can restore focus to the contextual-menu owner after its
+        # command callback returns.  When that owner belongs to the page we
+        # just hid, VoiceOver is left on an inaccessible object.  Reassert
+        # focus on the next event-loop turn, after the menu and DataView's
+        # accessibility tree have both settled.
+        wx.CallAfter(self.focus_open_album)
         if not tracks:
             self.say(msg.named_item_count(album.name, 0))
+
+    def return_from_open_album(self, state: ViewState) -> bool:
+        if (
+            state is not self.open_album_return_state
+            or self.open_album_return_page is None
+        ):
+            return False
+        page = self.open_album_return_page
+        self.discard_transient_open_album()
+        self.notebook.SetSelection(page)
+        panels = (
+            self.search,
+            self.liked,
+            self.queue,
+            self.playlists,
+            self.recently_played,
+            self.bookmarks,
+            self.audiobooks,
+            self.podcasts,
+        )
+        panels[page].items.SetFocus()
+        return True
+
+    def discard_transient_open_album(self) -> bool:
+        state = self.open_album_return_state
+        if state is None or self.search.history.current is not state:
+            return False
+        self.open_album_return_page = None
+        self.open_album_return_state = None
+        restored = self.search.history.back()
+        self.search.render(restored, focus=False)
+        return True
+
+    def focus_open_album(self) -> None:
+        if self.notebook.GetCurrentPage() is not self.search:
+            return
+        if self.search.results.items:
+            self.search.results.SetFocus()
+        else:
+            self.search.query.SetFocus()
 
     def popup_item_menu(
         self,
@@ -4921,7 +5172,14 @@ class MainFrame(wx.Frame):
                     play_callback or (lambda: self.play_playable_item(item)),
                 )
             )
-        if item.raw.get("description"):
+        if item.kind == ItemKind.PLAYLIST:
+            actions.append(
+                (
+                    menu.Append(wx.ID_ANY, "Playlist &information..."),
+                    lambda: self.show_playlist_information(item),
+                )
+            )
+        elif item.raw.get("description"):
             actions.append(
                 (
                     menu.Append(wx.ID_ANY, "&Description..."),

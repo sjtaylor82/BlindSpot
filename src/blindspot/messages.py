@@ -145,6 +145,7 @@ NOT_ENOUGH_LYRIC_INFO = "There is not enough track information to find lyrics."
 LYRICS_UNAVAILABLE_TRACK = "Lyrics unavailable for this track."
 LRCLIB_BUSY = "LRCLIB is busy. Please try again later."
 LYRICS_RETRIEVAL_FAILED = "Lyrics could not be retrieved."
+LOGS_FOLDER_OPEN_FAILED = "The BlindSpot logs folder could not be opened."
 
 PLAYLIST_ITEMS_UNAVAILABLE = (
     "Individual tracks can't be browsed. Press F4 to play the playlist."
@@ -301,6 +302,31 @@ def resumed(name: str, position: str) -> str:
 
 def queued_count(count: int) -> str:
     return f"Queued {count} {'track' if count == 1 else 'tracks'}."
+
+
+def playlist_information(
+    owner: str,
+    total: int | None,
+    public: bool | None,
+    collaborative: bool,
+    description: str,
+) -> str:
+    visibility = (
+        "Public"
+        if public is True
+        else "Private"
+        if public is False
+        else "Unspecified"
+    )
+    lines = [
+        f"Owner: {owner or 'Unknown'}",
+        f"Tracks: {total if total is not None else 'Unknown'}",
+        f"Visibility: {visibility}",
+        f"Collaborative: {'Yes' if collaborative else 'No'}",
+    ]
+    if description:
+        lines.extend(("", f"Description: {description}"))
+    return "\n".join(lines)
 
 
 def spotify_error(status: int, detail: str) -> str:

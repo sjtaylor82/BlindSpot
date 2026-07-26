@@ -780,6 +780,26 @@ class PlaybackCommandTests(unittest.TestCase):
             {"device_ids": ["kitchen-speaker"], "play": True},
         )
 
+    def test_add_to_queue_targets_device_without_starting_playback(self):
+        client = CommandClient([])
+        track = SpotifyItem(
+            "track-1",
+            ItemKind.TRACK,
+            "Song",
+            uri="spotify:track:track-1",
+        )
+
+        client.add_to_queue(track, "blindspot-device")
+
+        self.assertEqual(client.calls[-1][0:2], ("POST", "/me/player/queue"))
+        self.assertEqual(
+            client.calls[-1][2],
+            {
+                "uri": "spotify:track:track-1",
+                "device_id": "blindspot-device",
+            },
+        )
+
     def test_play_at_restores_track_and_position(self):
         client = CommandClient([])
         track = SpotifyItem(
