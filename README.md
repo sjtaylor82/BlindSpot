@@ -56,13 +56,16 @@ Register this redirect URI in the Spotify developer dashboard:
 - Ctrl+L: like or unlike the selected item.
 - Ctrl+Shift+B: bookmark the current playback position.
 - Ctrl+Shift+N: new playlist.
+- Ctrl+Shift+R: refresh the current view.
 - Applications key or Shift+F10: open the selected item's actions.
 
 Search initially displays up to 20 results for a selected category. When more
 are available, activate **Load more results** at the end of the list to append
 the next page.
 
-Podcast episode context menus offer **Download episode** when a public RSS
+The Podcasts library contains subscribed shows and individually saved
+episodes. Their context menus can unsubscribe or remove them. Podcast episode
+context menus offer **Download episode** when a public RSS
 enclosure can be matched through the podcast publisher's feed. Private and
 Spotify-exclusive episodes may not provide a public download.
 
@@ -74,11 +77,11 @@ individually in Preferences. No global shortcuts are assigned by default.
 
 ## Portable data
 
-Packaged Windows builds resolve `data` beside the BlindSpot executable. A
-packaged macOS build uses `data` beside `BlindSpot.app` when that location is
-writable. If it is installed in a read-only location, it falls back to
-`~/Library/Application Support/BlindSpot`. Use Account > Sign out and erase
-credentials before sharing a portable folder.
+Packaged Windows builds resolve `data` beside the BlindSpot executable.
+macOS stores settings and authentication in
+`~/Library/Application Support/BlindSpot` so they remain available when
+BlindSpot.app is moved or updated. Use Account > Sign out and erase
+credentials before sharing a Windows portable folder.
 
 ## macOS GitHub build
 

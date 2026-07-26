@@ -20,6 +20,7 @@ SETUP_INSTRUCTIONS = (
 PASTE_CLIENT_ID = "Paste the Client ID from your Spotify application."
 ENTER_CLIENT_ID = "Enter a Spotify Client ID first."
 CONNECT_FIRST = "Connect BlindSpot to Spotify first."
+ALREADY_RUNNING = "BlindSpot is already running."
 
 SYNCED_LYRICS_UNAVAILABLE = "Synced lyrics unavailable for this track."
 MOVE_TO_SYNCED_LINE = "Move to a synced lyric line."
@@ -190,21 +191,12 @@ def result_count(count: int, query: str) -> str:
     return f"{count} results." if count else f"No results for {query}."
 
 
-def results_loaded(count: int) -> str:
-    noun = "result" if count == 1 else "results"
-    return f"{count} more {noun} loaded."
-
-
 def item_count(count: int) -> str:
     return f"{count} items."
 
 
 def named_item_count(name: str, count: int) -> str:
     return f"{name}. {count} items."
-
-
-def back_to(title: str) -> str:
-    return f"Back to {title}."
 
 
 def loading(title: str) -> str:
@@ -235,7 +227,17 @@ def audiobook_resume_permission(count: int) -> str:
 
 
 def saved_podcasts(shows: int, episodes: int) -> str:
-    return f"{shows} saved podcasts and {episodes} saved episodes."
+    show_word = "podcast" if shows == 1 else "podcasts"
+    episode_word = "episode" if episodes == 1 else "episodes"
+    return f"{shows} {show_word} and {episodes} saved {episode_word}."
+
+
+def unsubscribe_podcast(name: str) -> str:
+    return f"Unsubscribe from {name}?"
+
+
+def remove_saved_episode(name: str) -> str:
+    return f"Remove {name}?"
 
 
 def update_available(version: str, action: str) -> str:

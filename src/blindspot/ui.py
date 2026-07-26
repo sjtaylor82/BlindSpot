@@ -10,6 +10,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import wx
+import wx.dataview as dv
 from accessible_output2.outputs.auto import Auto
 
 from . import __version__
@@ -250,6 +251,40 @@ def physical_control_down(event: wx.KeyEvent) -> bool:
         if sys.platform == "darwin"
         else event.ControlDown()
     )
+
+
+def menu_function_shortcut(
+    shortcut: str,
+    platform: str = sys.platform,
+) -> str:
+    return "" if platform == "darwin" else f"\t{shortcut}"
+
+
+def native_text_positions(
+    text: str,
+    positions: list[int],
+    platform: str = sys.platform,
+) -> list[int]:
+    if platform != "win32":
+        return positions
+    return [
+        position + text[:position].count("\n")
+        for position in positions
+    ]
+
+
+def window_is_or_descendant(
+    window: wx.Window | None,
+    ancestor: wx.Window,
+) -> bool:
+    while window:
+        if window is ancestor:
+            return True
+        try:
+            window = window.GetParent()
+        except (AttributeError, RuntimeError):
+            return False
+    return False
 
 
 class SetupDialog(wx.Dialog):
@@ -612,7 +647,7 @@ class LyricsDialog(wx.Dialog):
         self.text = wx.TextCtrl(
             self,
             value=lyrics.text,
-            style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2,
+            style=wx.TE_MULTILINE | wx.TE_READONLY,
         )
         self.text.SetName(f"Lyrics for {heading}")
         outer.Add(
@@ -632,6 +667,10 @@ class LyricsDialog(wx.Dialog):
         self.synced_line_positions = self._synced_line_positions(
             lyrics.text,
             lyrics.synced_lines,
+        )
+        self.synced_line_positions = native_text_positions(
+            lyrics.text,
+            self.synced_line_positions,
         )
         self.lyric_adjustment_ms = parent.lyric_adjustment_ms(lyrics.track_id)
         self.last_braille_line = -1
@@ -969,20 +1008,41 @@ class CreatePlaylistDialog(wx.Dialog):
         event.Skip()
 
 
-class ItemList(wx.ListView):
+ITEM_LIST_USES_DATAVIEW = sys.platform == "darwin"
+ItemListBase = dv.DataViewListCtrl if ITEM_LIST_USES_DATAVIEW else wx.ListCtrl
+
+
+class ItemList(ItemListBase):
+    ACTIVATED_EVENT = (
+        dv.EVT_DATAVIEW_ITEM_ACTIVATED
+        if ITEM_LIST_USES_DATAVIEW
+        else wx.EVT_LIST_ITEM_ACTIVATED
+    )
+
     def __init__(self, parent: wx.Window) -> None:
-        super().__init__(
-            parent,
-            style=wx.LC_REPORT | wx.LC_NO_HEADER,
-        )
-        self.InsertColumn(0, "Items")
+        if ITEM_LIST_USES_DATAVIEW:
+            super().__init__(
+                parent,
+                style=dv.DV_MULTIPLE | dv.DV_NO_HEADER,
+            )
+            self.AppendTextColumn("")
+        else:
+            super().__init__(
+                parent,
+                style=wx.LC_REPORT | wx.LC_NO_HEADER,
+            )
+            self.InsertColumn(0, "")
+        self.SetName("Items")
         self.items: list[SpotifyItem] = []
         self.Bind(wx.EVT_SIZE, self.on_size)
 
     def on_size(self, event: wx.SizeEvent) -> None:
         width = self.GetClientSize().width
         if width > 0:
-            self.SetColumnWidth(0, width)
+            if ITEM_LIST_USES_DATAVIEW:
+                self.GetColumn(0).SetWidth(width)
+            else:
+                self.SetColumnWidth(0, width)
         event.Skip()
 
     def set_items(
@@ -998,36 +1058,76 @@ class ItemList(wx.ListView):
             self.DeleteAllItems()
             for index, item in enumerate(items):
                 label = labels[index] if labels is not None else item.accessible_label()
-                self.InsertItem(self.GetItemCount(), label)
+                if ITEM_LIST_USES_DATAVIEW:
+                    self.AppendItem([label])
+                else:
+                    self.InsertItem(index, label)
         finally:
             self.Thaw()
         if items:
             self.SetSelection(min(max(0, selected), len(items) - 1))
 
     def SetSelection(self, index: int) -> None:
-        for selected in self.GetSelections():
-            self.Select(selected, False)
+        if ITEM_LIST_USES_DATAVIEW:
+            self.UnselectAll()
+            if 0 <= index < len(self.items):
+                item = self.RowToItem(index)
+                self.SelectRow(index)
+                self.SetCurrentItem(item)
+                self.EnsureVisible(item)
+            return
+        state_mask = wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED
+        for row in range(self.GetItemCount()):
+            self.SetItemState(row, 0, state_mask)
         if 0 <= index < len(self.items):
-            self.Select(index)
-            self.Focus(index)
+            self.SetItemState(index, state_mask, state_mask)
             self.EnsureVisible(index)
 
     def GetSelection(self) -> int:
-        return self.GetFocusedItem()
+        if ITEM_LIST_USES_DATAVIEW:
+            current = self.ItemToRow(self.GetCurrentItem())
+            return current if current >= 0 else self.GetSelectedRow()
+        focused = self.GetNextItem(
+            -1,
+            wx.LIST_NEXT_ALL,
+            wx.LIST_STATE_FOCUSED,
+        )
+        return focused if focused >= 0 else self.GetFirstSelected()
 
     def GetSelections(self) -> list[int]:
-        selections = []
-        index = self.GetFirstSelected()
-        while index != -1:
-            selections.append(index)
-            index = self.GetNextSelected(index)
-        return selections
+        if ITEM_LIST_USES_DATAVIEW:
+            return [
+                row
+                for item in super().GetSelections()
+                if (row := self.ItemToRow(item)) >= 0
+            ]
+        selected = []
+        row = self.GetFirstSelected()
+        while row >= 0:
+            selected.append(row)
+            row = self.GetNextSelected(row)
+        return selected
 
     def Append(self, label: str) -> None:
-        self.InsertItem(self.GetItemCount(), label)
+        if ITEM_LIST_USES_DATAVIEW:
+            self.AppendItem([label])
+        else:
+            self.InsertItem(self.GetItemCount(), label)
+
+    def Insert(self, label: str, index: int) -> None:
+        if ITEM_LIST_USES_DATAVIEW:
+            self.InsertItem(index, [label])
+        else:
+            self.InsertItem(index, label)
 
     def Delete(self, index: int) -> None:
-        self.DeleteItem(index)
+        super().DeleteItem(index)
+
+    def SetString(self, index: int, label: str) -> None:
+        if ITEM_LIST_USES_DATAVIEW:
+            self.SetValue(label, index, 0)
+        else:
+            self.SetItem(index, 0, label)
 
     def selected_item(self) -> SpotifyItem | None:
         index = self.GetSelection()
@@ -1049,6 +1149,17 @@ class ItemList(wx.ListView):
             self.SetSelection(min(index, len(self.items) - 1))
 
 
+def item_list_ancestor(window: wx.Window | None) -> ItemList | None:
+    while window:
+        if isinstance(window, ItemList):
+            return window
+        try:
+            window = window.GetParent()
+        except (AttributeError, RuntimeError):
+            return None
+    return None
+
+
 class SearchPanel(wx.Panel):
     def __init__(self, parent: wx.Window, frame: "MainFrame") -> None:
         super().__init__(parent)
@@ -1068,6 +1179,7 @@ class SearchPanel(wx.Panel):
         self.search_button = wx.Button(self, label="&Search")
         self.heading = wx.StaticText(self, label="Search results")
         self.results = ItemList(self)
+        self.results.SetName("Search results")
         self.status = wx.StaticText(self, label=msg.ENTER_SEARCH_QUERY)
 
         outer.Add(query_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
@@ -1082,7 +1194,7 @@ class SearchPanel(wx.Panel):
         self.query.Bind(wx.EVT_TEXT_ENTER, self.on_search)
         self.categories.Bind(wx.EVT_KEY_DOWN, self.on_category_key)
         self.search_button.Bind(wx.EVT_BUTTON, self.on_search)
-        self.results.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_open)
+        self.results.Bind(self.results.ACTIVATED_EVENT, self.on_open)
         self.results.Bind(wx.EVT_KEY_DOWN, self.on_list_key)
         self.results.Bind(wx.EVT_CONTEXT_MENU, self.on_context_menu)
         self.results.Bind(wx.EVT_NAVIGATION_KEY, self.on_navigation)
@@ -1125,8 +1237,8 @@ class SearchPanel(wx.Panel):
         result_count = sum(
             item.kind != ItemKind.HEADING for item in items
         )
-        self.frame.say(msg.result_count(result_count, query))
         if not result_count:
+            self.frame.say(msg.result_count(result_count, query))
             self.query.SetFocus()
 
     def on_open(self, event: wx.Event | None = None) -> None:
@@ -1184,9 +1296,7 @@ class SearchPanel(wx.Panel):
         state.items[:] = existing + new_results
         state.selected = first_new if result_count else max(0, first_new - 1)
         self.render(state, focus=True)
-        if result_count:
-            self.frame.say(msg.results_loaded(result_count))
-        else:
+        if not result_count:
             self.frame.say(msg.NO_MORE_RESULTS)
 
     def open_children(self, parent: SpotifyItem, items: list[SpotifyItem]) -> None:
@@ -1215,14 +1325,14 @@ class SearchPanel(wx.Panel):
             )
         )
         self.render(self.history.current, focus=True)
-        self.frame.say(msg.named_item_count(parent.name, len(items)))
+        if not items:
+            self.frame.say(msg.named_item_count(parent.name, 0))
 
     def go_back(self) -> bool:
         if not self.history.can_go_back:
             return False
         state = self.history.back()
         self.render(state, focus=True)
-        self.frame.say(msg.back_to(state.title))
         return True
 
     def render(self, state: ViewState, *, focus: bool) -> None:
@@ -1269,7 +1379,7 @@ class SearchPanel(wx.Panel):
         elif physical_control_down(event) and key in (ord("Q"), ord("q")):
             self.frame.queue_from_list(self.results)
         elif physical_control_down(event) and key in (ord("L"), ord("l")):
-            self.frame.toggle_like_selected()
+            self.frame.toggle_like_item(self.results.selected_item())
         elif (
             (key == wx.WXK_F10 and event.ShiftDown())
             or key in (wx.WXK_MENU, wx.WXK_WINDOWS_MENU)
@@ -1323,12 +1433,13 @@ class CollectionPanel(wx.Panel):
         outer = wx.BoxSizer(wx.VERTICAL)
         self.heading = wx.StaticText(self, label=title)
         self.items = ItemList(self)
+        self.items.SetName(title)
         self.status = wx.StaticText(self, label=msg.load_hint(title))
         outer.Add(self.heading, 0, wx.ALL, 10)
         outer.Add(self.items, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         outer.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         self.SetSizer(outer)
-        self.items.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_open)
+        self.items.Bind(self.items.ACTIVATED_EVENT, self.on_open)
         self.items.Bind(wx.EVT_KEY_DOWN, self.on_key)
         self.items.Bind(wx.EVT_CONTEXT_MENU, self.on_context_menu)
         self.items.Bind(wx.EVT_NAVIGATION_KEY, self.on_navigation)
@@ -1351,8 +1462,6 @@ class CollectionPanel(wx.Panel):
         self.frame.update_title_for_page(self, self.title)
         self.items.set_items(items)
         self.status.SetLabel(msg.item_count(len(items)))
-        if items:
-            self.items.SetFocus()
 
     def on_list_focus(self, event: wx.FocusEvent) -> None:
         event.Skip()
@@ -1378,7 +1487,7 @@ class CollectionPanel(wx.Panel):
         elif physical_control_down(event) and key in (ord("Q"), ord("q")):
             self.frame.queue_from_list(self.items)
         elif physical_control_down(event) and key in (ord("L"), ord("l")):
-            self.frame.toggle_like_selected()
+            self.frame.toggle_like_item(self.items.selected_item())
         elif key == wx.WXK_F10 and event.ShiftDown():
             self.on_context_menu()
         else:
@@ -1491,18 +1600,25 @@ class BookmarksPanel(CollectionPanel):
 
 
 class PlaylistsPanel(wx.Panel):
-    def __init__(self, parent: wx.Window, frame: "MainFrame") -> None:
+    def __init__(
+        self,
+        parent: wx.Window,
+        frame: "MainFrame",
+        title: str = "Playlists",
+    ) -> None:
         super().__init__(parent)
         self.frame = frame
-        self.history = NavigationHistory(ViewState("Playlists", []))
+        self.title = title
+        self.history = NavigationHistory(ViewState(title, []))
         self.current_playlist: SpotifyItem | None = None
         self.pending_playlist_selection_id: str | None = None
         self.loaded_once = False
         self.loading = False
 
         outer = wx.BoxSizer(wx.VERTICAL)
-        self.heading = wx.StaticText(self, label="Playlists")
+        self.heading = wx.StaticText(self, label=title)
         self.items = ItemList(self)
+        self.items.SetName(title)
         self.status = wx.StaticText(self, label=msg.PLAYLISTS_LOAD_HINT)
         outer.Add(self.heading, 0, wx.ALL, 10)
         outer.Add(self.items, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
@@ -1511,7 +1627,7 @@ class PlaylistsPanel(wx.Panel):
 
         self.items.Bind(wx.EVT_SET_FOCUS, self.on_focus)
         self.items.Bind(wx.EVT_KEY_DOWN, self.on_key)
-        self.items.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_open)
+        self.items.Bind(self.items.ACTIVATED_EVENT, self.on_open)
         self.items.Bind(wx.EVT_CONTEXT_MENU, self.on_context_menu)
 
     def on_focus(self, event: wx.FocusEvent) -> None:
@@ -1559,7 +1675,10 @@ class PlaylistsPanel(wx.Panel):
             self.pending_playlist_selection_id = None
         self.history.reset(state)
         self.current_playlist = None
-        self.render(state, focus=wx.Window.FindFocus() is self.items)
+        self.render(
+            state,
+            focus=window_is_or_descendant(wx.Window.FindFocus(), self.items),
+        )
 
     def on_open(self, event: wx.Event | None = None) -> None:
         item = self.items.selected_item()
@@ -1601,7 +1720,10 @@ class PlaylistsPanel(wx.Panel):
             self.history.replace(state)
         else:
             self.history.push(state)
-        self.render(state, focus=wx.Window.FindFocus() is self.items)
+        self.render(
+            state,
+            focus=window_is_or_descendant(wx.Window.FindFocus(), self.items),
+        )
 
     def go_back(self) -> bool:
         if not self.history.can_go_back:
@@ -1788,7 +1910,7 @@ class PlaylistsPanel(wx.Panel):
 
 class AudiobooksPanel(PlaylistsPanel):
     def __init__(self, parent: wx.Window, frame: "MainFrame") -> None:
-        super().__init__(parent, frame)
+        super().__init__(parent, frame, "Audiobooks")
         self.history.reset(ViewState("Audiobooks", []))
         self.heading.SetLabel("Audiobooks")
         self.status.SetLabel(msg.AUDIOBOOKS_LOAD_HINT)
@@ -1824,7 +1946,10 @@ class AudiobooksPanel(PlaylistsPanel):
         state = ViewState("Audiobooks", audiobooks)
         self.history.reset(state)
         self.current_playlist = None
-        self.render(state, focus=wx.Window.FindFocus() is self.items)
+        self.render(
+            state,
+            focus=window_is_or_descendant(wx.Window.FindFocus(), self.items),
+        )
         if not self.frame.spotify.has_scope("user-read-playback-position"):
             self.status.SetLabel(
                 msg.audiobook_resume_permission(len(audiobooks))
@@ -1861,7 +1986,10 @@ class AudiobooksPanel(PlaylistsPanel):
             self.history.replace(state)
         else:
             self.history.push(state)
-        self.render(state, focus=wx.Window.FindFocus() is self.items)
+        self.render(
+            state,
+            focus=window_is_or_descendant(wx.Window.FindFocus(), self.items),
+        )
 
     def on_key(self, event: wx.KeyEvent) -> None:
         key = event.GetKeyCode()
@@ -1887,7 +2015,7 @@ class AudiobooksPanel(PlaylistsPanel):
 
 class PodcastsPanel(PlaylistsPanel):
     def __init__(self, parent: wx.Window, frame: "MainFrame") -> None:
-        super().__init__(parent, frame)
+        super().__init__(parent, frame, "Podcasts")
         self.history.reset(ViewState("Podcasts", []))
         self.heading.SetLabel("Podcasts")
         self.status.SetLabel(msg.PODCASTS_LOAD_HINT)
@@ -1927,25 +2055,14 @@ class PodcastsPanel(PlaylistsPanel):
     ) -> None:
         self.loading = False
         self.loaded_once = True
-        items = []
-        if shows:
-            items.append(
-                SpotifyItem("saved-shows", ItemKind.HEADING, "Saved podcasts")
-            )
-            items.extend(shows)
-        if episodes:
-            items.append(
-                SpotifyItem(
-                    "saved-episodes",
-                    ItemKind.HEADING,
-                    "Saved episodes",
-                )
-            )
-            items.extend(episodes)
+        items = [*shows, *episodes]
         state = ViewState("Podcasts", items)
         self.history.reset(state)
         self.current_playlist = None
-        self.render(state, focus=wx.Window.FindFocus() is self.items)
+        self.render(
+            state,
+            focus=window_is_or_descendant(wx.Window.FindFocus(), self.items),
+        )
         self.status.SetLabel(
             msg.saved_podcasts(len(shows), len(episodes))
         )
@@ -1983,7 +2100,10 @@ class PodcastsPanel(PlaylistsPanel):
             self.history.replace(state)
         else:
             self.history.push(state)
-        self.render(state, focus=wx.Window.FindFocus() is self.items)
+        self.render(
+            state,
+            focus=window_is_or_descendant(wx.Window.FindFocus(), self.items),
+        )
 
     def on_key(self, event: wx.KeyEvent) -> None:
         key = event.GetKeyCode()
@@ -1991,6 +2111,10 @@ class PodcastsPanel(PlaylistsPanel):
             self.on_open()
         elif key == wx.WXK_BACK:
             self.go_back()
+        elif key == wx.WXK_DELETE and not self.history.can_go_back:
+            item = self.items.selected_item()
+            if item:
+                self.remove_saved_item(item)
         elif key == wx.WXK_F10 and event.ShiftDown():
             self.on_context_menu()
         else:
@@ -2000,6 +2124,15 @@ class PodcastsPanel(PlaylistsPanel):
         item = self.items.selected_item()
         if not item or item.kind == ItemKind.HEADING:
             return
+        saved_library_item = not self.history.can_go_back
+        remove_callback = None
+        remove_label = None
+        if saved_library_item and item.kind == ItemKind.SHOW:
+            remove_callback = lambda: self.remove_saved_item(item)
+            remove_label = "&Unsubscribe..."
+        elif saved_library_item and item.kind == ItemKind.EPISODE:
+            remove_callback = lambda: self.remove_saved_item(item)
+            remove_label = "Remove saved &episode..."
         self.frame.popup_item_menu(
             self.items,
             item,
@@ -2009,7 +2142,38 @@ class PodcastsPanel(PlaylistsPanel):
                 if item.kind == ItemKind.EPISODE
                 else None
             ),
+            remove_callback=remove_callback,
+            remove_label=remove_label,
         )
+
+    def remove_saved_item(self, item: SpotifyItem) -> None:
+        prompt = (
+            msg.unsubscribe_podcast(item.name)
+            if item.kind == ItemKind.SHOW
+            else msg.remove_saved_episode(item.name)
+        )
+        title = (
+            "Unsubscribe"
+            if item.kind == ItemKind.SHOW
+            else "Remove saved episode"
+        )
+        answer = wx.MessageBox(
+            prompt,
+            title,
+            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+            self,
+        )
+        if answer != wx.YES:
+            return
+        self.frame.run_task(
+            None,
+            lambda: self.frame.spotify.remove(item),
+            lambda result: self.finish_remove_saved_item(),
+        )
+
+    def finish_remove_saved_item(self) -> None:
+        self.frame.say(msg.REMOVED_FROM_LIBRARY)
+        self.refresh()
 
 
 class MainFrame(wx.Frame):
@@ -2072,6 +2236,7 @@ class MainFrame(wx.Frame):
         self.CreateStatusBar()
         self._build_menu()
         self.notebook = wx.Notebook(self)
+        self.notebook.SetName("Main tabs")
         self.search = SearchPanel(self.notebook, self)
         self.liked = CollectionPanel(
             self.notebook,
@@ -2198,12 +2363,15 @@ class MainFrame(wx.Frame):
         go = wx.Menu()
         play_selected = go.Append(
             wx.ID_ANY,
-            "&Play focused item\tF4",
+            f"&Play focused item{menu_function_shortcut('F4')}",
         )
-        play_pause = go.Append(wx.ID_ANY, "&Pause or resume\tF8")
+        play_pause = go.Append(
+            wx.ID_ANY,
+            f"&Pause or resume{menu_function_shortcut('F8')}",
+        )
         mute = go.Append(
             wx.ID_ANY,
-            f"&Mute or unmute\t{ctrl}+F4",
+            f"&Mute or unmute{menu_function_shortcut(f'{ctrl}+F4')}",
         )
         play_on_device = go.Append(
             wx.ID_ANY,
@@ -2230,9 +2398,12 @@ class MainFrame(wx.Frame):
         go.AppendSeparator()
         previous_track = go.Append(
             wx.ID_ANY,
-            "Pre&vious track\tF7",
+            f"Pre&vious track{menu_function_shortcut('F7')}",
         )
-        next_track = go.Append(wx.ID_ANY, "&Next track\tF9")
+        next_track = go.Append(
+            wx.ID_ANY,
+            f"&Next track{menu_function_shortcut('F9')}",
+        )
         seek_backward = go.Append(
             wx.ID_ANY,
             "Seek &backward 5 seconds (F5)",
@@ -2251,7 +2422,7 @@ class MainFrame(wx.Frame):
         )
         speak_remaining = go.Append(
             wx.ID_ANY,
-            f"Speak &remaining time\t{ctrl}+Shift+R",
+            "Speak &remaining time",
         )
         jump_to_time = go.Append(
             wx.ID_ANY,
@@ -2270,11 +2441,11 @@ class MainFrame(wx.Frame):
         shuffle = go.Append(wx.ID_ANY, f"&Shuffle\t{ctrl}+S")
         volume_down = go.Append(
             wx.ID_ANY,
-            f"Volume &down 5 percent\t{ctrl}+F5",
+            f"Volume &down 5 percent{menu_function_shortcut(f'{ctrl}+F5')}",
         )
         volume_up = go.Append(
             wx.ID_ANY,
-            f"Volume &up 5 percent\t{ctrl}+F6",
+            f"Volume &up 5 percent{menu_function_shortcut(f'{ctrl}+F6')}",
         )
         go.AppendSeparator()
         queue_selected = go.Append(
@@ -2292,6 +2463,10 @@ class MainFrame(wx.Frame):
         create_playlist = go.Append(
             wx.ID_ANY,
             f"&New playlist...\t{ctrl}+Shift+N",
+        )
+        refresh_view = go.Append(
+            wx.ID_REFRESH,
+            f"Refresh current &view\t{ctrl}+Shift+R",
         )
         go.AppendSeparator()
         open_liked = go.Append(
@@ -2474,6 +2649,11 @@ class MainFrame(wx.Frame):
             lambda event: self.create_playlist(),
             create_playlist,
         )
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.refresh_current_view(),
+            refresh_view,
+        )
         self.Bind(wx.EVT_MENU, lambda event: self.open_tab(1), open_liked)
         self.Bind(wx.EVT_MENU, lambda event: self.open_tab(2), open_queue)
         self.Bind(wx.EVT_MENU, lambda event: self.open_tab(3), open_playlists)
@@ -2538,8 +2718,8 @@ class MainFrame(wx.Frame):
             self.set_view_title(title)
 
     def focus_tab_bar(self) -> None:
+        self.SetTitle("BlindSpot")
         self.notebook.SetFocus()
-        self.say(msg.MAIN_TABS)
 
     def run_task(
         self,
@@ -2878,19 +3058,13 @@ class MainFrame(wx.Frame):
             self.player.provide_token()
 
     def on_tab_changed(self, event: wx.BookCtrlEvent) -> None:
-        page = self.notebook.GetPage(event.GetSelection())
-        heading = getattr(page, "heading", None)
-        title = heading.GetLabel() if heading else self.notebook.GetPageText(
-            event.GetSelection()
-        )
-        self.set_view_title(title)
-        if page is self.recently_played:
-            wx.CallAfter(self.recently_played.refresh)
+        self.SetTitle("BlindSpot")
         event.Skip()
 
     def on_global_key(self, event: wx.KeyEvent) -> None:
         key = event.GetKeyCode()
         focused = wx.Window.FindFocus()
+        focused_list = item_list_ancestor(focused)
         if key == wx.WXK_F1:
             self.on_manual()
         elif (
@@ -2906,7 +3080,7 @@ class MainFrame(wx.Frame):
             and not event.ShiftDown()
             and not physical_control_down(event)
         ):
-            if isinstance(focused, ItemList):
+            if focused_list:
                 self.play_selected()
             else:
                 self.say(msg.NO_SONG_SELECTED)
@@ -3000,7 +3174,7 @@ class MainFrame(wx.Frame):
         elif physical_control_down(event) and event.ShiftDown() and key in (ord("E"), ord("e")):
             self.announce_time("elapsed")
         elif physical_control_down(event) and event.ShiftDown() and key in (ord("R"), ord("r")):
-            self.announce_time("remaining")
+            self.refresh_current_view()
         elif physical_control_down(event) and event.ShiftDown() and key in (ord("I"), ord("i")):
             self.speak_current_track()
         elif physical_control_down(event) and event.ShiftDown() and key in (ord("U"), ord("u")):
@@ -3028,20 +3202,20 @@ class MainFrame(wx.Frame):
         elif (
             physical_control_down(event)
             and key in (ord("Q"), ord("q"))
-            and isinstance(focused, ItemList)
+            and focused_list
         ):
-            self.queue_from_list(focused)
+            self.queue_from_list(focused_list)
         elif (
             physical_control_down(event)
             and key in (ord("L"), ord("l"))
-            and isinstance(focused, ItemList)
+            and focused_list
         ):
-            self.toggle_like_selected()
+            self.toggle_like_item(focused_list.selected_item())
         elif (
             physical_control_down(event)
             and event.ShiftDown()
             and key in (ord("A"), ord("a"))
-            and isinstance(focused, ItemList)
+            and focused_list
         ):
             self.choose_playlist_for_selected()
         elif (
@@ -3054,22 +3228,22 @@ class MainFrame(wx.Frame):
             if focused is self.search.categories:
                 logger.debug("Frame routed Enter from search category")
                 self.search.on_search()
-            elif focused is self.search.results:
+            elif focused_list is self.search.results:
                 logger.debug("Frame routed Enter to search result action")
                 self.search.on_open()
-            elif focused is self.liked.items:
+            elif focused_list is self.liked.items:
                 self.liked.on_open()
-            elif focused is self.queue.items:
+            elif focused_list is self.queue.items:
                 self.queue.on_open()
-            elif focused is self.playlists.items:
+            elif focused_list is self.playlists.items:
                 self.playlists.on_open()
-            elif focused is self.recently_played.items:
+            elif focused_list is self.recently_played.items:
                 self.recently_played.on_open()
-            elif focused is self.bookmarks.items:
+            elif focused_list is self.bookmarks.items:
                 self.bookmarks.on_open()
-            elif focused is self.audiobooks.items:
+            elif focused_list is self.audiobooks.items:
                 self.audiobooks.on_open()
-            elif focused is self.podcasts.items:
+            elif focused_list is self.podcasts.items:
                 self.podcasts.on_open()
             else:
                 event.Skip()
@@ -3168,6 +3342,9 @@ class MainFrame(wx.Frame):
             controls = [self.notebook, self.podcasts.items]
 
         focused = wx.Window.FindFocus()
+        focused_list = item_list_ancestor(focused)
+        if focused_list:
+            focused = focused_list
         try:
             index = controls.index(focused)
         except ValueError:
@@ -3875,9 +4052,10 @@ class MainFrame(wx.Frame):
 
     def show_lyrics(self) -> None:
         focused = wx.Window.FindFocus()
+        focused_list = item_list_ancestor(focused)
         focused_item = (
-            focused.selected_item()
-            if isinstance(focused, ItemList)
+            focused_list.selected_item()
+            if focused_list
             else None
         )
         item = (
@@ -4253,10 +4431,19 @@ class MainFrame(wx.Frame):
         self.notebook.SetSelection(index)
         self.notebook.SetFocus()
 
+    def refresh_current_view(self) -> None:
+        page = self.notebook.GetCurrentPage()
+        refresh = getattr(page, "refresh", None)
+        if refresh:
+            refresh()
+
     def toggle_like_selected(self) -> None:
         item = self.current_selected_item()
         if not item or not item.uri or item.container:
             item = self.current_player_item
+        self.toggle_like_item(item)
+
+    def toggle_like_item(self, item: SpotifyItem | None) -> None:
         if not item or not item.uri:
             self.say(msg.NO_ITEM_SELECTED)
             return
@@ -4563,8 +4750,9 @@ class MainFrame(wx.Frame):
 
     def queue_command(self) -> None:
         focused = wx.Window.FindFocus()
-        if isinstance(focused, ItemList):
-            self.queue_from_list(focused)
+        focused_list = item_list_ancestor(focused)
+        if focused_list:
+            self.queue_from_list(focused_list)
         else:
             self.queue_selected(self.current_selected_item())
 
@@ -4621,8 +4809,12 @@ class MainFrame(wx.Frame):
         self.run_task(
             None,
             lambda: self.spotify.save(item),
-            lambda result: self.sync_liked_item(item, True),
+            lambda result: self.finish_save_to_library(item),
         )
+
+    def finish_save_to_library(self, item: SpotifyItem) -> None:
+        self.sync_liked_item(item, True)
+        self.say(msg.LIKED)
 
     def open_album_for_track(self, item: SpotifyItem) -> None:
         def load_album() -> tuple[SpotifyItem, list[SpotifyItem]]:
@@ -4661,7 +4853,8 @@ class MainFrame(wx.Frame):
             )
         )
         self.search.render(self.search.history.current, focus=True)
-        self.say(msg.named_item_count(album.name, len(tracks)))
+        if not tracks:
+            self.say(msg.named_item_count(album.name, 0))
 
     def popup_item_menu(
         self,
@@ -4671,6 +4864,7 @@ class MainFrame(wx.Frame):
         open_callback: Callable[[], None] | None = None,
         play_callback: Callable[[], None] | None = None,
         remove_callback: Callable[[], None] | None = None,
+        remove_label: str = "&Remove from Liked Songs",
         include_album_action: bool = True,
     ) -> None:
         menu = wx.Menu()
@@ -4720,21 +4914,21 @@ class MainFrame(wx.Frame):
                     lambda: self.queue_selected(item),
                 )
             )
-            if remove_callback:
-                menu.AppendSeparator()
-                actions.append(
-                    (
-                        menu.Append(wx.ID_ANY, "&Remove from Liked Songs"),
-                        remove_callback,
-                    )
-                )
-            else:
+            if not remove_callback:
                 actions.append(
                     (
                         menu.Append(wx.ID_ANY, "&Save to library"),
                         lambda: self.like_selected(item),
                     )
                 )
+        if remove_callback:
+            menu.AppendSeparator()
+            actions.append(
+                (
+                    menu.Append(wx.ID_ANY, remove_label),
+                    remove_callback,
+                )
+            )
         for menu_item, callback in actions:
             menu.Bind(
                 wx.EVT_MENU,

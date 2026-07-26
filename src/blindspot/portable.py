@@ -33,21 +33,18 @@ class PortableStore:
         if root is not None:
             self.root = root
             self.root.mkdir(parents=True, exist_ok=True)
+        elif sys.platform == "darwin":
+            self.root = (
+                Path.home()
+                / "Library"
+                / "Application Support"
+                / "BlindSpot"
+            )
+            self.root.mkdir(parents=True, exist_ok=True)
         else:
             preferred = application_directory() / "data"
-            try:
-                preferred.mkdir(parents=True, exist_ok=True)
-                self.root = preferred
-            except OSError:
-                if sys.platform != "darwin":
-                    raise
-                self.root = (
-                    Path.home()
-                    / "Library"
-                    / "Application Support"
-                    / "BlindSpot"
-                )
-                self.root.mkdir(parents=True, exist_ok=True)
+            preferred.mkdir(parents=True, exist_ok=True)
+            self.root = preferred
         self._write_lock = threading.RLock()
 
     def read(self, name: str, default: Any = None) -> Any:

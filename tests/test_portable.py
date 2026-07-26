@@ -31,16 +31,12 @@ class PortablePathTests(unittest.TestCase):
                 Path("/bundle/resources").resolve(),
             )
 
-    def test_macos_store_falls_back_when_sidecar_data_is_not_writable(self):
+    def test_macos_store_is_persistent_across_app_locations(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            portable_parent = root / "portable"
-            portable_parent.mkdir()
-            (portable_parent / "data").write_text("blocked", encoding="utf-8")
             home = root / "home"
             with (
                 patch.object(portable.sys, "platform", "darwin"),
-                patch.object(portable, "application_directory", return_value=portable_parent),
                 patch.object(Path, "home", return_value=home),
             ):
                 store = portable.PortableStore()

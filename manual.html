@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BlindSpot manual</title>
 </head>
-<body>
+  <body>
+    <p>BlindSpot permits one running instance per user. Starting it again
+      reports that BlindSpot is already running.</p>
   <main>
     <h1>BlindSpot manual</h1>
-    <p>Build 2026.7.0.7</p>
+    <p>Build 2026.7.0.8</p>
     <p>BlindSpot is a portable, keyboard-first Spotify client for Windows and macOS.</p>
 
     <h2>Main interface</h2>
@@ -54,7 +56,7 @@
         current track when focus is elsewhere.</li>
       <li>Ctrl+Shift+T: speak total track time.</li>
       <li>Ctrl+Shift+E: speak elapsed time.</li>
-      <li>Ctrl+Shift+R: speak remaining time.</li>
+      <li>Ctrl+Shift+R: refresh the current view.</li>
       <li>Delete: remove the selected playlist, or track from Liked Songs.</li>
       <li>Delete inside a playlist: remove the selected track when editable.</li>
             <li>Backspace or Alt+Left: return to the previous remembered view.</li>
@@ -132,8 +134,9 @@
       BlindSpot retrieves a fresh device list whenever the picker opens.</p>
 
     <h2>Recently Played</h2>
-    <p>Press Ctrl+5 to open Recently Played. The list refreshes whenever the
-      tab is opened. Enter plays the selected track, and its context menu
+    <p>Press Ctrl+5 to open Recently Played. The list loads when you move
+      into it. Use Go, Refresh current view to refresh the
+      tab's contents. Enter plays the selected track, and its context menu
       provides the usual album, queue, and library actions. The first time it
       is opened, BlindSpot may ask to authorize access to Spotify listening
       history. BlindSpot also keeps a local record of confirmed playback, so
@@ -154,7 +157,10 @@
       for matching individual episodes. Audiobooks is also available as a
       separate search category. Opening a podcast lists all of its episodes,
       including additional pages beyond the first 50.</p>
-    <p>Press Ctrl+8 to browse saved podcasts and saved episodes. Episodes
+    <p>Press Ctrl+8 to browse subscribed podcasts and saved episodes in one
+      list. Use
+      a subscribed podcast's context menu to unsubscribe, or a saved
+      episode's context menu to remove it from the library. Episodes
       announce and use their Spotify resume positions when available. Use an
       item's context menu and choose Description to read the description
       supplied by its publisher or creator. Spotify does not identify
@@ -197,13 +203,12 @@
     <p>Logging is off by default. It can be enabled when diagnostic information is needed.</p>
 
     <h2>Portable data</h2>
-    <p>Settings, authentication, and logs are stored in the data folder beside
-      BlindSpot. Use Options, Account, Sign out and erase credentials before
-      sharing the portable folder.</p>
-    <p>On macOS, BlindSpot uses a data folder beside BlindSpot.app when that
-      location is writable. If the app is installed in a read-only location,
-      BlindSpot uses Library/Application Support/BlindSpot in the current
-      user's home folder instead.</p>
+    <p>On Windows, settings, authentication, and logs are stored in the data
+      folder beside BlindSpot. Use Options, Account, Sign out and erase
+      credentials before sharing the portable folder.</p>
+    <p>On macOS, BlindSpot uses Library/Application Support/BlindSpot in the
+      current user's home folder. Authentication remains available when
+      BlindSpot.app is moved or updated.</p>
     <p>This application is unsigned. After extracting the download, open
       Terminal in the BlindSpot-macOS folder and run sh prepare-macos.sh. The
       helper changes the adjacent BlindSpot.app, removes its downloaded

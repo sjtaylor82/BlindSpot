@@ -11,12 +11,30 @@ from blindspot.ui import (
     PodcastsPanel,
     SearchPanel,
     album_track_label,
+    menu_function_shortcut,
+    native_text_positions,
     playback_state_for_resume,
     resume_mode_from_settings,
 )
 
 
 class PlaybackMemorySettingsTests(unittest.TestCase):
+    def test_mac_function_keys_are_not_menu_accelerators(self):
+        self.assertEqual(menu_function_shortcut("F8", "darwin"), "")
+        self.assertEqual(menu_function_shortcut("F8", "win32"), "\tF8")
+
+    def test_windows_lyric_positions_account_for_crlf(self):
+        positions = [0, 4, 8]
+
+        self.assertEqual(
+            native_text_positions("one\ntwo\nthree", positions, "win32"),
+            [0, 5, 10],
+        )
+        self.assertEqual(
+            native_text_positions("one\ntwo\nthree", positions, "darwin"),
+            positions,
+        )
+
     def test_legacy_enabled_setting_migrates_to_track_and_position(self):
         self.assertEqual(
             resume_mode_from_settings({"resume_last_track": True}),
@@ -64,6 +82,45 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
             "Control+F7",
         )
 
+
+class CollectionFocusTests(unittest.TestCase):
+    def test_completed_load_does_not_move_focus_into_list(self):
+        focused = []
+        item_list = type(
+            "Items",
+            (),
+            {
+                "set_items": lambda self, items: None,
+                "SetFocus": lambda self: focused.append(True),
+            },
+        )()
+        status = type(
+            "Status",
+            (),
+            {"SetLabel": lambda self, label: None},
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {"update_title_for_page": lambda self, page, title: None},
+        )()
+        panel = type(
+            "Panel",
+            (),
+            {
+                "title": "Recently Played",
+                "items": item_list,
+                "status": status,
+                "frame": frame,
+            },
+        )()
+
+        ui.CollectionPanel.show_items(
+            panel,
+            [ui.SpotifyItem("track", ui.ItemKind.TRACK, "Song")],
+        )
+
+        self.assertEqual(focused, [])
 
 class GlobalShortcutRegistrationTests(unittest.TestCase):
     def test_shortcut_dialog_ok_saves_immediately(self):
@@ -210,8 +267,9 @@ class GlobalShortcutRegistrationTests(unittest.TestCase):
 
 
 class RecentlyPlayedRefreshTests(unittest.TestCase):
-    def test_opening_recently_played_tab_requests_fresh_items(self):
+    def test_opening_recently_played_tab_waits_for_list_focus(self):
         refreshed = []
+        titles = []
         recent = type(
             "Recent",
             (),
@@ -238,7 +296,7 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
             {
                 "notebook": notebook,
                 "recently_played": recent,
-                "set_view_title": lambda self, title: None,
+                "SetTitle": lambda self, title: titles.append(title),
             },
         )()
         event = type(
@@ -250,11 +308,171 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
             },
         )()
 
-        with patch(
-            "blindspot.ui.wx.CallAfter",
-            side_effect=lambda callback, *args: callback(*args),
-        ):
-            MainFrame.on_tab_changed(frame, event)
+        MainFrame.on_tab_changed(frame, event)
+
+        self.assertEqual(refreshed, [])
+        self.assertEqual(titles, ["BlindSpot"])
+
+    def test_focusing_tab_bar_uses_static_window_title(self):
+        titles = []
+        focused = []
+        notebook = type(
+            "Notebook",
+            (),
+            {"SetFocus": lambda self: focused.append(True)},
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": notebook,
+                "SetTitle": lambda self, title: titles.append(title),
+            },
+        )()
+
+        MainFrame.focus_tab_bar(frame)
+
+        self.assertEqual(titles, ["BlindSpot"])
+        self.assertEqual(focused, [True])
+
+    def test_save_to_library_announces_liked(self):
+        spoken = []
+        synced = []
+        track = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Track")
+        frame = type(
+            "Frame",
+            (),
+            {
+                "sync_liked_item": (
+                    lambda self, item, saved: synced.append((item, saved))
+                ),
+                "say": lambda self, message: spoken.append(message),
+            },
+        )()
+
+        MainFrame.finish_save_to_library(frame, track)
+
+        self.assertEqual(synced, [(track, True)])
+        self.assertEqual(spoken, [ui.msg.LIKED])
+
+    def test_like_item_uses_selected_track_without_playback(self):
+        toggled = []
+        track = ui.SpotifyItem(
+            "track",
+            ui.ItemKind.TRACK,
+            "Track",
+            uri="spotify:track:track",
+        )
+        spotify = type(
+            "Spotify",
+            (),
+            {
+                "toggle_saved": (
+                    lambda self, item: toggled.append(item) or True
+                )
+            },
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "spotify": spotify,
+                "run_task": (
+                    lambda self, message, worker, success: success(worker())
+                ),
+                "finish_toggle_like": lambda self, item, saved: None,
+                "say": lambda self, message: None,
+            },
+        )()
+
+        MainFrame.toggle_like_item(frame, track)
+
+        self.assertEqual(toggled, [track])
+
+    def test_native_list_insert_adapter_adds_row_at_requested_position(self):
+        inserted = []
+        control = type(
+            "Control",
+            (),
+            {
+                "InsertItem": (
+                    lambda self, index, label: inserted.append((index, label))
+                )
+            },
+        )()
+
+        with patch("blindspot.ui.ITEM_LIST_USES_DATAVIEW", False):
+            ui.ItemList.Insert(control, "Track", 0)
+
+        self.assertEqual(inserted, [(0, "Track")])
+
+    def test_macos_dataview_adapters_manage_rows_and_selection(self):
+        calls = []
+        row_item = object()
+        control = type(
+            "Control",
+            (),
+            {
+                "items": [object(), object()],
+                "UnselectAll": lambda self: calls.append("unselect"),
+                "RowToItem": lambda self, row: row_item,
+                "SelectRow": lambda self, row: calls.append(("select", row)),
+                "SetCurrentItem": (
+                    lambda self, item: calls.append(("current", item))
+                ),
+                "EnsureVisible": (
+                    lambda self, item: calls.append(("visible", item))
+                ),
+                "AppendItem": (
+                    lambda self, values: calls.append(("append", values))
+                ),
+                "InsertItem": (
+                    lambda self, row, values: calls.append(
+                        ("insert", row, values)
+                    )
+                ),
+                "SetValue": (
+                    lambda self, value, row, column: calls.append(
+                        ("set", value, row, column)
+                    )
+                ),
+            },
+        )()
+
+        with patch("blindspot.ui.ITEM_LIST_USES_DATAVIEW", True):
+            ui.ItemList.SetSelection(control, 1)
+            ui.ItemList.Append(control, "Last")
+            ui.ItemList.Insert(control, "First", 0)
+            ui.ItemList.SetString(control, 1, "Renamed")
+
+        self.assertEqual(
+            calls,
+            [
+                "unselect",
+                ("select", 1),
+                ("current", row_item),
+                ("visible", row_item),
+                ("append", ["Last"]),
+                ("insert", 0, ["First"]),
+                ("set", "Renamed", 1, 0),
+            ],
+        )
+
+    def test_refresh_current_view_refreshes_selected_page(self):
+        refreshed = []
+        page = type(
+            "Page",
+            (),
+            {"refresh": lambda self: refreshed.append(True)},
+        )()
+        notebook = type(
+            "Notebook",
+            (),
+            {"GetCurrentPage": lambda self: page},
+        )()
+        frame = type("Frame", (), {"notebook": notebook})()
+
+        MainFrame.refresh_current_view(frame)
 
         self.assertEqual(refreshed, [True])
 
@@ -447,7 +665,7 @@ class SearchPaginationTests(unittest.TestCase):
             ["first", "second", "__load_more__"],
         )
         self.assertEqual(state.selected, 1)
-        self.assertEqual(spoken, ["1 more result loaded."])
+        self.assertEqual(spoken, [])
         self.assertTrue(rendered[0][1])
 
     def test_local_playlist_play_is_kept_and_merged_ahead_of_spotify(self):
@@ -489,7 +707,7 @@ class SearchPaginationTests(unittest.TestCase):
 
 
 class PodcastSupportTests(unittest.TestCase):
-    def test_saved_library_separates_shows_and_episodes(self):
+    def test_saved_library_lists_shows_and_episodes_without_section_rows(self):
         rendered = []
         status_labels = []
         items = object()
@@ -524,12 +742,128 @@ class PodcastSupportTests(unittest.TestCase):
 
         self.assertEqual(
             [item.name for item in rendered[0].items],
-            ["Saved podcasts", "Show", "Saved episodes", "Episode"],
+            ["Show", "Episode"],
         )
         self.assertEqual(
             status_labels,
-            ["1 saved podcasts and 1 saved episodes."],
+            ["1 podcast and 1 saved episode."],
         )
+
+    def test_saved_show_context_menu_offers_unsubscribe(self):
+        calls = []
+        show = ui.SpotifyItem(
+            "show",
+            ui.ItemKind.SHOW,
+            "Show",
+            uri="spotify:show:show",
+        )
+        panel = type(
+            "Panel",
+            (),
+            {
+                "items": type(
+                    "Items",
+                    (),
+                    {"selected_item": lambda self: show},
+                )(),
+                "history": ui.NavigationHistory(
+                    ui.ViewState("Podcasts", [show])
+                ),
+                "frame": type(
+                    "Frame",
+                    (),
+                    {
+                        "popup_item_menu": (
+                            lambda self, owner, item, **options: calls.append(
+                                options
+                            )
+                        )
+                    },
+                )(),
+                "on_open": lambda self: None,
+                "remove_saved_item": lambda self, item: None,
+            },
+        )()
+
+        PodcastsPanel.on_context_menu(panel)
+
+        self.assertEqual(calls[0]["remove_label"], "&Unsubscribe...")
+        self.assertIsNotNone(calls[0]["remove_callback"])
+
+    def test_unsubscribe_removes_show_and_refreshes_library(self):
+        removed = []
+        spoken = []
+        refreshed = []
+        show = ui.SpotifyItem(
+            "show",
+            ui.ItemKind.SHOW,
+            "Show",
+            uri="spotify:show:show",
+        )
+        spotify = type(
+            "Spotify",
+            (),
+            {"remove": lambda self, item: removed.append(item)},
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "spotify": spotify,
+                "run_task": (
+                    lambda self, message, worker, success: success(worker())
+                ),
+                "say": lambda self, message: spoken.append(message),
+            },
+        )()
+        panel = type(
+            "Panel",
+            (),
+            {
+                "frame": frame,
+                "refresh": lambda self: refreshed.append(True),
+                "finish_remove_saved_item": (
+                    lambda self: PodcastsPanel.finish_remove_saved_item(self)
+                ),
+            },
+        )()
+
+        with patch("blindspot.ui.wx.MessageBox", return_value=ui.wx.YES):
+            PodcastsPanel.remove_saved_item(panel, show)
+
+        self.assertEqual(removed, [show])
+        self.assertEqual(spoken, [ui.msg.REMOVED_FROM_LIBRARY])
+        self.assertEqual(refreshed, [True])
+
+    def test_delete_unsubscribes_selected_show_from_library(self):
+        removed = []
+        show = ui.SpotifyItem("show", ui.ItemKind.SHOW, "Show")
+        panel = type(
+            "Panel",
+            (),
+            {
+                "history": ui.NavigationHistory(
+                    ui.ViewState("Podcasts", [show])
+                ),
+                "items": type(
+                    "Items",
+                    (),
+                    {"selected_item": lambda self: show},
+                )(),
+                "remove_saved_item": (
+                    lambda self, item: removed.append(item)
+                ),
+            },
+        )()
+        event = type(
+            "Event",
+            (),
+            {"GetKeyCode": lambda self: ui.wx.WXK_DELETE},
+        )()
+
+        PodcastsPanel.on_key(panel, event)
+
+        self.assertEqual(removed, [show])
 
     def test_saved_episode_uses_resume_aware_playback(self):
         played = []
@@ -653,7 +987,7 @@ class BrailleLyricsTests(unittest.TestCase):
                 ],
                 "lyric_adjustment_ms": 0,
                 "last_braille_line": -1,
-                "synced_line_positions": [0, 14],
+                "synced_line_positions": [0, 15],
                 "text": text,
             },
         )()
@@ -665,8 +999,8 @@ class BrailleLyricsTests(unittest.TestCase):
         with patch("blindspot.ui.sys.platform", "win32"):
             LyricsDialog.update_braille_line(dialog)
 
-        self.assertEqual(text.insertion_points, [14])
-        self.assertEqual(text.shown_positions, [14])
+        self.assertEqual(text.insertion_points, [15])
+        self.assertEqual(text.shown_positions, [15])
         self.assertEqual(announcer.braille_messages, [])
 
     def test_windows_keeps_current_lyric_until_lead_window(self):
@@ -1933,6 +2267,39 @@ class LyricsKeyboardTests(unittest.TestCase):
             MainFrame.on_global_key(object(), event)
 
         self.assertTrue(event.skipped)
+
+    def test_f4_recognizes_native_list_child_focus(self):
+        class ListControl:
+            pass
+
+        list_control = ListControl()
+        focused_child = type(
+            "FocusedChild",
+            (),
+            {"GetParent": lambda self: list_control},
+        )()
+        played = []
+        messages = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "play_selected": lambda self: played.append(True),
+                "say": lambda self, message: messages.append(message),
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.ItemList", ListControl),
+            patch(
+                "blindspot.ui.wx.Window.FindFocus",
+                return_value=focused_child,
+            ),
+        ):
+            MainFrame.on_global_key(frame, self.Event(343))
+
+        self.assertEqual(played, [True])
+        self.assertEqual(messages, [])
 
     def test_bare_space_toggles_playback_in_item_lists(self):
         event = self.Event(32)
