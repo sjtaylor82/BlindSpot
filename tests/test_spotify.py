@@ -973,6 +973,72 @@ class PlaybackCommandTests(unittest.TestCase):
             {"device_ids": ["kitchen-speaker"], "play": True},
         )
 
+    def test_transfer_playback_paused_pauses_current_device_before_transfer(self):
+        client = CommandClient(
+            [
+                {
+                    "is_playing": True,
+                    "device": {"id": "current-device"},
+                },
+                {},
+                {},
+            ]
+        )
+
+        client.transfer_playback_paused("phone")
+
+        self.assertEqual(
+            [call[0:2] for call in client.calls],
+            [
+                ("GET", "/me/player"),
+                ("PUT", "/me/player/pause"),
+                ("PUT", "/me/player"),
+            ],
+        )
+        self.assertEqual(
+            client.calls[-1][3],
+            {"device_ids": ["phone"], "play": False},
+        )
+
+    def test_transfer_playback_paused_does_not_pause_twice_when_already_paused(self):
+        client = CommandClient(
+            [
+                {
+                    "is_playing": False,
+                    "device": {"id": "current-device"},
+                },
+                {},
+            ]
+        )
+
+        client.transfer_playback_paused("phone")
+
+        self.assertEqual(
+            [call[0:2] for call in client.calls],
+            [("GET", "/me/player"), ("PUT", "/me/player")],
+        )
+
+    def test_transfer_playback_paused_can_pause_session_without_device_id(self):
+        client = CommandClient(
+            [
+                {"is_playing": True, "device": {"id": None}},
+                {},
+                {},
+            ]
+        )
+
+        client.transfer_playback_paused("phone")
+
+        self.assertEqual(
+            [call[0:2] for call in client.calls],
+            [
+                ("GET", "/me/player"),
+                ("PUT", "/me/player/pause"),
+                ("PUT", "/me/player"),
+            ],
+        )
+        self.assertIsNone(client.calls[1][2])
+
     def test_add_to_queue_targets_device_without_starting_playback(self):
         client = CommandClient([])
         track = SpotifyItem(
@@ -1220,6 +1286,87 @@ class SearchBatchTests(unittest.TestCase):
         )
         self.assertEqual(second_page[0].id, "track-20")
         self.assertEqual(second_page[-1].raw["next_offset"], 40)
+
+    def test_new_music_scans_past_singles_to_fill_album_results(self):
+        def values(album_types, start):
+            return [
+                {
+                    "id": f"release-{start + index}",
+                    "name": f"Release {start + index}",
+                    "uri": f"spotify:album:{start + index}",
+                    "type": "album",
+                    "album_type": album_type,
+                    "release_date": "2026-07-25",
+                }
+                for index, album_type in enumerate(album_types)
+            ]
+
+        client = CommandClient(
+            [
+                {
+                    "albums": {
+                        "items": values(["single"] * 10, 0),
+                        "total": 30,
+                    }
+                },
+                {
+                    "albums": {
+                        "items": values(["single"] * 9 + ["album"], 10),
+                        "total": 30,
+                    }
+                },
+                {
+                    "albums": {
+                        "items": values(["single"] * 8 + ["album"] * 2, 20),
+                        "total": 30,
+                    }
+                },
+            ]
+        )
+
+        results = client.new_music("album")
+
+        self.assertEqual(
+            [call[2]["offset"] for call in client.calls],
+            [0, 10, 20],
+        )
+        self.assertTrue(
+            all(call[2]["q"] == "tag:new" for call in client.calls)
+        )
+        self.assertEqual(len(results), 3)
+        self.assertTrue(
+            all(item.raw["album_type"] == "album" for item in results)
+        )
+
+    def test_new_music_stops_at_twenty_and_preserves_search_offset(self):
+        responses = []
+        for offset in (0, 10):
+            responses.append(
+                {
+                    "albums": {
+                        "items": [
+                            {
+                                "id": f"album-{offset + index}",
+                                "name": f"Album {offset + index}",
+                                "uri": f"spotify:album:{offset + index}",
+                                "type": "album",
+                                "album_type": "album",
+                                "release_date": "2026-07-25",
+                            }
+                            for index in range(10)
+                        ],
+                        "total": 30,
+                    }
+                }
+            )
+        client = CommandClient(responses)
+
+        results = client.new_music("album")
+
+        self.assertEqual(len(results), 21)
+        self.assertTrue(results[-1].raw["load_more"])
+        self.assertEqual(results[-1].raw["next_offset"], 20)
+        self.assertEqual(results[-1].raw["release_type"], "album")
 
 
 if __name__ == "__main__":

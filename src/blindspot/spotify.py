@@ -269,6 +269,72 @@ class SpotifyClient:
             )
         return items
 
+    def new_music(
+        self,
+        release_type: str = "album",
+        offset: int = 0,
+    ) -> list[SpotifyItem]:
+        if release_type not in {"album", "single", "compilation"}:
+            raise ValueError(f"Unsupported release type: {release_type}")
+        releases: list[SpotifyItem] = []
+        raw_counts: dict[str, int] = {}
+        next_offset = offset
+        total = offset
+        while len(releases) < 20 and next_offset <= 1000:
+            payload = self._request(
+                "GET",
+                "/search",
+                query={
+                    "q": "tag:new",
+                    "type": "album",
+                    "limit": 10,
+                    "offset": next_offset,
+                    "include_external": "audio",
+                },
+            )
+            page = payload.get("albums") or {}
+            values = [value for value in page.get("items", []) if value]
+            total = int(page.get("total") or 0)
+            if not values:
+                next_offset = total
+                break
+            consumed = 0
+            for value in values:
+                consumed += 1
+                album_type = str(value.get("album_type") or "unknown")
+                raw_counts[album_type] = raw_counts.get(album_type, 0) + 1
+                if album_type == release_type:
+                    releases.append(self._map_item(value, ItemKind.ALBUM))
+                    if len(releases) >= 20:
+                        break
+            next_offset += consumed
+            if next_offset >= total:
+                break
+        logger.info(
+            "New music search type=%s offset=%d scanned=%d matches=%d types=%s next_offset=%d total=%d",
+            release_type,
+            offset,
+            sum(raw_counts.values()),
+            len(releases),
+            raw_counts,
+            next_offset,
+            total,
+        )
+        if next_offset < total and next_offset <= 1000:
+            releases.append(
+                SpotifyItem(
+                    "__load_more__",
+                    ItemKind.HEADING,
+                    "Load more results",
+                    raw={
+                        "load_more": True,
+                        "next_offset": next_offset,
+                        "release_type": release_type,
+                    },
+                )
+            )
+        return releases
+
     def children(self, item: SpotifyItem) -> list[SpotifyItem]:
         logger.info(
             "Loading children kind=%s id=%s name=%r",
@@ -683,6 +749,21 @@ class SpotifyClient:
             body={"device_ids": [device_id], "play": play},
             allow_empty=True,
         )
+
+    def transfer_playback_paused(self, device_id: str) -> None:
+        state = self.playback_state()
+        active_device = state.get("device") or {}
+        active_device_id = active_device.get("id")
+        if state.get("is_playing"):
+            if active_device_id:
+                self.pause_playback(str(active_device_id))
+            else:
+                self._request(
+                    "PUT",
+                    "/me/player/pause",
+                    allow_empty=True,
+                )
+        self.transfer_playback(device_id, play=False)
 
     def play(self, item: SpotifyItem, device_id: str | None = None) -> None:
         body = {"uris": [item.uri]} if item.playable else {"context_uri": item.uri}

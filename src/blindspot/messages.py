@@ -126,6 +126,7 @@ WEB_PLAYER_PAGE_FAILED = "The web player page could not load."
 GETTING_LYRICS = "Getting lyrics."
 GETTING_DEVICES = "Getting available devices."
 DEVICE_SELECTION_PROMPT = "Select the Spotify Connect device for playback."
+NEW_MUSIC_SEARCH_PROMPT = "Choose a release type and activate Search."
 JUMP_TIME_PROMPT = (
     "Enter seconds, minutes and seconds, or hours, minutes and seconds."
 )
@@ -298,6 +299,14 @@ def player_starting(name: str) -> str:
 
 def playing_on(name: str) -> str:
     return f"Playing on {name}."
+
+
+def moved_without_playing(name: str) -> str:
+    return f"Playback moved to {name} without playing."
+
+
+def device_targeted(name: str) -> str:
+    return f"{name} will receive a forced transfer on the next play."
 
 
 def transferring_to(name: str) -> str:

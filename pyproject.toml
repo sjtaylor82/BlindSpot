@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blindspot-player"
-version = "2026.7.0.12"
+version = "2026.7.0.13"
 description = "A portable, keyboard-first Spotify client."
 license = "GPL-3.0-or-later"
 requires-python = ">=3.11"

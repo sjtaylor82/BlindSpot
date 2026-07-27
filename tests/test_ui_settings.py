@@ -139,6 +139,14 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
         self.assertEqual(menu_function_shortcut("F8", "win32"), "\tF8")
         self.assertEqual(menu_function_shortcut("RAWCTRL+Y", "darwin"), "")
         self.assertEqual(menu_function_shortcut("Ctrl+Y", "win32"), "\tCtrl+Y")
+        self.assertEqual(
+            menu_function_shortcut("RAWCTRL+Shift+I", "darwin"),
+            "",
+        )
+        self.assertEqual(
+            menu_function_shortcut("Ctrl+Shift+I", "win32"),
+            "\tCtrl+Shift+I",
+        )
 
     def test_control_y_still_routes_through_global_key_handler(self):
         shown = []
@@ -164,6 +172,82 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
             MainFrame.on_global_key(frame, event)
 
         self.assertEqual(shown, [True])
+
+    def test_control_shift_r_speaks_remaining_time(self):
+        announced = []
+        frame = type(
+            "Frame",
+            (),
+            {"announce_time": lambda self, part: announced.append(part)},
+        )()
+        event = type(
+            "Event",
+            (),
+            {
+                "GetKeyCode": lambda self: ord("R"),
+                "AltDown": lambda self: False,
+                "ShiftDown": lambda self: True,
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.physical_control_down", return_value=True),
+            patch("blindspot.ui.wx.Window.FindFocus", return_value=None),
+        ):
+            MainFrame.on_global_key(frame, event)
+
+        self.assertEqual(announced, ["remaining"])
+
+    def test_control_shift_f_refreshes_current_view(self):
+        refreshed = []
+        frame = type(
+            "Frame",
+            (),
+            {"refresh_current_view": lambda self: refreshed.append(True)},
+        )()
+        event = type(
+            "Event",
+            (),
+            {
+                "GetKeyCode": lambda self: ord("F"),
+                "AltDown": lambda self: False,
+                "ShiftDown": lambda self: True,
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.physical_control_down", return_value=True),
+            patch("blindspot.ui.wx.Window.FindFocus", return_value=None),
+        ):
+            MainFrame.on_global_key(frame, event)
+
+        self.assertEqual(refreshed, [True])
+
+    def test_option_m_opens_selected_item_actions_on_mac(self):
+        opened = []
+        frame = type(
+            "Frame",
+            (),
+            {"show_selected_actions": lambda self: opened.append(True)},
+        )()
+        event = type(
+            "Event",
+            (),
+            {
+                "GetKeyCode": lambda self: ord("M"),
+                "AltDown": lambda self: True,
+                "ShiftDown": lambda self: False,
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.sys.platform", "darwin"),
+            patch("blindspot.ui.physical_control_down", return_value=False),
+            patch("blindspot.ui.wx.Window.FindFocus", return_value=None),
+        ):
+            MainFrame.on_global_key(frame, event)
+
+        self.assertEqual(opened, [True])
 
     def test_control_shift_l_routes_to_current_track_command(self):
         toggled = []
@@ -194,6 +278,105 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
 
         self.assertEqual(toggled, [True])
 
+    def test_control_shift_d_opens_playback_device_chooser(self):
+        opened = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "choose_playback_device": (
+                    lambda self: opened.append(True)
+                )
+            },
+        )()
+        event = type(
+            "Event",
+            (),
+            {
+                "GetKeyCode": lambda self: ord("D"),
+                "AltDown": lambda self: False,
+                "ShiftDown": lambda self: True,
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.physical_control_down", return_value=True),
+            patch("blindspot.ui.wx.Window.FindFocus", return_value=None),
+        ):
+            MainFrame.on_global_key(frame, event)
+
+        self.assertEqual(opened, [True])
+
+    def test_control_zero_focuses_new_music_release_types(self):
+        selections = []
+        focused = []
+        notebook = type(
+            "Notebook",
+            (),
+            {"SetSelection": lambda self, page: selections.append(page)},
+        )()
+        release_types = type(
+            "ReleaseTypes",
+            (),
+            {"SetFocus": lambda self: focused.append(True)},
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": notebook,
+                "new_music": type(
+                    "NewMusic",
+                    (),
+                    {"release_types": release_types},
+                )(),
+            },
+        )()
+        event = type(
+            "Event",
+            (),
+            {
+                "GetKeyCode": lambda self: ord("0"),
+                "AltDown": lambda self: False,
+                "ShiftDown": lambda self: False,
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.physical_control_down", return_value=True),
+            patch("blindspot.ui.wx.Window.FindFocus", return_value=None),
+        ):
+            MainFrame.on_global_key(frame, event)
+
+        self.assertEqual(selections, [9])
+        self.assertEqual(focused, [True])
+
+    def test_refresh_device_choice_reloads_device_picker(self):
+        refreshed = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "choose_playback_device": (
+                    lambda self: refreshed.append(True)
+                ),
+                "choose_playback_device_action": (
+                    lambda self, device: self.fail(
+                        "Refresh must not select a device"
+                    )
+                ),
+            },
+        )()
+        devices = [{"id": "phone"}]
+
+        MainFrame.handle_playback_device_selection(
+            frame,
+            devices,
+            len(devices),
+        )
+
+        self.assertEqual(refreshed, [True])
+
     def test_mac_physical_control_uses_raw_modifier_bit(self):
         raw_event = type(
             "Event",
@@ -214,6 +397,25 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
         ):
             self.assertTrue(ui.physical_control_down(raw_event))
             self.assertFalse(ui.physical_control_down(command_event))
+
+    def test_mac_lyric_navigation_uses_option_command(self):
+        event = type(
+            "Event",
+            (),
+            {
+                "GetModifiers": lambda self: 5,
+                "AltDown": lambda self: True,
+                "ShiftDown": lambda self: False,
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.sys.platform", "darwin"),
+            patch("blindspot.ui.wx.MOD_CONTROL", 1),
+            patch("blindspot.ui.wx.MOD_RAW_CONTROL", 2),
+            patch("blindspot.ui.wx.MOD_ALT", 4),
+        ):
+            self.assertTrue(ui.lyric_navigation_modifier_down(event))
 
     def test_windows_lyric_positions_account_for_crlf(self):
         positions = [0, 4, 8]
@@ -1379,6 +1581,321 @@ class SearchPaginationTests(unittest.TestCase):
         self.assertEqual(spoken, [])
         self.assertTrue(rendered[0][1])
 
+
+class NewMusicTests(unittest.TestCase):
+    def test_successful_new_music_search_focuses_results(self):
+        focused = []
+        panel = type(
+            "Panel",
+            (),
+            {
+                "loading": True,
+                "loaded_once": False,
+                "title": "New Music",
+                "items": type(
+                    "Items",
+                    (),
+                    {
+                        "set_items": lambda self, items, **kwargs: None,
+                        "SetFocus": lambda self: focused.append(True),
+                    },
+                )(),
+                "status": type(
+                    "Status",
+                    (),
+                    {"SetLabel": lambda self, label: None},
+                )(),
+                "frame": type(
+                    "Frame",
+                    (),
+                    {
+                        "update_title_for_page": (
+                            lambda self, page, title: None
+                        ),
+                    },
+                )(),
+                "prepare_items": (
+                    lambda self, items: ui.NewMusicPanel.prepare_items(
+                        self, items
+                    )
+                ),
+            },
+        )()
+        album = ui.SpotifyItem(
+            "album",
+            ui.ItemKind.ALBUM,
+            "Album",
+            uri="spotify:album:album",
+            raw={"release_date": "2026-07-25"},
+        )
+
+        ui.NewMusicPanel.show_items(panel, [album])
+
+        self.assertEqual(focused, [True])
+
+    def test_new_music_is_sorted_by_full_release_date_and_deduplicated(self):
+        older = ui.SpotifyItem(
+            "older",
+            ui.ItemKind.ALBUM,
+            "Older",
+            uri="spotify:album:older",
+            raw={"release_date": "2026-07-01"},
+        )
+        newer = ui.SpotifyItem(
+            "newer",
+            ui.ItemKind.ALBUM,
+            "Newer",
+            uri="spotify:album:newer",
+            raw={"release_date": "2026-07-25"},
+        )
+        duplicate = ui.SpotifyItem(
+            "newer-other-edition",
+            ui.ItemKind.ALBUM,
+            "  NEWER ",
+            artist="The Artist",
+            total=10,
+            uri="spotify:album:newer-other-edition",
+            raw={"release_date": "2026-07-25"},
+        )
+        newer.artist = "the  artist"
+        newer.total = 10
+        loader = ui.SpotifyItem(
+            "__load_more__",
+            ui.ItemKind.HEADING,
+            "Load more results",
+            raw={"load_more": True, "next_offset": 20},
+        )
+
+        albums, returned_loader = ui.NewMusicPanel.prepare_items(
+            object(),
+            [older, newer, duplicate, loader],
+        )
+
+        self.assertEqual([album.id for album in albums], ["newer", "older"])
+        self.assertIs(returned_loader, loader)
+
+    def test_new_music_deduplicates_equivalent_release_across_pages(self):
+        existing = ui.SpotifyItem(
+            "first-id",
+            ui.ItemKind.ALBUM,
+            "Shared Release",
+            artist="Artist",
+            total=12,
+            uri="spotify:album:first-id",
+            raw={"release_date": "2026-07-24"},
+        )
+        repeated = ui.SpotifyItem(
+            "second-id",
+            ui.ItemKind.ALBUM,
+            "shared release",
+            artist="artist",
+            total=12,
+            uri="spotify:album:second-id",
+            raw={"release_date": "2026-07-25"},
+        )
+
+        albums, _loader = ui.NewMusicPanel.prepare_items(
+            object(),
+            [existing, repeated],
+        )
+
+        self.assertEqual([album.id for album in albums], ["second-id"])
+
+    def test_new_music_deduplicates_language_and_credit_variants(self):
+        original = ui.SpotifyItem(
+            "original",
+            ui.ItemKind.ALBUM,
+            'The Wedding Song (From "Vishwanath & Sons")',
+            artist=(
+                "G. V. Prakash, Suriya, "
+                "Saraswati Putra Ramajogayya Sastry"
+            ),
+            total=1,
+            raw={"release_date": "2026-07-25"},
+        )
+        tamil = ui.SpotifyItem(
+            "tamil",
+            ui.ItemKind.ALBUM,
+            'The Wedding Song (From "Vishwanath & Sons")(Tamil)',
+            artist="G. V. Prakash, Suriya, Ken Karunaas",
+            total=1,
+            raw={"release_date": "2026-07-25"},
+        )
+
+        albums, _loader = ui.NewMusicPanel.prepare_items(
+            object(),
+            [original, tamil],
+        )
+
+        self.assertEqual([album.id for album in albums], ["original"])
+
+    def test_new_music_removes_loader_when_page_adds_nothing_new(self):
+        existing = ui.SpotifyItem(
+            "existing",
+            ui.ItemKind.ALBUM,
+            "Same Release",
+            artist="Artist",
+            total=1,
+            raw={"release_date": "2026-07-25"},
+        )
+        old_loader = ui.SpotifyItem(
+            "__load_more__",
+            ui.ItemKind.HEADING,
+            "Load more results",
+            raw={"load_more": True, "next_offset": 20},
+        )
+        duplicate = ui.SpotifyItem(
+            "different-id",
+            ui.ItemKind.ALBUM,
+            "same release",
+            artist="Artist, Guest",
+            total=1,
+            raw={"release_date": "2026-07-25"},
+        )
+        next_loader = ui.SpotifyItem(
+            "__load_more__",
+            ui.ItemKind.HEADING,
+            "Load more results",
+            raw={"load_more": True, "next_offset": 40},
+        )
+        rendered = []
+        spoken = []
+        panel = type(
+            "Panel",
+            (),
+            {
+                "items": type(
+                    "Items",
+                    (),
+                    {
+                        "items": [existing, old_loader],
+                        "set_items": (
+                            lambda self, items, **kwargs: rendered.extend(items)
+                        ),
+                        "SetFocus": lambda self: None,
+                    },
+                )(),
+                "status": type(
+                    "Status",
+                    (),
+                    {"SetLabel": lambda self, label: None},
+                )(),
+                "frame": type(
+                    "Frame",
+                    (),
+                    {"say": lambda self, message: spoken.append(message)},
+                )(),
+                "prepare_items": (
+                    lambda self, items: ui.NewMusicPanel.prepare_items(
+                        self, items
+                    )
+                ),
+            },
+        )()
+
+        ui.NewMusicPanel.append_items(panel, [duplicate, next_loader])
+
+        self.assertEqual([item.id for item in rendered], ["existing"])
+        self.assertEqual(spoken, [ui.msg.NO_MORE_RESULTS])
+
+    def test_paginated_new_music_appends_new_rows_without_reordering(self):
+        first = ui.SpotifyItem(
+            "first",
+            ui.ItemKind.ALBUM,
+            "First",
+            artist="Artist",
+            total=1,
+            raw={"release_date": "2026-07-20"},
+        )
+        later_but_newer = ui.SpotifyItem(
+            "newer",
+            ui.ItemKind.ALBUM,
+            "Newer",
+            artist="Artist",
+            total=1,
+            raw={"release_date": "2026-07-25"},
+        )
+        rendered = []
+        selections = []
+        panel = type(
+            "Panel",
+            (),
+            {
+                "items": type(
+                    "Items",
+                    (),
+                    {
+                        "items": [first],
+                        "set_items": (
+                            lambda self, items, **kwargs: (
+                                rendered.extend(items),
+                                selections.append(kwargs["selected"]),
+                            )
+                        ),
+                        "SetFocus": lambda self: None,
+                    },
+                )(),
+                "status": type(
+                    "Status",
+                    (),
+                    {"SetLabel": lambda self, label: None},
+                )(),
+                "frame": type(
+                    "Frame",
+                    (),
+                    {"say": lambda self, message: None},
+                )(),
+                "prepare_items": (
+                    lambda self, items: ui.NewMusicPanel.prepare_items(
+                        self, items
+                    )
+                ),
+            },
+        )()
+
+        ui.NewMusicPanel.append_items(panel, [later_but_newer])
+
+        self.assertEqual(
+            [item.id for item in rendered],
+            ["first", "newer"],
+        )
+        self.assertEqual(selections, [1])
+
+    def test_release_type_radio_choices_map_to_spotify_album_types(self):
+        panel = type(
+            "Panel",
+            (),
+            {
+                "release_types": type(
+                    "ReleaseTypes",
+                    (),
+                    {"GetSelection": lambda self: self.selection},
+                )(),
+            },
+        )()
+
+        mapped = []
+        for selection in range(3):
+            panel.release_types.selection = selection
+            mapped.append(ui.NewMusicPanel.release_type(panel))
+
+        self.assertEqual(mapped, ["album", "single", "compilation"])
+
+    def test_new_album_label_includes_full_release_date(self):
+        album = ui.SpotifyItem(
+            "album",
+            ui.ItemKind.ALBUM,
+            "Album",
+            artist="Artist",
+            total=12,
+            raw={"release_date": "2026-07-25"},
+        )
+
+        self.assertEqual(
+            ui.new_album_label(album),
+            "Album — Artist — released 2026-07-25 — 12 songs",
+        )
+
     def test_local_playlist_play_is_kept_and_merged_ahead_of_spotify(self):
         with tempfile.TemporaryDirectory() as folder:
             store = ui.PortableStore(Path(folder))
@@ -2125,7 +2642,7 @@ class StandaloneTrackNavigationTests(unittest.TestCase):
 
         self.assertFalse(MainFrame.current_track_is_paused(frame, "track"))
 
-    def test_lyric_position_is_applied_after_track_is_loaded(self):
+    def test_stale_player_update_does_not_trigger_redundant_lyric_seek(self):
         item = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Track")
         seeks = []
         spotify = type(
@@ -2153,7 +2670,7 @@ class StandaloneTrackNavigationTests(unittest.TestCase):
 
         MainFrame.apply_pending_lyric_seek(frame)
 
-        self.assertEqual(seeks, [(42_000, "device")])
+        self.assertEqual(seeks, [])
         self.assertIsNone(frame.pending_lyric_seek)
         self.assertIsNone(frame.lyric_start_item_id)
 
@@ -2240,6 +2757,70 @@ class MuteTests(unittest.TestCase):
 
 
 class PlaybackFeedbackTests(unittest.TestCase):
+    def test_pending_forced_transfer_does_not_retarget_transport_controls(self):
+        frame = type(
+            "Frame",
+            (),
+            {
+                "pending_transfer_device": {
+                    "id": "phone",
+                    "name": "Phone",
+                },
+                "remote_device_id": "currently-active-device",
+            },
+        )()
+
+        self.assertEqual(
+            MainFrame.player_device_id(frame),
+            "currently-active-device",
+        )
+
+    def test_pending_forced_transfer_targets_next_explicit_play(self):
+        played_on = []
+        item = type(
+            "Item",
+            (),
+            {
+                "id": "track",
+                "name": "Song",
+                "playable": True,
+            },
+        )()
+        spotify = type(
+            "Spotify",
+            (),
+            {
+                "play": (
+                    lambda self, value, device_id=None: played_on.append(
+                        device_id
+                    )
+                ),
+            },
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "pending_transfer_device": {
+                    "id": "phone",
+                    "name": "Phone",
+                },
+                "remote_device_id": "currently-active-device",
+                "spotify": spotify,
+                "suppress_track_announcement_id": None,
+                "run_task": (
+                    lambda self, message, worker, success: success(worker())
+                ),
+                "on_play_started": (
+                    lambda self, value, **options: None
+                ),
+            },
+        )()
+
+        MainFrame.play(frame, item)
+
+        self.assertEqual(played_on, ["phone"])
+
     def test_ordinary_play_is_silent_but_playlist_track_is_announced(self):
         messages = []
         frame = type(
@@ -3044,9 +3625,9 @@ class LyricsKeyboardTests(unittest.TestCase):
             LyricsDialog.on_dialog_key(dialog, self.Event(346))
             LyricsDialog.on_dialog_key(dialog, self.Event(347))
             LyricsDialog.on_dialog_key(dialog, self.Event(348))
-            LyricsDialog.on_dialog_key(dialog, self.Event(343, control=True))
-            LyricsDialog.on_dialog_key(dialog, self.Event(344, control=True))
-            LyricsDialog.on_dialog_key(dialog, self.Event(345, control=True))
+            LyricsDialog.on_dialog_key(dialog, self.Event(343, shift=True))
+            LyricsDialog.on_dialog_key(dialog, self.Event(344, shift=True))
+            LyricsDialog.on_dialog_key(dialog, self.Event(345, shift=True))
 
         self.assertEqual(
             frame.commands,
@@ -3087,9 +3668,9 @@ class LyricsKeyboardTests(unittest.TestCase):
             patch("blindspot.ui.sys.platform", "win32"),
             patch("blindspot.ui.wx.Window.FindFocus", return_value=None),
         ):
-            MainFrame.on_global_key(frame, self.Event(343, control=True))
-            MainFrame.on_global_key(frame, self.Event(344, control=True))
-            MainFrame.on_global_key(frame, self.Event(345, control=True))
+            MainFrame.on_global_key(frame, self.Event(343, shift=True))
+            MainFrame.on_global_key(frame, self.Event(344, shift=True))
+            MainFrame.on_global_key(frame, self.Event(345, shift=True))
             MainFrame.on_global_key(frame, self.Event(344))
             MainFrame.on_global_key(frame, self.Event(345))
             MainFrame.on_global_key(frame, self.Event(346))
@@ -3141,7 +3722,7 @@ class LyricsKeyboardTests(unittest.TestCase):
 
         self.assertEqual(played, [item])
 
-    def test_control_space_resumes_paused_track_from_selected_synced_lyric(self):
+    def test_shift_space_resumes_paused_track_from_selected_synced_lyric(self):
         resumed = []
         frame = type(
             "Frame",
@@ -3178,12 +3759,12 @@ class LyricsKeyboardTests(unittest.TestCase):
 
         LyricsDialog.on_text_key(
             dialog,
-            self.Event(ui.wx.WXK_SPACE, control=True),
+            self.Event(ui.wx.WXK_SPACE, shift=True),
         )
 
         self.assertEqual(resumed, [("track", 5_000)])
 
-    def test_control_space_starts_unplayed_track_from_selected_lyric(self):
+    def test_shift_space_starts_unplayed_track_from_selected_lyric(self):
         started = []
         item = object()
         frame = type(
@@ -3221,12 +3802,12 @@ class LyricsKeyboardTests(unittest.TestCase):
 
         LyricsDialog.on_text_key(
             dialog,
-            self.Event(ui.wx.WXK_SPACE, control=True),
+            self.Event(ui.wx.WXK_SPACE, shift=True),
         )
 
         self.assertEqual(started, [(item, 5_000)])
 
-    def test_control_space_reports_when_synced_lyrics_are_unavailable(self):
+    def test_shift_space_reports_when_synced_lyrics_are_unavailable(self):
         messages = []
         frame = type(
             "Frame",
@@ -3241,7 +3822,7 @@ class LyricsKeyboardTests(unittest.TestCase):
 
         LyricsDialog.on_text_key(
             dialog,
-            self.Event(ui.wx.WXK_SPACE, control=True),
+            self.Event(ui.wx.WXK_SPACE, shift=True),
         )
 
         self.assertEqual(
@@ -3349,7 +3930,7 @@ class LyricsKeyboardTests(unittest.TestCase):
         self.assertEqual(moved, [("caret", 0), ("show", 0)])
         self.assertEqual(started, [(item, 1_000)])
 
-    def test_control_space_restarts_playing_track_from_selected_lyric(self):
+    def test_shift_space_restarts_playing_track_from_selected_lyric(self):
         started = []
         item = object()
         frame = type(
@@ -3387,7 +3968,7 @@ class LyricsKeyboardTests(unittest.TestCase):
 
         LyricsDialog.on_text_key(
             dialog,
-            self.Event(ui.wx.WXK_SPACE, control=True),
+            self.Event(ui.wx.WXK_SPACE, shift=True),
         )
 
         self.assertEqual(started, [(item, 5_000)])
@@ -3562,7 +4143,7 @@ class LyricsKeyboardTests(unittest.TestCase):
 
         self.assertEqual(toggled, [True])
 
-    def test_dialog_routes_control_space_with_internal_native_focus(self):
+    def test_dialog_routes_shift_space_with_internal_native_focus(self):
         started = []
         item = object()
         frame = type(
@@ -3599,7 +4180,7 @@ class LyricsKeyboardTests(unittest.TestCase):
             dialog,
             self.Event(
                 ui.wx.WXK_SPACE,
-                control=True,
+                shift=True,
                 event_object=text,
             ),
         )

@@ -7,7 +7,7 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
 - Search tab with Songs, Albums, Artists, Playlists, Podcasts, Podcast
   episodes, Audiobooks, and All filters.
 - Liked Songs, Queue, Playlists, Recently Played, Bookmarks, Audiobooks,
-  Podcasts, and Saved Albums tabs.
+  Podcasts, Saved Albums, and New Music tabs.
 - Enter drills into containers and plays tracks or episodes.
 - Backspace returns to the previous view and restores the selected row.
 - Q queues an item, L likes or unlikes it, and Ctrl+F returns to search.
@@ -33,8 +33,8 @@ Register this redirect URI in the Spotify developer dashboard:
 
 ## Keyboard model
 
-- Ctrl+1 through Ctrl+9: select a tab in the interface. Ctrl+9 opens Saved
-  Albums; the existing Ctrl+1 through Ctrl+8 assignments are unchanged.
+- Ctrl+1 through Ctrl+9: select the existing tabs in the interface. Ctrl+9
+  opens Saved Albums. Ctrl+0 opens New Music.
 - Ctrl+Tab and Ctrl+Shift+Tab: cycle main tabs.
 - Ctrl+F: focus Search.
 - Ctrl+Comma: open Preferences.
@@ -49,21 +49,28 @@ Register this redirect URI in the Spotify developer dashboard:
   Press twice within that window to move to the previous track immediately.
 - F9: next track.
 - F8: pause or resume the current track.
-- Ctrl+F5 and Ctrl+F6: decrease or increase volume five percent.
-- Ctrl+F4: mute or restore the previous volume.
+- Shift+F5 and Shift+F6: decrease or increase volume five percent.
+- Shift+F4: mute or restore the previous volume.
 - Space: pause or resume playback, except when focus is in a control that
   uses Space itself, such as a button, checkbox, radio button, or edit field.
-- Ctrl+Space: play from the current line in Lyrics; elsewhere, mark or
-  unmark the focused list item. In Lyrics, enable **Phrase mode** to pause at
+- Shift+Space: play from the current line in Lyrics. In Lyrics, enable
+  **Phrase mode** to pause at
   the start of the next synced line. Ctrl+Up and Ctrl+Down move to and play
-  the previous or next line using the same mode.
+  the previous or next line using the same mode on Windows; on macOS, use
+  Option+Command+Up and Option+Command+Down.
+- Ctrl+Space on Windows: select or deselect the focused list item while
+  preserving other selections. On macOS, use VoiceOver's native selection
+  commands.
 - Ctrl+Q: queue marked tracks in list order, or the focused track if none are marked.
 - Ctrl+L: like or unlike the selected item.
 - Ctrl+Shift+L: like or unlike the currently loaded track.
 - Ctrl+Shift+B: bookmark the current playback position.
+- Ctrl+Shift+D: choose a Spotify Connect playback device.
 - Ctrl+Shift+N: new playlist.
-- Ctrl+Shift+R: refresh the current view.
-- Applications key or Shift+F10: open the selected item's actions.
+- Ctrl+Shift+R: speak remaining track time.
+- Ctrl+Shift+F: refresh the current view.
+- Shift+F10 or the Applications key on Windows, or Option+M on macOS: open
+  the selected item's actions.
 
 Search initially displays up to 20 results for a selected category. When more
 are available, activate **Load more results** at the end of the list to append
