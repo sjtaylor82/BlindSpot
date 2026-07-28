@@ -19,6 +19,15 @@ from . import messages as msg
 from .auth_callback import CallbackServer
 from .logging_setup import LOG_LEVELS, configure_logging
 from .lyrics import LRCLibClient, Lyrics, LyricsUnavailable
+from .keymap import (
+    ACTIONS_BY_ID,
+    CONTEXTS,
+    KEY_ACTIONS,
+    KeyMap,
+    chord_from_event,
+    conflict_warning,
+    warnings_seen,
+)
 from .models import ItemKind, SpotifyItem, ViewState
 from .navigation import NavigationHistory
 from .portable import PortableStore, resource_directory
@@ -296,7 +305,9 @@ def menu_function_shortcut(
     shortcut: str,
     platform: str = sys.platform,
 ) -> str:
-    return "" if platform == "darwin" else f"\t{shortcut}"
+    # Configurable commands must not retain a second, hidden source of truth in
+    # native menu accelerators. The context dispatcher handles their keys.
+    return ""
 
 
 def native_text_positions(
@@ -531,6 +542,238 @@ class GlobalShortcutsDialog(wx.Dialog):
         self.refresh_choices(selected)
 
 
+class KeymapCaptureDialog(wx.Dialog):
+    def __init__(self, parent: wx.Window, action_label: str) -> None:
+        super().__init__(parent, title=f"Assign key: {action_label}")
+        self.chord: str | None = None
+        outer = wx.BoxSizer(wx.VERTICAL)
+        outer.Add(
+            wx.StaticText(self, label="Press a key combination. Escape cancels."),
+            0,
+            wx.EXPAND | wx.ALL,
+            16,
+        )
+        cancel = self.CreateSeparatedButtonSizer(wx.CANCEL)
+        if cancel:
+            outer.Add(cancel, 0, wx.EXPAND | wx.ALL, 12)
+        self.SetSizerAndFit(outer)
+        self.Bind(wx.EVT_CHAR_HOOK, self.on_key)
+
+    def on_key(self, event: wx.KeyEvent) -> None:
+        if event.GetKeyCode() == wx.WXK_ESCAPE:
+            self.EndModal(wx.ID_CANCEL)
+            return
+        chord = chord_from_event(event)
+        if not chord:
+            return
+        self.chord = chord
+        self.EndModal(wx.ID_OK)
+
+
+class KeyboardManagerDialog(wx.Dialog):
+    def __init__(
+        self,
+        parent: wx.Window,
+        keymap: KeyMap,
+        seen_warnings: set[str],
+    ) -> None:
+        super().__init__(
+            parent,
+            title="Keyboard Manager",
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        self.keymap = KeyMap(
+            {"bindings": keymap.custom},
+            platform=keymap.platform,
+        )
+        self.seen_warnings = set(seen_warnings)
+        outer = wx.BoxSizer(wx.VERTICAL)
+        outer.Add(
+            wx.StaticText(self, label="Context"),
+            0,
+            wx.LEFT | wx.RIGHT | wx.TOP,
+            12,
+        )
+        self.context = wx.Choice(
+            self,
+            choices=["All commands", *CONTEXTS],
+        )
+        self.context.SetSelection(0)
+        outer.Add(
+            self.context,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            12,
+        )
+        outer.Add(
+            wx.StaticText(self, label="Search commands"),
+            0,
+            wx.LEFT | wx.RIGHT,
+            12,
+        )
+        self.search = wx.TextCtrl(self)
+        outer.Add(
+            self.search,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            12,
+        )
+        outer.Add(
+            wx.StaticText(self, label="Commands and assigned keys"),
+            0,
+            wx.LEFT | wx.RIGHT,
+            12,
+        )
+        self.actions = wx.ListBox(self, choices=self.action_choices())
+        if self.actions.GetCount():
+            self.actions.SetSelection(0)
+        outer.Add(self.actions, 1, wx.EXPAND | wx.ALL, 12)
+        action_buttons = wx.BoxSizer(wx.HORIZONTAL)
+        self.assign = wx.Button(self, label="&Assign...")
+        self.clear = wx.Button(self, label="&Clear")
+        self.defaults = wx.Button(self, label="Restore &defaults")
+        action_buttons.Add(self.assign, 0, wx.RIGHT, 8)
+        action_buttons.Add(self.clear, 0, wx.RIGHT, 8)
+        action_buttons.Add(self.defaults)
+        outer.Add(
+            action_buttons,
+            0,
+            wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            12,
+        )
+        buttons = self.CreateSeparatedButtonSizer(wx.OK | wx.CANCEL)
+        if buttons:
+            outer.Add(buttons, 0, wx.EXPAND | wx.ALL, 12)
+        self.SetSizerAndFit(outer)
+        self.SetMinSize((650, 480))
+        self.context.Bind(wx.EVT_CHOICE, self.on_context)
+        self.search.Bind(wx.EVT_TEXT, self.on_search)
+        self.assign.Bind(wx.EVT_BUTTON, self.on_assign)
+        self.clear.Bind(wx.EVT_BUTTON, self.on_clear)
+        self.defaults.Bind(wx.EVT_BUTTON, self.on_defaults)
+        self.actions.Bind(wx.EVT_LISTBOX_DCLICK, self.on_assign)
+        self.search.SetFocus()
+
+    def current_context(self) -> str | None:
+        selected = self.context.GetSelection()
+        return None if selected == 0 else CONTEXTS[selected - 1]
+
+    def context_actions(self) -> list:
+        context = self.current_context()
+        actions = (
+            list(KEY_ACTIONS)
+            if context is None
+            else [action for action in KEY_ACTIONS if action.context == context]
+        )
+        search = getattr(self, "search", None)
+        query = search.GetValue().strip().casefold() if search else ""
+        if not query:
+            return actions
+        return [
+            action
+            for action in actions
+            if query
+            in " ".join(
+                (
+                    action.label,
+                    action.context,
+                    *self.keymap.bindings(action.id),
+                )
+            ).casefold()
+        ]
+
+    def action_choices(self) -> list[str]:
+        return [
+            (
+                f"{action.context}: {action.label}: "
+                f"{', '.join(self.keymap.bindings(action.id)) or 'Not assigned'}"
+                if self.current_context() is None
+                else (
+                    f"{action.label}: "
+                    f"{', '.join(self.keymap.bindings(action.id)) or 'Not assigned'}"
+                )
+            )
+            for action in self.context_actions()
+        ]
+
+    def refresh_choices(self, selected: int = 0) -> None:
+        self.actions.Set(self.action_choices())
+        if self.actions.GetCount():
+            self.actions.SetSelection(
+                min(max(0, selected), self.actions.GetCount() - 1)
+            )
+
+    def on_context(self, event: wx.Event) -> None:
+        self.refresh_choices()
+
+    def on_search(self, event: wx.Event) -> None:
+        self.refresh_choices()
+
+    def on_assign(self, event: wx.Event) -> None:
+        selected = self.actions.GetSelection()
+        actions = self.context_actions()
+        if selected == wx.NOT_FOUND or not 0 <= selected < len(actions):
+            return
+        action = actions[selected]
+        capture = KeymapCaptureDialog(self, action.label)
+        accepted = capture.ShowModal() == wx.ID_OK and capture.chord
+        chord = capture.chord
+        capture.Destroy()
+        if not accepted or not chord:
+            return
+        owner = self.keymap.owner(chord, action.context)
+        if owner and owner.id != action.id:
+            answer = wx.MessageBox(
+                f"Replace {owner.label}?",
+                "Keyboard Manager",
+                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+                self,
+            )
+            if answer != wx.YES:
+                return
+        warning = conflict_warning(chord, self.keymap.platform)
+        if warning and warning not in self.seen_warnings:
+            if warning in {"navigation", "typing"}:
+                answer = wx.MessageBox(
+                    (
+                        msg.KEYMAP_NAVIGATION_WARNING
+                        if warning == "navigation"
+                        else msg.KEYMAP_TYPING_WARNING
+                    ),
+                    "Keyboard Manager",
+                    wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
+                    self,
+                )
+                if answer != wx.YES:
+                    return
+            else:
+                wx.MessageBox(
+                    (
+                        msg.KEYMAP_VOICEOVER_WARNING
+                        if warning == "voiceover"
+                        else msg.KEYMAP_OS_WARNING
+                    ),
+                    "Keyboard Manager",
+                    wx.OK | wx.ICON_WARNING,
+                    self,
+                )
+            self.seen_warnings.add(warning)
+        self.keymap.set_binding(action.id, chord)
+        self.refresh_choices(selected)
+
+    def on_clear(self, event: wx.Event) -> None:
+        selected = self.actions.GetSelection()
+        actions = self.context_actions()
+        if selected == wx.NOT_FOUND or not 0 <= selected < len(actions):
+            return
+        self.keymap.clear(actions[selected].id)
+        self.refresh_choices(selected)
+
+    def on_defaults(self, event: wx.Event) -> None:
+        self.keymap.restore_defaults(self.current_context())
+        self.refresh_choices()
+
+
 class PreferencesDialog(wx.Dialog):
     def __init__(
         self,
@@ -543,10 +786,12 @@ class PreferencesDialog(wx.Dialog):
             Callable[[dict[str, dict[str, int]]], None] | None
         ) = None,
         open_logs_folder: Callable[[], None] | None = None,
+        open_keyboard_manager: Callable[[wx.Window | None], None] | None = None,
     ) -> None:
         super().__init__(parent, title="BlindSpot preferences")
         self.save_global_shortcuts = save_global_shortcuts
         self.open_logs_folder_callback = open_logs_folder
+        self.open_keyboard_manager_callback = open_keyboard_manager
         outer = wx.BoxSizer(wx.VERTICAL)
         self.announce_track_changes = wx.CheckBox(
             self,
@@ -584,6 +829,16 @@ class PreferencesDialog(wx.Dialog):
         )
         outer.Add(
             self.configure_global_shortcuts,
+            0,
+            wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            12,
+        )
+        self.keyboard_manager = wx.Button(
+            self,
+            label="&Keyboard Manager...",
+        )
+        outer.Add(
+            self.keyboard_manager,
             0,
             wx.LEFT | wx.RIGHT | wx.BOTTOM,
             12,
@@ -626,6 +881,10 @@ class PreferencesDialog(wx.Dialog):
             wx.EVT_BUTTON,
             self.on_open_logs_folder,
         )
+        self.keyboard_manager.Bind(
+            wx.EVT_BUTTON,
+            self.on_keyboard_manager,
+        )
         self.announce_track_changes.SetFocus()
 
     def on_global_shortcuts(self, event: wx.Event) -> None:
@@ -645,6 +904,10 @@ class PreferencesDialog(wx.Dialog):
     def on_open_logs_folder(self, event: wx.Event) -> None:
         if self.open_logs_folder_callback:
             self.open_logs_folder_callback()
+
+    def on_keyboard_manager(self, event: wx.Event) -> None:
+        if self.open_keyboard_manager_callback:
+            self.open_keyboard_manager_callback(self)
 
     def get_announce_track_changes(self) -> bool:
         return self.announce_track_changes.GetValue()
@@ -848,6 +1111,16 @@ class LyricsDialog(wx.Dialog):
         event.Skip()
 
     def on_dialog_key(self, event: wx.KeyEvent) -> None:
+        if LyricsDialog.dispatch_mapped_key(self, event):
+            return
+        frame_keymap = getattr(getattr(self, "frame", None), "keymap", None)
+        if frame_keymap:
+            chord = chord_from_event(event, frame_keymap.platform)
+            if chord and frame_keymap.disabled_default(
+                chord,
+                ("Lyrics", "Main"),
+            ):
+                return
         key = event.GetKeyCode()
         if (
             key in (wx.WXK_UP, wx.WXK_DOWN)
@@ -946,6 +1219,52 @@ class LyricsDialog(wx.Dialog):
             self.frame.next_track()
             return
         event.Skip()
+
+    def dispatch_mapped_key(self, event: wx.KeyEvent) -> bool:
+        frame = getattr(self, "frame", None)
+        if not frame or not hasattr(frame, "keymap_action_for_event"):
+            return False
+        action = frame.keymap_action_for_event(event, ("Lyrics", "Main"))
+        if not action:
+            return False
+        if action == "play_lyric_line":
+            LyricsDialog.playback_from_selected_lyric(self)
+        elif action in {"previous_lyric_line", "next_lyric_line"}:
+            LyricsDialog.playback_from_adjacent_lyric(
+                self,
+                -1 if action == "previous_lyric_line" else 1,
+            )
+        elif action == "lyrics_earlier":
+            self.adjust_lyric_timing(500)
+        elif action == "lyrics_later":
+            self.adjust_lyric_timing(-500)
+        elif action == "play_focused":
+            LyricsDialog.cancel_phrase(self)
+            frame.play(self.item, announce=False)
+        elif action == "seek_backward":
+            LyricsDialog.cancel_phrase(self)
+            frame.seek(-5000)
+        elif action == "seek_forward":
+            LyricsDialog.cancel_phrase(self)
+            frame.seek(5000)
+        elif action == "previous_track":
+            LyricsDialog.cancel_phrase(self)
+            frame.previous_track()
+        elif action == "pause_resume":
+            LyricsDialog.cancel_phrase(self)
+            frame.toggle_pause_resume()
+        elif action == "next_track":
+            LyricsDialog.cancel_phrase(self)
+            frame.next_track()
+        elif action == "toggle_mute":
+            frame.toggle_mute()
+        elif action == "volume_down":
+            frame.adjust_volume(-5)
+        elif action == "volume_up":
+            frame.adjust_volume(5)
+        else:
+            return False
+        return True
 
     def selected_synced_line_index(self) -> int | None:
         if not getattr(self, "synced_lines", None):
@@ -2975,6 +3294,9 @@ class MainFrame(wx.Frame):
         self.spotify = spotify
         self.store = store
         settings = self.store.read("settings.json", {}) or {}
+        raw_keymap = self.store.read("keymap.json", {}) or {}
+        self.keymap = KeyMap(raw_keymap)
+        self.keymap_warnings_seen = warnings_seen(raw_keymap)
         self.announce_track_changes = bool(
             settings.get("announce_track_changes", False)
         )
@@ -3174,7 +3496,7 @@ class MainFrame(wx.Frame):
         )
         mute = go.Append(
             wx.ID_ANY,
-            "&Mute or unmute\tShift+F4",
+            "&Mute or unmute",
         )
         open_album = go.Append(
             wx.ID_ANY,
@@ -3284,11 +3606,11 @@ class MainFrame(wx.Frame):
         )
         volume_down = go.Append(
             wx.ID_ANY,
-            "Volume &down 5 percent\tShift+F5",
+            "Volume &down 5 percent",
         )
         volume_up = go.Append(
             wx.ID_ANY,
-            "Volume &up 5 percent\tShift+F6",
+            "Volume &up 5 percent",
         )
         go.AppendSeparator()
         queue_selected = go.Append(
@@ -3381,6 +3703,10 @@ class MainFrame(wx.Frame):
             wx.ID_PREFERENCES,
             f"&Preferences...{menu_function_shortcut(f'{ctrl}+,')}",
         )
+        keyboard_manager = options.Append(
+            wx.ID_ANY,
+            "&Keyboard Manager...",
+        )
         account = wx.Menu()
         connect = account.Append(
             wx.ID_ANY,
@@ -3400,7 +3726,7 @@ class MainFrame(wx.Frame):
         menu_bar.Append(options, "&Options")
 
         help_menu = wx.Menu()
-        manual = help_menu.Append(wx.ID_HELP, "&Manual\tF1")
+        manual = help_menu.Append(wx.ID_HELP, "&Manual")
         check_updates = help_menu.Append(
             wx.ID_ANY,
             "Check for &updates...",
@@ -3575,6 +3901,11 @@ class MainFrame(wx.Frame):
             open_new_music,
         )
         self.Bind(wx.EVT_MENU, self.on_preferences, preferences)
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.open_keyboard_manager(),
+            keyboard_manager,
+        )
         self.Bind(wx.EVT_MENU, self.on_connect, connect)
         self.Bind(
             wx.EVT_MENU,
@@ -3784,6 +4115,7 @@ class MainFrame(wx.Frame):
             ),
             self.save_global_shortcuts,
             self.open_logs_folder,
+            self.open_keyboard_manager,
         )
         if dialog.ShowModal() == wx.ID_OK:
             level = dialog.get_logging_level()
@@ -3814,6 +4146,29 @@ class MainFrame(wx.Frame):
                     ),
                 )
             configure_logging(self.store.root / "blindspot.log", level)
+        dialog.Destroy()
+
+    def open_keyboard_manager(
+        self,
+        parent: wx.Window | None = None,
+    ) -> None:
+        original_warnings = set(self.keymap_warnings_seen)
+        dialog = KeyboardManagerDialog(
+            parent or self,
+            self.keymap,
+            self.keymap_warnings_seen,
+        )
+        accepted = dialog.ShowModal() == wx.ID_OK
+        self.keymap_warnings_seen = set(dialog.seen_warnings)
+        if accepted:
+            self.keymap = dialog.keymap
+        if accepted or self.keymap_warnings_seen != original_warnings:
+            self.store.write(
+                "keymap.json",
+                self.keymap.to_json(self.keymap_warnings_seen),
+            )
+        if accepted:
+            self.say("Keyboard map saved.")
         dialog.Destroy()
 
     def open_logs_folder(self) -> None:
@@ -3983,10 +4338,141 @@ class MainFrame(wx.Frame):
         self.SetTitle("BlindSpot")
         event.Skip()
 
+    def keymap_action_for_event(
+        self,
+        event: wx.KeyEvent,
+        contexts: tuple[str, ...],
+    ) -> str | None:
+        keymap = getattr(self, "keymap", None)
+        if not keymap:
+            return None
+        chord = chord_from_event(event, keymap.platform)
+        if not chord:
+            return None
+        for context in contexts:
+            for action in KEY_ACTIONS:
+                if (
+                    action.context == context
+                    and chord in keymap.bindings(action.id)
+                ):
+                    return action.id
+        return None
+
+    def dispatch_mapped_key(
+        self,
+        event: wx.KeyEvent,
+        focused: wx.Window | None,
+        focused_list: ItemList | None,
+    ) -> bool:
+        contexts = ("Lists", "Main") if focused_list else ("Main",)
+        action = MainFrame.keymap_action_for_event(self, event, contexts)
+        if not action:
+            return False
+        if (
+            action == "pause_resume"
+            and event.GetKeyCode() == wx.WXK_SPACE
+            and space_belongs_to_control(focused)
+        ):
+            return False
+        simple_actions = {
+            "show_manual": ("on_manual", ()),
+            "seek_backward": ("seek", (-5000,)),
+            "seek_forward": ("seek", (5000,)),
+            "previous_track": ("previous_track", ()),
+            "pause_resume": ("toggle_pause_resume", ()),
+            "next_track": ("next_track", ()),
+            "toggle_mute": ("toggle_mute", ()),
+            "volume_down": ("adjust_volume", (-5,)),
+            "volume_up": ("adjust_volume", (5,)),
+            "preferences": ("on_preferences", ()),
+            "speak_total": ("announce_time", ("total",)),
+            "speak_elapsed": ("announce_time", ("elapsed",)),
+            "speak_remaining": ("announce_time", ("remaining",)),
+            "refresh_view": ("refresh_current_view", ()),
+            "choose_device": ("choose_playback_device", ()),
+            "speak_current": ("speak_current_track", ()),
+            "speak_up_next": ("speak_up_next", ()),
+            "jump_time": ("jump_to_time", ()),
+            "sleep_timer": ("choose_sleep_timer", ()),
+            "show_lyrics": ("show_lyrics", ()),
+            "cycle_repeat": ("cycle_repeat", ()),
+            "toggle_shuffle": ("toggle_shuffle", ()),
+            "like_current": ("toggle_like_current_track", ()),
+            "bookmark_current": ("save_current_bookmark", ()),
+            "new_playlist": ("create_playlist", ()),
+            "item_actions": ("show_selected_actions", ()),
+        }
+        if action in simple_actions:
+            method_name, arguments = simple_actions[action]
+            getattr(self, method_name)(*arguments)
+            return True
+        if action == "play_focused":
+            if focused_list:
+                self.play_selected()
+            else:
+                self.say(msg.NO_SONG_SELECTED)
+            return True
+        if action in {"cycle_tabs", "cycle_tabs_backward"}:
+            direction = -1 if action == "cycle_tabs_backward" else 1
+            selection = (
+                self.notebook.GetSelection() + direction
+            ) % self.notebook.GetPageCount()
+            self.notebook.SetSelection(selection)
+            self.notebook.SetFocus()
+            return True
+        if action == "focus_search":
+            self.discard_transient_open_album()
+            self.notebook.SetSelection(0)
+            self.search.focus_query()
+            return True
+        tab_actions = {
+            "open_search": 0,
+            "open_liked": 1,
+            "open_queue": 2,
+            "open_playlists": 3,
+            "open_recent": 4,
+            "open_bookmarks": 5,
+            "open_audiobooks": 6,
+            "open_podcasts": 7,
+            "open_saved_albums": 8,
+            "open_new_music": 9,
+        }
+        if action in tab_actions:
+            page = tab_actions[action]
+            if page == 0:
+                self.discard_transient_open_album()
+            self.notebook.SetSelection(page)
+            if page == 0:
+                self.search.focus_query()
+            elif page == 9:
+                self.new_music.release_types.SetFocus()
+            return True
+        if not focused_list:
+            return False
+        if action == "queue_marked":
+            self.queue_from_list(focused_list)
+        elif action == "like_focused":
+            self.toggle_like_item(focused_list.selected_item())
+        elif action == "add_to_playlist":
+            self.choose_playlist_for_selected()
+        elif action == "open_album":
+            self.open_selected_track_album(focused_list.selected_item())
+        else:
+            return False
+        return True
+
     def on_global_key(self, event: wx.KeyEvent) -> None:
         key = event.GetKeyCode()
         focused = wx.Window.FindFocus()
         focused_list = item_list_ancestor(focused)
+        if MainFrame.dispatch_mapped_key(self, event, focused, focused_list):
+            return
+        keymap = getattr(self, "keymap", None)
+        if keymap:
+            chord = chord_from_event(event, keymap.platform)
+            contexts = ("Lists", "Main") if focused_list else ("Main",)
+            if chord and keymap.disabled_default(chord, contexts):
+                return
         if key == wx.WXK_F1:
             self.on_manual()
         elif (

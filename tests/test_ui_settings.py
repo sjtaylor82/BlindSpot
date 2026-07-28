@@ -136,16 +136,16 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
 
     def test_mac_function_keys_are_not_menu_accelerators(self):
         self.assertEqual(menu_function_shortcut("F8", "darwin"), "")
-        self.assertEqual(menu_function_shortcut("F8", "win32"), "\tF8")
+        self.assertEqual(menu_function_shortcut("F8", "win32"), "")
         self.assertEqual(menu_function_shortcut("RAWCTRL+Y", "darwin"), "")
-        self.assertEqual(menu_function_shortcut("Ctrl+Y", "win32"), "\tCtrl+Y")
+        self.assertEqual(menu_function_shortcut("Ctrl+Y", "win32"), "")
         self.assertEqual(
             menu_function_shortcut("RAWCTRL+Shift+I", "darwin"),
             "",
         )
         self.assertEqual(
             menu_function_shortcut("Ctrl+Shift+I", "win32"),
-            "\tCtrl+Shift+I",
+            "",
         )
 
     def test_control_y_still_routes_through_global_key_handler(self):
@@ -476,6 +476,69 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
             "Control+F7",
         )
 
+    def test_custom_keymap_binding_dispatches_command(self):
+        spoken = []
+        mapped = ui.KeyMap(platform="win32")
+        mapped.set_binding("speak_current", "Alt+C")
+        frame = type(
+            "Frame",
+            (),
+            {
+                "keymap": mapped,
+                "speak_current_track": lambda self: spoken.append(True),
+            },
+        )()
+        event = type(
+            "Event",
+            (),
+            {
+                "GetKeyCode": lambda self: ord("C"),
+                "GetModifiers": lambda self: ui.wx.MOD_ALT,
+                "ControlDown": lambda self: False,
+                "AltDown": lambda self: True,
+                "ShiftDown": lambda self: False,
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.wx.Window.FindFocus", return_value=None),
+            patch("blindspot.ui.item_list_ancestor", return_value=None),
+        ):
+            MainFrame.on_global_key(frame, event)
+
+        self.assertEqual(spoken, [True])
+
+    def test_cleared_keymap_binding_does_not_use_legacy_default(self):
+        mapped = ui.KeyMap(platform="win32")
+        mapped.clear("pause_resume")
+        frame = type(
+            "Frame",
+            (),
+            {
+                "keymap": mapped,
+                "toggle_pause_resume": lambda self: self.fail(
+                    "Cleared F8 must not run"
+                ),
+            },
+        )()
+        event = type(
+            "Event",
+            (),
+            {
+                "GetKeyCode": lambda self: ui.wx.WXK_F8,
+                "GetModifiers": lambda self: 0,
+                "ControlDown": lambda self: False,
+                "AltDown": lambda self: False,
+                "ShiftDown": lambda self: False,
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.wx.Window.FindFocus", return_value=None),
+            patch("blindspot.ui.item_list_ancestor", return_value=None),
+        ):
+            MainFrame.on_global_key(frame, event)
+
 
 class CollectionFocusTests(unittest.TestCase):
     def test_completed_load_does_not_move_focus_into_list(self):
@@ -691,6 +754,201 @@ class GlobalShortcutRegistrationTests(unittest.TestCase):
         self.assertEqual([call[0] for call in calls], [previous_id, next_id])
         self.assertEqual(frame.registered_hotkey_ids, [next_id])
         self.assertIn("Previous track (F7)", messages[0])
+
+    def test_keyboard_manager_conflict_warning_is_once_only(self):
+        action = ui.ACTIONS_BY_ID["speak_current"]
+        keymap = ui.KeyMap(platform="darwin")
+        refreshed = []
+        manager = type(
+            "Manager",
+            (),
+            {
+                "actions": type(
+                    "Actions",
+                    (),
+                    {"GetSelection": lambda self: 0},
+                )(),
+                "keymap": keymap,
+                "seen_warnings": set(),
+                "context_actions": lambda self: [action],
+                "refresh_choices": (
+                    lambda self, selected=0: refreshed.append(selected)
+                ),
+            },
+        )()
+        capture = type(
+            "Capture",
+            (),
+            {
+                "chord": "Control+F4",
+                "ShowModal": lambda self: ui.wx.ID_OK,
+                "Destroy": lambda self: None,
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.KeymapCaptureDialog", return_value=capture),
+            patch("blindspot.ui.wx.MessageBox", return_value=ui.wx.ID_OK) as box,
+        ):
+            ui.KeyboardManagerDialog.on_assign(manager, None)
+            ui.KeyboardManagerDialog.on_assign(manager, None)
+
+        self.assertEqual(box.call_count, 1)
+        self.assertEqual(manager.seen_warnings, {"os"})
+        self.assertEqual(refreshed, [0, 0])
+
+    def test_keyboard_manager_can_reject_bare_navigation_key(self):
+        action = ui.ACTIONS_BY_ID["speak_current"]
+        keymap = ui.KeyMap(platform="win32")
+        manager = type(
+            "Manager",
+            (),
+            {
+                "actions": type(
+                    "Actions",
+                    (),
+                    {"GetSelection": lambda self: 0},
+                )(),
+                "keymap": keymap,
+                "seen_warnings": set(),
+                "context_actions": lambda self: [action],
+                "refresh_choices": lambda self, selected=0: None,
+            },
+        )()
+        capture = type(
+            "Capture",
+            (),
+            {
+                "chord": "Up",
+                "ShowModal": lambda self: ui.wx.ID_OK,
+                "Destroy": lambda self: None,
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.KeymapCaptureDialog", return_value=capture),
+            patch(
+                "blindspot.ui.wx.MessageBox",
+                return_value=ui.wx.NO,
+            ) as box,
+        ):
+            ui.KeyboardManagerDialog.on_assign(manager, None)
+
+        self.assertEqual(box.call_args.args[0], ui.msg.KEYMAP_NAVIGATION_WARNING)
+        self.assertEqual(
+            keymap.bindings("speak_current"),
+            ("Control+Shift+I",),
+        )
+        self.assertEqual(manager.seen_warnings, set())
+
+    def test_keyboard_manager_starts_with_all_contexts_visible(self):
+        manager = type(
+            "Manager",
+            (),
+            {
+                "context": type(
+                    "Context",
+                    (),
+                    {"GetSelection": lambda self: 0},
+                )(),
+                "keymap": ui.KeyMap(platform="win32"),
+            },
+        )()
+        manager.current_context = (
+            lambda: ui.KeyboardManagerDialog.current_context(manager)
+        )
+        manager.context_actions = (
+            lambda: ui.KeyboardManagerDialog.context_actions(manager)
+        )
+
+        choices = ui.KeyboardManagerDialog.action_choices(manager)
+
+        self.assertEqual(len(choices), len(ui.KEY_ACTIONS))
+        self.assertIn(
+            "Lists: Like or unlike focused item: Control+L",
+            choices,
+        )
+
+    def test_keyboard_manager_searches_command_names(self):
+        manager = type(
+            "Manager",
+            (),
+            {
+                "context": type(
+                    "Context",
+                    (),
+                    {"GetSelection": lambda self: 0},
+                )(),
+                "search": type(
+                    "Search",
+                    (),
+                    {"GetValue": lambda self: "like"},
+                )(),
+                "keymap": ui.KeyMap(platform="win32"),
+            },
+        )()
+        manager.current_context = (
+            lambda: ui.KeyboardManagerDialog.current_context(manager)
+        )
+
+        actions = ui.KeyboardManagerDialog.context_actions(manager)
+
+        self.assertEqual(
+            [action.id for action in actions],
+            ["open_liked", "like_focused", "like_current"],
+        )
+
+    def test_keyboard_warning_is_remembered_when_manager_is_cancelled(self):
+        writes = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "keymap": ui.KeyMap(platform="darwin"),
+                "keymap_warnings_seen": set(),
+                "store": type(
+                    "Store",
+                    (),
+                    {
+                        "write": (
+                            lambda self, name, value: writes.append(
+                                (name, value)
+                            )
+                        )
+                    },
+                )(),
+                "say": lambda self, message: self.fail(
+                    "Cancel must not announce a saved map"
+                ),
+            },
+        )()
+        dialog = type(
+            "Dialog",
+            (),
+            {
+                "keymap": frame.keymap,
+                "seen_warnings": {"os"},
+                "ShowModal": lambda self: ui.wx.ID_CANCEL,
+                "Destroy": lambda self: None,
+            },
+        )()
+
+        with patch(
+            "blindspot.ui.KeyboardManagerDialog",
+            return_value=dialog,
+        ):
+            MainFrame.open_keyboard_manager(frame)
+
+        self.assertEqual(frame.keymap_warnings_seen, {"os"})
+        self.assertEqual(
+            writes,
+            [
+                (
+                    "keymap.json",
+                    {"bindings": {}, "warnings_seen": ["os"]},
+                )
+            ],
+        )
 
 
 class RecentlyPlayedRefreshTests(unittest.TestCase):

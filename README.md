@@ -96,6 +96,16 @@ are maintained centrally in `src/blindspot/messages.py`.
 Global assignments for playback, seeking, volume, and mute can be configured
 individually in Preferences. No global shortcuts are assigned by default.
 
+Built-in shortcuts can be changed under Options > Keyboard Manager or from
+Preferences. All commands are shown initially and can be filtered by typing
+part of a name, context, or assigned key. Commands are grouped into Main,
+Lists, and Lyrics contexts, so the same key can perform different actions in
+different parts of BlindSpot.
+Assign replaces an existing key in the same context, Clear leaves a command
+unassigned, and Restore defaults resets the selected context. Custom bindings
+are stored in `data/keymap.json` on Windows or BlindSpot's application-support
+folder on macOS. Conflict warnings are brief and shown only once.
+
 ## Portable data
 
 Packaged Windows builds resolve `data` beside the BlindSpot executable.
