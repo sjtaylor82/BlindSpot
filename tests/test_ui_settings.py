@@ -11,6 +11,7 @@ from blindspot.ui import (
     PlaylistsPanel,
     PodcastsPanel,
     SearchPanel,
+    SetupDialog,
     album_track_label,
     menu_function_shortcut,
     native_text_positions,
@@ -18,6 +19,58 @@ from blindspot.ui import (
     radio_box_ancestor,
     resume_mode_from_settings,
 )
+
+
+class FirstRunSetupTests(unittest.TestCase):
+    def test_developer_dashboard_is_the_initial_control(self):
+        focused = []
+        dialog = type(
+            "Setup",
+            (),
+            {
+                "open_dashboard": type(
+                    "Button",
+                    (),
+                    {"SetFocus": lambda self: focused.append(self)},
+                )(),
+            },
+        )()
+
+        SetupDialog.focus_initial_control(dialog)
+
+        self.assertEqual(focused, [dialog.open_dashboard])
+
+    def test_web_player_is_deferred_until_spotify_is_connected(self):
+        frame = type(
+            "Frame",
+            (),
+            {
+                "spotify": type("Spotify", (), {"connected": False})(),
+                "player": None,
+            },
+        )()
+
+        with patch("blindspot.ui.WebPlaybackController") as player:
+            MainFrame._create_web_player(frame)
+
+        player.assert_not_called()
+
+    def test_web_player_is_created_after_first_connection(self):
+        created = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "recent_permission_authorization": False,
+                "player": None,
+                "say": lambda self, message: None,
+                "_create_web_player": lambda self: created.append(True),
+            },
+        )()
+
+        MainFrame.on_connected(frame)
+
+        self.assertEqual(created, [True])
 
 
 class PlaybackMemorySettingsTests(unittest.TestCase):

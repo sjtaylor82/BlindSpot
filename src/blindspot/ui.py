@@ -388,6 +388,10 @@ class SetupDialog(wx.Dialog):
             lambda event: webbrowser.open(DEVELOPER_DASHBOARD_URL),
         )
         self.Bind(wx.EVT_BUTTON, self.on_ok, id=wx.ID_OK)
+        self.focus_initial_control()
+
+    def focus_initial_control(self) -> None:
+        self.open_dashboard.SetFocus()
 
     def on_ok(self, event: wx.CommandEvent) -> None:
         if not self.client_id.GetValue().strip():
@@ -3469,6 +3473,9 @@ class MainFrame(wx.Frame):
         return lyrics
 
     def _create_web_player(self) -> None:
+        if not self.spotify.connected:
+            logger.info("Deferred web player creation until Spotify is connected")
+            return
         try:
             self.player = WebPlaybackController(
                 self,
@@ -4327,7 +4334,9 @@ class MainFrame(wx.Frame):
                 self.say(msg.RECENT_ACCESS_NOT_GRANTED)
         else:
             self.say(msg.CONNECTED)
-        if self.player:
+        if not self.player:
+            self._create_web_player()
+        else:
             self.player.provide_token()
 
     def on_tab_changed(self, event: wx.BookCtrlEvent) -> None:
