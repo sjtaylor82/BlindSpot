@@ -127,6 +127,11 @@ KEYMAP_OS_WARNING = "The system may use this key."
 KEYMAP_VOICEOVER_WARNING = "VoiceOver may use this key."
 KEYMAP_NAVIGATION_WARNING = "This key normally navigates. Assign anyway?"
 KEYMAP_TYPING_WARNING = "This key normally types. Assign anyway?"
+KEYMAP_GLOBAL_WARNING = (
+    "Global shortcuts work while BlindSpot is in the background and may "
+    "override shortcuts in other applications. Enable this assignment at "
+    "your own risk?"
+)
 GETTING_LYRICS = "Getting lyrics."
 GETTING_DEVICES = "Getting available devices."
 DEVICE_SELECTION_PROMPT = "Select the Spotify Connect device for playback."

@@ -215,20 +215,21 @@ Choose Download episode from a podcast episode's context menu to save its public
       Startup playback memory can either remember nothing, remember the last track
       from its beginning, or remember both the track and its elapsed position.
       Press F8 after the next launch to start the remembered track.</p>
-    <p>Choose Configure global keyboard shortcuts to assign any desired
-      combination separately to previous, pause/resume, next, seek, volume,
-      or mute. No global shortcuts are assigned by default. An assignment
-      works while BlindSpot is in the background and may override the same
-      command in another application. If another application already owns a
-      combination, BlindSpot reports that assignment but continues registering
-      the others.</p>
-    <p>Choose Keyboard Manager from Options or Preferences to change built-in
-      shortcuts. All commands are shown initially; type in Search commands to
+    <p>Choose Keyboard Manager from Preferences to change built-in shortcuts.
+      All commands are shown initially; type in Search commands to
       filter by name, context, or assigned key. Commands are grouped into Main,
       Lists, and Lyrics contexts. Assign replaces the same key in its context,
-      Clear removes a command's assignment, and Restore defaults resets the selected context. BlindSpot
-      stores changes in keymap.json. A short system or VoiceOver conflict
-      warning is shown only once.</p>
+      Clear removes a command's assignment, and Restore defaults resets the
+      selected context. The same manager can assign opt-in global shortcuts to
+      playback, seeking, Spotify volume, mute, current-track liking and
+      announcements, time announcements, bookmarks, shuffle, and repeat
+      commands. Global shortcuts work while BlindSpot is in the background and
+      may override shortcuts in other applications. None are assigned by
+      default, and existing global assignments are retained. If another
+      application already owns a combination, BlindSpot reports that assignment
+      but continues registering the others. BlindSpot stores custom keys in
+      keymap.json and application settings. Brief conflict and global-risk
+      warnings are shown only once.</p>
     <p>Logging is off by default. It can be enabled when diagnostic information is needed.</p>
 
     <h2>Portable data</h2>

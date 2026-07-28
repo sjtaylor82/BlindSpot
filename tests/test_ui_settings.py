@@ -700,83 +700,6 @@ class GlobalShortcutRegistrationTests(unittest.TestCase):
         launch.assert_called_once_with(str(root.resolve()))
         self.assertEqual(errors, [])
 
-    def test_shortcut_dialog_ok_saves_immediately(self):
-        saved = []
-        preferences = type(
-            "Preferences",
-            (),
-            {
-                "global_shortcuts": {},
-                "save_global_shortcuts": lambda self, value: saved.append(value),
-                "get_global_shortcuts": (
-                    ui.PreferencesDialog.get_global_shortcuts
-                ),
-            },
-        )()
-        shortcut = {"modifiers": 0, "keycode": ui.wx.WXK_F9}
-        dialog = type(
-            "Dialog",
-            (),
-            {
-                "shortcuts": {"next_track": shortcut},
-                "ShowModal": lambda self: ui.wx.ID_OK,
-                "Destroy": lambda self: None,
-            },
-        )()
-
-        with patch(
-            "blindspot.ui.GlobalShortcutsDialog",
-            return_value=dialog,
-        ):
-            ui.PreferencesDialog.on_global_shortcuts(preferences, None)
-
-        self.assertEqual(saved, [{"next_track": shortcut}])
-
-    def test_immediate_shortcut_save_writes_and_applies_hotkeys(self):
-        writes = []
-        applied = []
-        store = type(
-            "Store",
-            (),
-            {
-                "read": lambda self, name, default: {"logging_level": "Off"},
-                "write": lambda self, name, value: writes.append(
-                    (name, value.copy())
-                ),
-            },
-        )()
-        frame = type(
-            "Frame",
-            (),
-            {
-                "store": store,
-                "apply_global_hotkey_setting": (
-                    lambda self: applied.append(True)
-                ),
-            },
-        )()
-        shortcut = {"modifiers": 0, "keycode": ui.wx.WXK_F9}
-
-        MainFrame.save_global_shortcuts(
-            frame,
-            {"next_track": shortcut},
-        )
-
-        self.assertEqual(frame.global_shortcuts, {"next_track": shortcut})
-        self.assertEqual(
-            writes,
-            [
-                (
-                    "settings.json",
-                    {
-                        "logging_level": "Off",
-                        "global_shortcuts": {"next_track": shortcut},
-                    },
-                )
-            ],
-        )
-        self.assertEqual(applied, [True])
-
     def test_windows_key_is_added_to_captured_modifiers(self):
         event = type(
             "Event",
@@ -840,7 +763,81 @@ class GlobalShortcutRegistrationTests(unittest.TestCase):
 
         self.assertEqual([call[0] for call in calls], [previous_id, next_id])
         self.assertEqual(frame.registered_hotkey_ids, [next_id])
-        self.assertIn("Previous track (F7)", messages[0])
+        self.assertIn("Restart or previous track (F7)", messages[0])
+
+    def test_new_current_track_global_action_dispatches(self):
+        calls = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "toggle_like_current_track": lambda self: calls.append("like"),
+                "previous_track": lambda self: None,
+                "toggle_pause_resume": lambda self: None,
+                "next_track": lambda self: None,
+                "seek": lambda self, amount: None,
+                "adjust_volume": lambda self, amount: None,
+                "toggle_mute": lambda self: None,
+                "speak_current_track": lambda self: None,
+                "speak_up_next": lambda self: None,
+                "announce_time": lambda self, part: None,
+                "save_current_bookmark": lambda self: None,
+                "toggle_shuffle": lambda self: None,
+                "cycle_repeat": lambda self: None,
+            },
+        )()
+        event = type(
+            "Event",
+            (),
+            {
+                "GetId": lambda self: ui.GLOBAL_SHORTCUT_IDS["like_current"],
+            },
+        )()
+
+        MainFrame.on_global_hotkey(frame, event)
+
+        self.assertEqual(calls, ["like"])
+
+    def test_keyboard_manager_assigns_opt_in_global_shortcut(self):
+        action = ui.ACTIONS_BY_ID["like_current"]
+        shortcut = {"modifiers": ui.wx.MOD_ALT, "keycode": ord("L")}
+        refreshed = []
+        manager = type(
+            "Manager",
+            (),
+            {
+                "actions": type(
+                    "Actions",
+                    (),
+                    {"GetSelection": lambda self: 0},
+                )(),
+                "global_shortcuts": {},
+                "seen_warnings": set(),
+                "selected_action": lambda self: action,
+                "refresh_choices": (
+                    lambda self, selected=0: refreshed.append(selected)
+                ),
+            },
+        )()
+        capture = type(
+            "Capture",
+            (),
+            {
+                "shortcut": shortcut,
+                "ShowModal": lambda self: ui.wx.ID_OK,
+                "Destroy": lambda self: None,
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.ShortcutCaptureDialog", return_value=capture),
+            patch("blindspot.ui.wx.MessageBox", return_value=ui.wx.YES),
+        ):
+            ui.KeyboardManagerDialog.on_assign_global(manager, None)
+
+        self.assertEqual(manager.global_shortcuts, {"like_current": shortcut})
+        self.assertEqual(manager.seen_warnings, {"global"})
+        self.assertEqual(refreshed, [0])
 
     def test_keyboard_manager_conflict_warning_is_once_only(self):
         action = ui.ACTIONS_BY_ID["speak_current"]
@@ -939,6 +936,7 @@ class GlobalShortcutRegistrationTests(unittest.TestCase):
                     {"GetSelection": lambda self: 0},
                 )(),
                 "keymap": ui.KeyMap(platform="win32"),
+                "global_shortcuts": {},
             },
         )()
         manager.current_context = (
@@ -993,6 +991,7 @@ class GlobalShortcutRegistrationTests(unittest.TestCase):
             {
                 "keymap": ui.KeyMap(platform="darwin"),
                 "keymap_warnings_seen": set(),
+                "global_shortcuts": {},
                 "store": type(
                     "Store",
                     (),
@@ -1036,6 +1035,66 @@ class GlobalShortcutRegistrationTests(unittest.TestCase):
                 )
             ],
         )
+
+    def test_keyboard_manager_saves_and_applies_global_assignments(self):
+        writes = []
+        applied = []
+        spoken = []
+        shortcut = {"modifiers": ui.wx.MOD_ALT, "keycode": ord("L")}
+        store = type(
+            "Store",
+            (),
+            {
+                "read": lambda self, name, default: {"logging_level": "Off"},
+                "write": lambda self, name, value: writes.append((name, value)),
+            },
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "keymap": ui.KeyMap(platform="win32"),
+                "keymap_warnings_seen": set(),
+                "global_shortcuts": {},
+                "store": store,
+                "apply_global_hotkey_setting": (
+                    lambda self: applied.append(True)
+                ),
+                "say": lambda self, message: spoken.append(message),
+            },
+        )()
+        dialog = type(
+            "Dialog",
+            (),
+            {
+                "keymap": frame.keymap,
+                "seen_warnings": {"global"},
+                "global_shortcuts": {"like_current": shortcut},
+                "ShowModal": lambda self: ui.wx.ID_OK,
+                "Destroy": lambda self: None,
+            },
+        )()
+
+        with patch(
+            "blindspot.ui.KeyboardManagerDialog",
+            return_value=dialog,
+        ):
+            MainFrame.open_keyboard_manager(frame)
+
+        self.assertEqual(frame.global_shortcuts, {"like_current": shortcut})
+        self.assertEqual(writes[0][0], "keymap.json")
+        self.assertEqual(
+            writes[1],
+            (
+                "settings.json",
+                {
+                    "logging_level": "Off",
+                    "global_shortcuts": {"like_current": shortcut},
+                },
+            ),
+        )
+        self.assertEqual(applied, [True])
+        self.assertEqual(spoken, ["Keyboard map saved."])
 
 
 class RecentlyPlayedRefreshTests(unittest.TestCase):
@@ -4435,6 +4494,40 @@ class LyricsKeyboardTests(unittest.TestCase):
         with patch("blindspot.ui.wx.CheckBox", checkbox_type):
             LyricsDialog.on_dialog_key(type("Dialog", (), {})(), event)
 
+        self.assertTrue(event.skipped)
+
+    def test_mapped_space_does_not_pause_from_phrase_mode_checkbox(self):
+        toggled = []
+        checkbox_type = type("Checkbox", (), {})
+        checkbox = checkbox_type()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "keymap": ui.KeyMap(platform="win32"),
+                "keymap_action_for_event": (
+                    lambda self, event, contexts: (
+                        MainFrame.keymap_action_for_event(
+                            self,
+                            event,
+                            contexts,
+                        )
+                    )
+                ),
+                "toggle_pause_resume": lambda self: toggled.append(True),
+            },
+        )()
+        dialog = type(
+            "Dialog",
+            (),
+            {"frame": frame, "phrase_mode": checkbox},
+        )()
+        event = self.Event(ui.wx.WXK_SPACE, event_object=checkbox)
+
+        with patch("blindspot.ui.wx.CheckBox", checkbox_type):
+            LyricsDialog.on_dialog_key(dialog, event)
+
+        self.assertEqual(toggled, [])
         self.assertTrue(event.skipped)
 
     def test_bare_space_pauses_or_resumes_in_lyrics_text(self):

@@ -40,6 +40,12 @@ class KeyMapTests(unittest.TestCase):
         )
         self.assertEqual(keymap.warnings_seen(saved), {"os"})
 
+    def test_global_risk_warning_is_remembered(self):
+        self.assertEqual(
+            keymap.warnings_seen({"warnings_seen": ["global", "invalid"]}),
+            {"global"},
+        )
+
     def test_restore_defaults_removes_context_overrides(self):
         value = keymap.KeyMap(platform="darwin")
         value.set_binding("speak_current", "Command+I")

@@ -93,18 +93,21 @@ menu substitutes it at the original playlist position.
 User-facing announcements, prompts, status text, and practical error messages
 are maintained centrally in `src/blindspot/messages.py`.
 
-Global assignments for playback, seeking, volume, and mute can be configured
-individually in Preferences. No global shortcuts are assigned by default.
-
-Built-in shortcuts can be changed under Options > Keyboard Manager or from
-Preferences. All commands are shown initially and can be filtered by typing
+Built-in shortcuts can be changed from Keyboard Manager in Preferences. All
+commands are shown initially and can be filtered by typing
 part of a name, context, or assigned key. Commands are grouped into Main,
 Lists, and Lyrics contexts, so the same key can perform different actions in
 different parts of BlindSpot.
 Assign replaces an existing key in the same context, Clear leaves a command
-unassigned, and Restore defaults resets the selected context. Custom bindings
-are stored in `data/keymap.json` on Windows or BlindSpot's application-support
-folder on macOS. Conflict warnings are brief and shown only once.
+unassigned, and Restore defaults resets the selected context. Playback,
+seeking, Spotify volume, mute, current-track liking and announcements, time
+announcements, bookmarks, shuffle, and repeat commands can also receive an
+opt-in global assignment from the same manager. Global shortcuts work while
+BlindSpot is in the background and may override other applications; none are
+assigned by default. Existing global assignments are retained. Custom bindings
+are stored in `data/keymap.json` and the application settings on Windows, or
+BlindSpot's application-support folder on macOS. Conflict warnings are brief
+and shown only once.
 
 ## Portable data
 

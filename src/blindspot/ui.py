@@ -80,18 +80,27 @@ PAYPAL_DONATE_URL = (
     "business=samtaylor9%40me.com&currency_code=AUD&item_name=BlindSpot"
 )
 GLOBAL_SHORTCUT_ACTIONS = (
-    ("previous_track", "Previous track", 3101),
-    ("pause_resume", "Pause or resume", 3102),
-    ("next_track", "Next track", 3103),
-    ("seek_backward", "Seek backward five seconds", 3104),
-    ("seek_forward", "Seek forward five seconds", 3105),
-    ("volume_down", "Volume down five percent", 3106),
-    ("volume_up", "Volume up five percent", 3107),
-    ("toggle_mute", "Mute or unmute", 3108),
+    ("previous_track", 3101),
+    ("pause_resume", 3102),
+    ("next_track", 3103),
+    ("seek_backward", 3104),
+    ("seek_forward", 3105),
+    ("volume_down", 3106),
+    ("volume_up", 3107),
+    ("toggle_mute", 3108),
+    ("like_current", 3109),
+    ("speak_current", 3110),
+    ("speak_up_next", 3111),
+    ("speak_total", 3112),
+    ("speak_elapsed", 3113),
+    ("speak_remaining", 3114),
+    ("bookmark_current", 3115),
+    ("toggle_shuffle", 3116),
+    ("cycle_repeat", 3117),
 )
 GLOBAL_SHORTCUT_IDS = {
     action: hotkey_id
-    for action, _, hotkey_id in GLOBAL_SHORTCUT_ACTIONS
+    for action, hotkey_id in GLOBAL_SHORTCUT_ACTIONS
 }
 RESUME_MODES = ("none", "track", "track_and_position")
 RESUME_MODE_LABELS = (
@@ -162,7 +171,7 @@ def normalized_global_shortcuts(value: object) -> dict[str, dict[str, int]]:
     if not isinstance(value, dict):
         return {}
     shortcuts = {}
-    for action, _, _ in GLOBAL_SHORTCUT_ACTIONS:
+    for action, _ in GLOBAL_SHORTCUT_ACTIONS:
         shortcut = value.get(action)
         if not isinstance(shortcut, dict):
             continue
@@ -447,105 +456,6 @@ class ShortcutCaptureDialog(wx.Dialog):
         self.EndModal(wx.ID_OK)
 
 
-class GlobalShortcutsDialog(wx.Dialog):
-    def __init__(
-        self,
-        parent: wx.Window,
-        shortcuts: dict[str, dict[str, int]],
-    ) -> None:
-        super().__init__(parent, title="Global keyboard shortcuts")
-        self.shortcuts = {
-            action: dict(shortcut)
-            for action, shortcut in normalized_global_shortcuts(shortcuts).items()
-        }
-        outer = wx.BoxSizer(wx.VERTICAL)
-        self.actions = wx.ListBox(self, choices=self.action_choices())
-        if self.actions.GetCount():
-            self.actions.SetSelection(0)
-        outer.Add(
-            self.actions,
-            1,
-            wx.EXPAND | wx.ALL,
-            12,
-        )
-        action_buttons = wx.BoxSizer(wx.HORIZONTAL)
-        self.assign = wx.Button(self, label="&Assign shortcut...")
-        self.clear = wx.Button(self, label="&Clear shortcut")
-        action_buttons.Add(self.assign, 0, wx.RIGHT, 8)
-        action_buttons.Add(self.clear)
-        outer.Add(
-            action_buttons,
-            0,
-            wx.LEFT | wx.RIGHT | wx.BOTTOM,
-            12,
-        )
-        buttons = self.CreateSeparatedButtonSizer(wx.OK | wx.CANCEL)
-        if buttons:
-            outer.Add(buttons, 0, wx.EXPAND | wx.ALL, 12)
-        self.SetSizerAndFit(outer)
-        self.SetMinSize((550, 400))
-        self.assign.Bind(wx.EVT_BUTTON, self.on_assign)
-        self.clear.Bind(wx.EVT_BUTTON, self.on_clear)
-        self.actions.Bind(wx.EVT_LISTBOX_DCLICK, self.on_assign)
-        self.actions.SetFocus()
-
-    def action_choices(self) -> list[str]:
-        return [
-            f"{label}: {shortcut_label(self.shortcuts.get(action))}"
-            for action, label, _ in GLOBAL_SHORTCUT_ACTIONS
-        ]
-
-    def refresh_choices(self, selected: int) -> None:
-        self.actions.Set(self.action_choices())
-        self.actions.SetSelection(selected)
-
-    def on_assign(self, event: wx.Event) -> None:
-        selected = self.actions.GetSelection()
-        if selected == wx.NOT_FOUND:
-            return
-        action, label, _ = GLOBAL_SHORTCUT_ACTIONS[selected]
-        capture = ShortcutCaptureDialog(self, label)
-        if capture.ShowModal() == wx.ID_OK and capture.shortcut:
-            duplicate = next(
-                (
-                    other_action
-                    for other_action, shortcut in self.shortcuts.items()
-                    if other_action != action and shortcut == capture.shortcut
-                ),
-                None,
-            )
-            if duplicate:
-                other_label = next(
-                    value
-                    for value_action, value, _ in GLOBAL_SHORTCUT_ACTIONS
-                    if value_action == duplicate
-                )
-                answer = wx.MessageBox(
-                    msg.shortcut_replace(
-                        shortcut_label(capture.shortcut),
-                        other_label,
-                    ),
-                    "Global keyboard shortcuts",
-                    wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
-                    self,
-                )
-                if answer != wx.YES:
-                    capture.Destroy()
-                    return
-                self.shortcuts.pop(duplicate, None)
-            self.shortcuts[action] = dict(capture.shortcut)
-            self.refresh_choices(selected)
-        capture.Destroy()
-
-    def on_clear(self, event: wx.Event) -> None:
-        selected = self.actions.GetSelection()
-        if selected == wx.NOT_FOUND:
-            return
-        action = GLOBAL_SHORTCUT_ACTIONS[selected][0]
-        self.shortcuts.pop(action, None)
-        self.refresh_choices(selected)
-
-
 class KeymapCaptureDialog(wx.Dialog):
     def __init__(self, parent: wx.Window, action_label: str) -> None:
         super().__init__(parent, title=f"Assign key: {action_label}")
@@ -580,6 +490,7 @@ class KeyboardManagerDialog(wx.Dialog):
         parent: wx.Window,
         keymap: KeyMap,
         seen_warnings: set[str],
+        global_shortcuts: dict[str, dict[str, int]],
     ) -> None:
         super().__init__(
             parent,
@@ -591,6 +502,7 @@ class KeyboardManagerDialog(wx.Dialog):
             platform=keymap.platform,
         )
         self.seen_warnings = set(seen_warnings)
+        self.global_shortcuts = normalized_global_shortcuts(global_shortcuts)
         outer = wx.BoxSizer(wx.VERTICAL)
         outer.Add(
             wx.StaticText(self, label="Context"),
@@ -635,9 +547,13 @@ class KeyboardManagerDialog(wx.Dialog):
         action_buttons = wx.BoxSizer(wx.HORIZONTAL)
         self.assign = wx.Button(self, label="&Assign...")
         self.clear = wx.Button(self, label="&Clear")
+        self.assign_global = wx.Button(self, label="Assign &global...")
+        self.clear_global = wx.Button(self, label="Clear g&lobal")
         self.defaults = wx.Button(self, label="Restore &defaults")
         action_buttons.Add(self.assign, 0, wx.RIGHT, 8)
         action_buttons.Add(self.clear, 0, wx.RIGHT, 8)
+        action_buttons.Add(self.assign_global, 0, wx.RIGHT, 8)
+        action_buttons.Add(self.clear_global, 0, wx.RIGHT, 8)
         action_buttons.Add(self.defaults)
         outer.Add(
             action_buttons,
@@ -654,9 +570,13 @@ class KeyboardManagerDialog(wx.Dialog):
         self.search.Bind(wx.EVT_TEXT, self.on_search)
         self.assign.Bind(wx.EVT_BUTTON, self.on_assign)
         self.clear.Bind(wx.EVT_BUTTON, self.on_clear)
+        self.assign_global.Bind(wx.EVT_BUTTON, self.on_assign_global)
+        self.clear_global.Bind(wx.EVT_BUTTON, self.on_clear_global)
         self.defaults.Bind(wx.EVT_BUTTON, self.on_defaults)
         self.actions.Bind(wx.EVT_LISTBOX_DCLICK, self.on_assign)
+        self.actions.Bind(wx.EVT_LISTBOX, self.on_action_selected)
         self.search.SetFocus()
+        self.update_global_buttons()
 
     def current_context(self) -> str | None:
         selected = self.context.GetSelection()
@@ -687,18 +607,20 @@ class KeyboardManagerDialog(wx.Dialog):
         ]
 
     def action_choices(self) -> list[str]:
-        return [
-            (
+        choices = []
+        for action in self.context_actions():
+            local = ", ".join(self.keymap.bindings(action.id)) or "Not assigned"
+            global_label = shortcut_label(self.global_shortcuts.get(action.id))
+            description = (
                 f"{action.context}: {action.label}: "
-                f"{', '.join(self.keymap.bindings(action.id)) or 'Not assigned'}"
+                f"{local}"
                 if self.current_context() is None
-                else (
-                    f"{action.label}: "
-                    f"{', '.join(self.keymap.bindings(action.id)) or 'Not assigned'}"
-                )
+                else f"{action.label}: {local}"
             )
-            for action in self.context_actions()
-        ]
+            if action.id in GLOBAL_SHORTCUT_IDS:
+                description += f"; global: {global_label}"
+            choices.append(description)
+        return choices
 
     def refresh_choices(self, selected: int = 0) -> None:
         self.actions.Set(self.action_choices())
@@ -706,12 +628,31 @@ class KeyboardManagerDialog(wx.Dialog):
             self.actions.SetSelection(
                 min(max(0, selected), self.actions.GetCount() - 1)
             )
+        self.update_global_buttons()
 
     def on_context(self, event: wx.Event) -> None:
         self.refresh_choices()
 
     def on_search(self, event: wx.Event) -> None:
         self.refresh_choices()
+
+    def selected_action(self):
+        selected = self.actions.GetSelection()
+        actions = self.context_actions()
+        if selected == wx.NOT_FOUND or not 0 <= selected < len(actions):
+            return None
+        return actions[selected]
+
+    def update_global_buttons(self) -> None:
+        action = self.selected_action()
+        eligible = bool(action and action.id in GLOBAL_SHORTCUT_IDS)
+        self.assign_global.Enable(eligible)
+        self.clear_global.Enable(
+            bool(eligible and action.id in self.global_shortcuts)
+        )
+
+    def on_action_selected(self, event: wx.Event) -> None:
+        self.update_global_buttons()
 
     def on_assign(self, event: wx.Event) -> None:
         selected = self.actions.GetSelection()
@@ -773,6 +714,56 @@ class KeyboardManagerDialog(wx.Dialog):
         self.keymap.clear(actions[selected].id)
         self.refresh_choices(selected)
 
+    def on_assign_global(self, event: wx.Event) -> None:
+        action = self.selected_action()
+        if action is None or action.id not in GLOBAL_SHORTCUT_IDS:
+            return
+        capture = ShortcutCaptureDialog(self, action.label)
+        accepted = capture.ShowModal() == wx.ID_OK and capture.shortcut
+        shortcut = capture.shortcut
+        capture.Destroy()
+        if not accepted or not shortcut:
+            return
+        if "global" not in self.seen_warnings:
+            answer = wx.MessageBox(
+                msg.KEYMAP_GLOBAL_WARNING,
+                "Keyboard Manager",
+                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
+                self,
+            )
+            if answer != wx.YES:
+                return
+            self.seen_warnings.add("global")
+        duplicate = next(
+            (
+                other_action
+                for other_action, existing in self.global_shortcuts.items()
+                if other_action != action.id and existing == shortcut
+            ),
+            None,
+        )
+        if duplicate:
+            other_label = ACTIONS_BY_ID[duplicate].label
+            answer = wx.MessageBox(
+                msg.shortcut_replace(shortcut_label(shortcut), other_label),
+                "Keyboard Manager",
+                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+                self,
+            )
+            if answer != wx.YES:
+                return
+            self.global_shortcuts.pop(duplicate, None)
+        self.global_shortcuts[action.id] = dict(shortcut)
+        self.refresh_choices(self.actions.GetSelection())
+
+    def on_clear_global(self, event: wx.Event) -> None:
+        action = self.selected_action()
+        if action is None:
+            return
+        selected = self.actions.GetSelection()
+        self.global_shortcuts.pop(action.id, None)
+        self.refresh_choices(selected)
+
     def on_defaults(self, event: wx.Event) -> None:
         self.keymap.restore_defaults(self.current_context())
         self.refresh_choices()
@@ -785,15 +776,10 @@ class PreferencesDialog(wx.Dialog):
         logging_level: str,
         announce_track_changes: bool,
         resume_mode: str,
-        global_shortcuts: dict[str, dict[str, int]],
-        save_global_shortcuts: (
-            Callable[[dict[str, dict[str, int]]], None] | None
-        ) = None,
         open_logs_folder: Callable[[], None] | None = None,
         open_keyboard_manager: Callable[[wx.Window | None], None] | None = None,
     ) -> None:
         super().__init__(parent, title="BlindSpot preferences")
-        self.save_global_shortcuts = save_global_shortcuts
         self.open_logs_folder_callback = open_logs_folder
         self.open_keyboard_manager_callback = open_keyboard_manager
         outer = wx.BoxSizer(wx.VERTICAL)
@@ -824,17 +810,6 @@ class PreferencesDialog(wx.Dialog):
             self.resume_mode,
             0,
             wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
-            12,
-        )
-        self.global_shortcuts = normalized_global_shortcuts(global_shortcuts)
-        self.configure_global_shortcuts = wx.Button(
-            self,
-            label="Configure &global keyboard shortcuts...",
-        )
-        outer.Add(
-            self.configure_global_shortcuts,
-            0,
-            wx.LEFT | wx.RIGHT | wx.BOTTOM,
             12,
         )
         self.keyboard_manager = wx.Button(
@@ -877,10 +852,6 @@ class PreferencesDialog(wx.Dialog):
         if buttons:
             outer.Add(buttons, 0, wx.EXPAND | wx.ALL, 12)
         self.SetSizerAndFit(outer)
-        self.configure_global_shortcuts.Bind(
-            wx.EVT_BUTTON,
-            self.on_global_shortcuts,
-        )
         self.open_logs_folder.Bind(
             wx.EVT_BUTTON,
             self.on_open_logs_folder,
@@ -890,17 +861,6 @@ class PreferencesDialog(wx.Dialog):
             self.on_keyboard_manager,
         )
         self.announce_track_changes.SetFocus()
-
-    def on_global_shortcuts(self, event: wx.Event) -> None:
-        dialog = GlobalShortcutsDialog(self, self.global_shortcuts)
-        if dialog.ShowModal() == wx.ID_OK:
-            self.global_shortcuts = {
-                action: dict(shortcut)
-                for action, shortcut in dialog.shortcuts.items()
-            }
-            if self.save_global_shortcuts:
-                self.save_global_shortcuts(self.get_global_shortcuts())
-        dialog.Destroy()
 
     def get_logging_level(self) -> str:
         return self.logging_level.GetStringSelection()
@@ -918,13 +878,6 @@ class PreferencesDialog(wx.Dialog):
 
     def get_resume_mode(self) -> str:
         return RESUME_MODES[self.resume_mode.GetSelection()]
-
-    def get_global_shortcuts(self) -> dict[str, dict[str, int]]:
-        return {
-            action: dict(shortcut)
-            for action, shortcut in self.global_shortcuts.items()
-        }
-
 
 class LyricsDialog(wx.Dialog):
     def __init__(
@@ -1230,6 +1183,12 @@ class LyricsDialog(wx.Dialog):
             return False
         action = frame.keymap_action_for_event(event, ("Lyrics", "Main"))
         if not action:
+            return False
+        if (
+            action == "pause_resume"
+            and event.GetKeyCode() == wx.WXK_SPACE
+            and space_belongs_to_control(event.GetEventObject())
+        ):
             return False
         if action == "play_lyric_line":
             LyricsDialog.playback_from_selected_lyric(self)
@@ -3411,7 +3370,7 @@ class MainFrame(wx.Frame):
         self.set_view_title("Search")
         self.load_pending_resume()
         self.Bind(wx.EVT_CHAR_HOOK, self.on_global_key)
-        for _, _, hotkey_id in GLOBAL_SHORTCUT_ACTIONS:
+        for _, hotkey_id in GLOBAL_SHORTCUT_ACTIONS:
             self.Bind(wx.EVT_HOTKEY, self.on_global_hotkey, id=hotkey_id)
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.Centre()
@@ -3710,10 +3669,6 @@ class MainFrame(wx.Frame):
             wx.ID_PREFERENCES,
             f"&Preferences...{menu_function_shortcut(f'{ctrl}+,')}",
         )
-        keyboard_manager = options.Append(
-            wx.ID_ANY,
-            "&Keyboard Manager...",
-        )
         account = wx.Menu()
         connect = account.Append(
             wx.ID_ANY,
@@ -3908,11 +3863,6 @@ class MainFrame(wx.Frame):
             open_new_music,
         )
         self.Bind(wx.EVT_MENU, self.on_preferences, preferences)
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.open_keyboard_manager(),
-            keyboard_manager,
-        )
         self.Bind(wx.EVT_MENU, self.on_connect, connect)
         self.Bind(
             wx.EVT_MENU,
@@ -4146,14 +4096,13 @@ class MainFrame(wx.Frame):
             settings.get("logging_level", "Off"),
             bool(settings.get("announce_track_changes", False)),
             resume_mode_from_settings(settings),
-            normalized_global_shortcuts(
-                settings.get("global_shortcuts", {})
-            ),
-            self.save_global_shortcuts,
             self.open_logs_folder,
             self.open_keyboard_manager,
         )
         if dialog.ShowModal() == wx.ID_OK:
+            # Keyboard Manager can save globals while Preferences is open.
+            # Re-read settings so accepting this dialog cannot overwrite them.
+            settings = self.store.read("settings.json", {}) or {}
             level = dialog.get_logging_level()
             settings["logging_level"] = level
             self.announce_track_changes = (
@@ -4165,11 +4114,7 @@ class MainFrame(wx.Frame):
             self.resume_mode = dialog.get_resume_mode()
             settings["resume_mode"] = self.resume_mode
             settings.pop("resume_last_track", None)
-            self.global_shortcuts = dialog.get_global_shortcuts()
-            settings["global_shortcuts"] = self.global_shortcuts
-            settings.pop("global_seek_volume_hotkeys", None)
             self.store.write("settings.json", settings)
-            self.apply_global_hotkey_setting()
             if self.resume_mode == "none":
                 self.pending_resume = None
                 self.store.remove("playback.json")
@@ -4193,34 +4138,32 @@ class MainFrame(wx.Frame):
             parent or self,
             self.keymap,
             self.keymap_warnings_seen,
+            self.global_shortcuts,
         )
         accepted = dialog.ShowModal() == wx.ID_OK
         self.keymap_warnings_seen = set(dialog.seen_warnings)
         if accepted:
             self.keymap = dialog.keymap
+            self.global_shortcuts = normalized_global_shortcuts(
+                dialog.global_shortcuts
+            )
         if accepted or self.keymap_warnings_seen != original_warnings:
             self.store.write(
                 "keymap.json",
                 self.keymap.to_json(self.keymap_warnings_seen),
             )
         if accepted:
+            settings = self.store.read("settings.json", {}) or {}
+            settings["global_shortcuts"] = self.global_shortcuts
+            settings.pop("global_seek_volume_hotkeys", None)
+            self.store.write("settings.json", settings)
+            self.apply_global_hotkey_setting()
             self.say("Keyboard map saved.")
         dialog.Destroy()
 
     def open_logs_folder(self) -> None:
         if not wx.LaunchDefaultApplication(str(self.store.root.resolve())):
             self.show_error(msg.LOGS_FOLDER_OPEN_FAILED)
-
-    def save_global_shortcuts(
-        self,
-        shortcuts: dict[str, dict[str, int]],
-    ) -> None:
-        self.global_shortcuts = normalized_global_shortcuts(shortcuts)
-        settings = self.store.read("settings.json", {}) or {}
-        settings["global_shortcuts"] = self.global_shortcuts
-        settings.pop("global_seek_volume_hotkeys", None)
-        self.store.write("settings.json", settings)
-        self.apply_global_hotkey_setting()
 
     def on_manual(self, event: wx.Event | None = None) -> None:
         manual = resource_directory() / "manual.html"
@@ -4732,8 +4675,8 @@ class MainFrame(wx.Frame):
         self.unregister_global_hotkeys()
         failed = []
         labels = {
-            action: label
-            for action, label, _ in GLOBAL_SHORTCUT_ACTIONS
+            action: ACTIONS_BY_ID[action].label
+            for action, _ in GLOBAL_SHORTCUT_ACTIONS
         }
         for action, shortcut in self.global_shortcuts.items():
             hotkey_id = GLOBAL_SHORTCUT_IDS[action]
@@ -4777,6 +4720,25 @@ class MainFrame(wx.Frame):
                 lambda: self.adjust_volume(5)
             ),
             GLOBAL_SHORTCUT_IDS["toggle_mute"]: self.toggle_mute,
+            GLOBAL_SHORTCUT_IDS["like_current"]: (
+                self.toggle_like_current_track
+            ),
+            GLOBAL_SHORTCUT_IDS["speak_current"]: self.speak_current_track,
+            GLOBAL_SHORTCUT_IDS["speak_up_next"]: self.speak_up_next,
+            GLOBAL_SHORTCUT_IDS["speak_total"]: (
+                lambda: self.announce_time("total")
+            ),
+            GLOBAL_SHORTCUT_IDS["speak_elapsed"]: (
+                lambda: self.announce_time("elapsed")
+            ),
+            GLOBAL_SHORTCUT_IDS["speak_remaining"]: (
+                lambda: self.announce_time("remaining")
+            ),
+            GLOBAL_SHORTCUT_IDS["bookmark_current"]: (
+                self.save_current_bookmark
+            ),
+            GLOBAL_SHORTCUT_IDS["toggle_shuffle"]: self.toggle_shuffle,
+            GLOBAL_SHORTCUT_IDS["cycle_repeat"]: self.cycle_repeat,
         }
         action = actions.get(event.GetId())
         if action:

@@ -360,7 +360,7 @@ def warnings_seen(value: object) -> set[str]:
     return {
         warning
         for warning in value["warnings_seen"]
-        if warning in {"navigation", "os", "typing", "voiceover"}
+        if warning in {"global", "navigation", "os", "typing", "voiceover"}
     }
 
 
