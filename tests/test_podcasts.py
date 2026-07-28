@@ -8,12 +8,19 @@ from blindspot.models import ItemKind, SpotifyItem
 from blindspot.podcasts import (
     PodcastDownload,
     PodcastDownloadUnavailable,
+    _normalise,
+    _similarity,
     download_episode,
     find_episode_download,
 )
 
 
 class PodcastDownloadTests(unittest.TestCase):
+    def test_non_latin_titles_remain_distinct(self):
+        self.assertEqual(_normalise("你好，世界"), "你好 世界")
+        self.assertLess(_similarity("你好，世界", "再见，月亮"), 0.55)
+        self.assertEqual(_similarity("", ""), 0.0)
+
     def test_finds_matching_episode_enclosure(self):
         directory = json.dumps(
             {

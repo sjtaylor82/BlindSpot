@@ -31,11 +31,20 @@ class PodcastDownload:
 
 def _normalise(value: str) -> str:
     value = unicodedata.normalize("NFKD", value).casefold()
-    return " ".join(re.findall(r"[a-z0-9]+", value))
+    characters = (
+        character if character.isalnum() else " "
+        for character in value
+        if not unicodedata.combining(character)
+    )
+    return " ".join("".join(characters).split())
 
 
 def _similarity(left: str, right: str) -> float:
-    return SequenceMatcher(None, _normalise(left), _normalise(right)).ratio()
+    normalised_left = _normalise(left)
+    normalised_right = _normalise(right)
+    if not normalised_left or not normalised_right:
+        return 0.0
+    return SequenceMatcher(None, normalised_left, normalised_right).ratio()
 
 
 def _read_url(url: str, *, limit: int) -> bytes:
@@ -93,7 +102,8 @@ def _episode_from_feed(feed_url: str, episode_name: str) -> PodcastDownload | No
         if not title or not url:
             continue
         score = _similarity(episode_name, title)
-        if _normalise(episode_name) == _normalise(title):
+        normalised_episode = _normalise(episode_name)
+        if normalised_episode and normalised_episode == _normalise(title):
             score = 1.0
         matches.append((score, title, url))
     if not matches:

@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from blindspot.updates import (
     Release,
@@ -53,3 +54,23 @@ class UpdateVersionTests(unittest.TestCase):
             ({"name": "BlindSpot-macOS.zip"},),
         )
         self.assertFalse(supports_automatic_update(release, "win32", True))
+
+
+class PortableUpdaterTests(unittest.TestCase):
+    def test_backup_is_completed_before_installed_files_are_removed(self):
+        script = (
+            Path(__file__).resolve().parents[1] / "portable_updater.ps1"
+        ).read_text(encoding="utf-8")
+
+        backup_completed = script.index(
+            'Write-UpdateLog "Current application backup completed."'
+        )
+        installation_started = script.index("$installationStarted = $true")
+        installed_files_removed = script.index(
+            "Remove-Item -Recurse -Force",
+            installation_started,
+        )
+
+        self.assertLess(backup_completed, installation_started)
+        self.assertLess(installation_started, installed_files_removed)
+        self.assertIn("$preserveStaging = $true", script)

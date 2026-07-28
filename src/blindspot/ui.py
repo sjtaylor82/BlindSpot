@@ -3992,7 +3992,21 @@ class MainFrame(wx.Frame):
             try:
                 result = worker()
             except Exception as error:
-                logger.exception("Background task failed: %s", message or "unnamed task")
+                expected_unavailable = (
+                    PlaylistContentsUnavailable,
+                    LyricsUnavailable,
+                )
+                if isinstance(error, expected_unavailable):
+                    logger.info(
+                        "Background task unavailable: %s: %s",
+                        message or "unnamed task",
+                        error,
+                    )
+                else:
+                    logger.exception(
+                        "Background task failed: %s",
+                        message or "unnamed task",
+                    )
                 error_message = str(error)
 
                 def report_error(
@@ -4005,7 +4019,10 @@ class MainFrame(wx.Frame):
                         self.offer_permission_refresh()
                     elif isinstance(
                         caught_error,
-                        (PlaylistContentsUnavailable, LyricsUnavailable),
+                        (
+                            PlaylistContentsUnavailable,
+                            LyricsUnavailable,
+                        ),
                     ):
                         self.say(caught_message)
                     else:
@@ -4108,7 +4125,19 @@ class MainFrame(wx.Frame):
         )
         if answer == wx.YES:
             self.spotify.sign_out()
+            self.close_spotify_session()
             self.say(msg.SIGNED_OUT)
+
+    def close_spotify_session(self) -> None:
+        if self.player:
+            self.player.close()
+            self.player = None
+        self.remote_refresh_timer.Stop()
+        self.remote_device_id = None
+        self.remote_device_name = ""
+        self.remote_supports_volume = None
+        self.current_player_state = {}
+        self.current_player_item = None
 
     def on_preferences(self, event: wx.Event | None = None) -> None:
         settings = self.store.read("settings.json", {}) or {}

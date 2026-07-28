@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from blindspot import ui
 from blindspot.ui import (
@@ -71,6 +71,40 @@ class FirstRunSetupTests(unittest.TestCase):
         MainFrame.on_connected(frame)
 
         self.assertEqual(created, [True])
+
+
+class AccountSessionTests(unittest.TestCase):
+    def test_sign_out_closes_authenticated_player_and_clears_state(self):
+        player = Mock()
+        timer = Mock()
+        spotify = Mock()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "spotify": spotify,
+                "player": player,
+                "remote_refresh_timer": timer,
+                "remote_device_id": "remote",
+                "remote_device_name": "Living room",
+                "remote_supports_volume": True,
+                "current_player_state": {"is_playing": True},
+                "current_player_item": object(),
+                "say": Mock(),
+                "close_spotify_session": MainFrame.close_spotify_session,
+            },
+        )()
+
+        with patch("blindspot.ui.wx.MessageBox", return_value=ui.wx.YES):
+            MainFrame.on_sign_out(frame, None)
+
+        spotify.sign_out.assert_called_once_with()
+        player.close.assert_called_once_with()
+        timer.Stop.assert_called_once_with()
+        self.assertIsNone(frame.player)
+        self.assertIsNone(frame.remote_device_id)
+        self.assertEqual(frame.current_player_state, {})
+        self.assertIsNone(frame.current_player_item)
 
 
 class PlaybackMemorySettingsTests(unittest.TestCase):

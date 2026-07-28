@@ -13,6 +13,8 @@ $backup = Join-Path $staging "backup"
 $logDirectory = Join-Path $AppDirectory "data"
 $log = Join-Path $logDirectory "update.log"
 $appWasClosed = $false
+$installationStarted = $false
+$preserveStaging = $false
 $success = $false
 
 New-Item -ItemType Directory -Path $payload -Force | Out-Null
@@ -73,9 +75,15 @@ try {
     Write-UpdateLog "BlindSpot closed; installing prepared files."
     Write-Host "Installing the update. Please keep this window open."
 
+    Write-UpdateLog "Creating backup of the current application."
     Get-ChildItem -LiteralPath $AppDirectory -Force |
         Where-Object { $_.Name -ne "data" } |
-        ForEach-Object { Move-Item -LiteralPath $_.FullName -Destination $backup -Force }
+        ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $backup -Recurse -Force }
+    Write-UpdateLog "Current application backup completed."
+    $installationStarted = $true
+    Get-ChildItem -LiteralPath $AppDirectory -Force |
+        Where-Object { $_.Name -ne "data" } |
+        Remove-Item -Recurse -Force
     Get-ChildItem -LiteralPath $newRoot -Force |
         Where-Object { $_.Name -ne "data" } |
         ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $AppDirectory -Recurse -Force }
@@ -86,18 +94,31 @@ try {
 } catch {
     Write-UpdateLog ("Portable update failed: " + $_.Exception.Message)
     Write-Host ("The portable update failed: " + $_.Exception.Message)
-    if ($appWasClosed) {
-        Get-ChildItem -LiteralPath $AppDirectory -Force |
-            Where-Object { $_.Name -ne "data" } |
-            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-        Get-ChildItem -LiteralPath $backup -Force |
-            ForEach-Object { Move-Item -LiteralPath $_.FullName -Destination $AppDirectory -Force }
+    if ($installationStarted) {
+        try {
+            Get-ChildItem -LiteralPath $AppDirectory -Force |
+                Where-Object { $_.Name -ne "data" } |
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            Get-ChildItem -LiteralPath $backup -Force |
+                ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $AppDirectory -Recurse -Force }
+            Write-UpdateLog "Previous application restored from backup."
+        } catch {
+            $preserveStaging = $true
+            Write-UpdateLog (
+                "Automatic rollback failed; backup preserved at " +
+                $backup + ": " + $_.Exception.Message)
+            Write-Host (
+                "Automatic rollback failed. The previous application is " +
+                "preserved at " + $backup)
+        }
     }
     if (-not (Test-Path -LiteralPath $ReadyPath)) {
         Set-Content -LiteralPath $ReadyPath -Value "error" -Encoding ASCII
     }
 } finally {
-    Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
+    if (-not $preserveStaging) {
+        Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
+    }
     if ($success) {
         Remove-Item -LiteralPath $ZipPath -Force -ErrorAction SilentlyContinue
     }
