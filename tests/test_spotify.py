@@ -521,6 +521,27 @@ class PlaybackCommandTests(unittest.TestCase):
 
         self.assertEqual(client.children(playlist)[0].id, "track-1")
 
+    def test_artist_albums_use_spotify_limit_and_load_every_page(self):
+        first_page = {
+            "items": [
+                {"id": f"album-{index}", "name": f"Album {index}"}
+                for index in range(10)
+            ],
+            "total": 11,
+        }
+        second_page = {
+            "items": [{"id": "album-10", "name": "Album 10"}],
+            "total": 11,
+        }
+        client = CommandClient([first_page, second_page])
+        artist = SpotifyItem("artist-1", ItemKind.ARTIST, "Artist")
+
+        albums = client.children(artist)
+
+        self.assertEqual(len(albums), 11)
+        self.assertEqual(client.calls[0][2]["limit"], 10)
+        self.assertEqual(client.calls[1][2], {"limit": 10, "offset": 10})
+
     def test_album_for_track_uses_embedded_album_without_request(self):
         client = PlaylistClient([])
         track = SpotifyItem(

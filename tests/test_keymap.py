@@ -5,6 +5,24 @@ from blindspot import keymap
 
 
 class KeyMapTests(unittest.TestCase):
+    def test_default_transport_keys_form_backward_to_forward_sequence(self):
+        value = keymap.KeyMap(platform="win32")
+
+        self.assertEqual(value.bindings("previous_track"), ("F5",))
+        self.assertEqual(value.bindings("seek_backward"), ("F6",))
+        self.assertEqual(value.bindings("pause_resume"), ("F7", "Space"))
+        self.assertEqual(value.bindings("seek_forward"), ("F8",))
+        self.assertEqual(value.bindings("next_track"), ("F9",))
+
+    def test_concerts_has_distinct_shortcut_from_new_music(self):
+        value = keymap.KeyMap(platform="win32")
+
+        self.assertEqual(value.bindings("open_new_music"), ("Control+0",))
+        self.assertEqual(
+            value.bindings("open_concerts"),
+            ("Control+Shift+G",),
+        )
+
     def test_platform_defaults_differ_for_item_actions_and_lyrics(self):
         windows = keymap.KeyMap(platform="win32")
         mac = keymap.KeyMap(platform="darwin")
@@ -19,9 +37,9 @@ class KeyMapTests(unittest.TestCase):
     def test_assignment_replaces_duplicate_in_same_context_only(self):
         value = keymap.KeyMap(platform="win32")
 
-        value.set_binding("seek_forward", "F5")
+        value.set_binding("seek_forward", "F6")
 
-        self.assertEqual(value.bindings("seek_forward"), ("F5",))
+        self.assertEqual(value.bindings("seek_forward"), ("F6",))
         self.assertEqual(value.bindings("seek_backward"), ())
         self.assertEqual(
             value.bindings("previous_lyric_line"),
@@ -36,7 +54,7 @@ class KeyMapTests(unittest.TestCase):
 
         self.assertEqual(loaded.bindings("pause_resume"), ())
         self.assertTrue(
-            loaded.disabled_default("F8", ("Main",))
+            loaded.disabled_default("F7", ("Main",))
         )
         self.assertEqual(keymap.warnings_seen(saved), {"os"})
 
@@ -65,7 +83,7 @@ class KeyMapTests(unittest.TestCase):
                 "bindings": {
                     "show_lyrics": ["ctrl+y", "bad+modifier+y", "Ctrl+Y"],
                     "unknown": ["F1"],
-                    "seek_forward": "F6",
+                    "seek_forward": "F8",
                 }
             }
         )
@@ -118,7 +136,6 @@ class KeyMapTests(unittest.TestCase):
                 keymap.chord_from_event(event, "darwin"),
                 "Option+Command+M",
             )
-
 
 if __name__ == "__main__":
     unittest.main()

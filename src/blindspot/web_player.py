@@ -33,7 +33,6 @@ PLAYER_HTML = """<!doctype html>
       let volumeCommands = Promise.resolve();
       let volumeBeforeMute = 0.8;
       let playbackSnapshotTimer = null;
-
       function send(type, detail = {}) {
         const message = JSON.stringify({type, ...detail});
         window.blindspot.postMessage(message);
@@ -213,6 +212,15 @@ PLAYER_HTML = """<!doctype html>
           send("volume_result", {volume: null});
         });
       };
+      window.blindSpotSetVolume = volumePercent => {
+        volumeCommands = volumeCommands.then(() => {
+          if (!player) {
+            return;
+          }
+          const target = Math.min(1, Math.max(0, volumePercent / 100));
+          return player.setVolume(target);
+        }).catch(error => reportCommandError("volume", error));
+      };
       window.blindSpotToggleMute = () => {
         volumeCommands = volumeCommands.then(() => {
           if (!player) {
@@ -298,11 +306,16 @@ class WebPlaybackController:
         on_ready: Callable[[str], None],
         on_error: Callable[[str], None],
         on_playback_update: Callable[[dict], None],
+        initial_volume_percent: int = 80,
     ) -> None:
         self.spotify = spotify
         self.on_ready = on_ready
         self.on_error = on_error
         self.on_playback_update = on_playback_update
+        self.initial_volume_percent = min(
+            100,
+            max(0, int(initial_volume_percent)),
+        )
         self.device_id: str | None = None
         self.page_ready = False
         self.closed = False
@@ -419,6 +432,10 @@ class WebPlaybackController:
             self.device_id = message.get("device_id")
             if self.device_id:
                 logger.info("BlindSpot Spotify device is ready")
+                self._run_script(
+                    "window.blindSpotSetVolume("
+                    f"{self.initial_volume_percent});"
+                )
                 self.on_ready(self.device_id)
         elif message_type == "not_ready":
             self.device_id = None

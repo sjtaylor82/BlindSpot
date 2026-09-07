@@ -7,7 +7,12 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
 - Search tab with Songs, Albums, Artists, Playlists, Podcasts, Podcast
   episodes, Audiobooks, and All filters.
 - Liked Songs, Queue, Playlists, Recently Played, Bookmarks, Audiobooks,
-  Podcasts, Saved Albums, and New Music tabs.
+  Podcasts, Saved Albums, New Music, and Concerts tabs.
+- Upcoming Ticketmaster live-event search by keyword, country, state, city, and
+  genre, with 50 results per page. Add your own Ticketmaster Discovery API key
+  in Preferences to use it; a link beneath the key field opens Ticketmaster's
+  registration instructions.
+- Ctrl+Shift+G opens the Concerts tab; Ctrl+0 continues to open New Music.
 - Enter drills into containers and plays tracks or episodes.
 - Backspace returns to the previous view and restores the selected row.
 - Q queues an item, L likes or unlikes it, and Ctrl+F returns to search.
@@ -44,13 +49,15 @@ Register this redirect URI in the Spotify developer dashboard:
 - F4: play the focused track, playlist, album, or artist. In an open album,
   Enter plays only the selected track, while F4 plays the album beginning at
   that track.
-- F5 and F6: seek backward or forward five seconds.
-- F7: restart the current track after the half-second double-press window.
+- F5: restart the current track after the half-second double-press window.
   Press twice within that window to move to the previous track immediately.
+- F6 and F8: seek backward or forward five seconds.
+- F7: pause or resume the current track.
 - F9: next track.
-- F8: pause or resume the current track.
 - Shift+F5 and Shift+F6: decrease or increase volume five percent.
 - Shift+F4: mute or restore the previous volume.
+- BlindSpot remembers the last manually selected volume for its built-in player
+  between sessions; temporary muting does not replace that saved level.
 - Space: pause or resume playback, except when focus is in a control that
   uses Space itself, such as a button, checkbox, radio button, or edit field.
 - Shift+Space: play from the current line in Lyrics. In Lyrics, enable

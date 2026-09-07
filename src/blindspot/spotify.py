@@ -351,10 +351,10 @@ class SpotifyClient:
             logger.info("Loaded %d album tracks", len(items))
             return items
         if item.kind == ItemKind.ARTIST:
-            data = self._request(
-                "GET", f"/artists/{item.id}/albums", query={"limit": 50}
+            values = self._paged_items(
+                "GET", f"/artists/{item.id}/albums", query={"limit": 10}
             )
-            return [self._map_item(x, ItemKind.ALBUM) for x in data["items"]]
+            return [self._map_item(x, ItemKind.ALBUM) for x in values]
         if item.kind == ItemKind.PLAYLIST:
             try:
                 entries = self._paged_items(
@@ -1038,7 +1038,9 @@ class SpotifyClient:
     ) -> SpotifyItem:
         artists = ", ".join(x.get("name", "") for x in value.get("artists", []))
         album_value = value.get("album") or {}
-        release_date = value.get("release_date", "")
+        release_date = value.get("release_date", "") or album_value.get(
+            "release_date", ""
+        )
         total = None
         if kind == ItemKind.ALBUM:
             total = value.get("total_tracks")

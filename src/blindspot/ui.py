@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import io
 import logging
 import re
 import sys
+import tempfile
 import threading
 import time
+import urllib.request
 import uuid
 import webbrowser
 from collections.abc import Callable
+from datetime import date, timedelta
 from pathlib import Path
 
 import wx
@@ -39,6 +43,13 @@ from .spotify import (
     SpotifyClient,
     SpotifyError,
 )
+from .ticketmaster import (
+    ConcertEvent,
+    ConcertPage,
+    EventCategory,
+    TICKETMASTER_COUNTRIES,
+    TicketmasterClient,
+)
 from .updates import (
     download_and_install,
     latest_release,
@@ -48,6 +59,137 @@ from .updates import (
 from .web_player import WebPlaybackController
 
 logger = logging.getLogger("blindspot.ui")
+
+
+def album_artwork_url(item: SpotifyItem) -> str:
+    """Return the largest artwork URL supplied by Spotify."""
+    images = item.raw.get("images") or []
+    available = [image for image in images if image.get("url")]
+    if not available:
+        return ""
+    largest = max(
+        available,
+        key=lambda image: int(image.get("width") or 0)
+        * int(image.get("height") or 0),
+    )
+    return str(largest["url"])
+
+
+def download_album_artwork(url: str) -> bytes:
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "BlindSpot Spotify client"},
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        return response.read()
+
+
+class AlbumArtworkDialog(wx.Dialog):
+    def __init__(
+        self,
+        parent: wx.Window,
+        item: SpotifyItem,
+        artwork: bytes,
+    ) -> None:
+        title = f"Album artwork for {item.name}"
+        super().__init__(
+            parent,
+            title=title,
+            size=(700, 760),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        self.item = item
+        self.artwork = artwork
+        self.original_image = wx.Image(io.BytesIO(artwork), wx.BITMAP_TYPE_ANY)
+        if not self.original_image.IsOk():
+            raise ValueError(msg.ALBUM_ARTWORK_INVALID)
+
+        panel = wx.Panel(self)
+        outer = wx.BoxSizer(wx.VERTICAL)
+        description = title + (f" by {item.artist}" if item.artist else "")
+        label = wx.StaticText(panel, label=description)
+        self.bitmap = wx.StaticBitmap(panel)
+        self.bitmap.SetName(description)
+        buttons = wx.StdDialogButtonSizer()
+        open_button = wx.Button(panel, label="Open in &photo viewer")
+        close_button = wx.Button(panel, wx.ID_CLOSE, "&Close")
+        buttons.AddButton(open_button)
+        buttons.AddButton(close_button)
+        buttons.Realize()
+        outer.Add(label, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 10)
+        outer.Add(self.bitmap, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        outer.Add(buttons, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 10)
+        panel.SetSizer(outer)
+
+        open_button.Bind(wx.EVT_BUTTON, self.on_open_in_photo_viewer)
+        close_button.Bind(wx.EVT_BUTTON, lambda event: self.EndModal(wx.ID_CLOSE))
+        self.Bind(wx.EVT_SIZE, self.on_size)
+        self.SetMinSize((360, 440))
+        self.CentreOnParent()
+        wx.CallAfter(self.update_bitmap)
+
+    def on_size(self, event: wx.SizeEvent) -> None:
+        event.Skip()
+        wx.CallAfter(self.update_bitmap)
+
+    def update_bitmap(self) -> None:
+        area = self.bitmap.GetClientSize()
+        width = max(1, area.width)
+        height = max(1, area.height)
+        source_width = self.original_image.GetWidth()
+        source_height = self.original_image.GetHeight()
+        scale = min(width / source_width, height / source_height)
+        target_width = max(1, int(source_width * scale))
+        target_height = max(1, int(source_height * scale))
+        image = self.original_image.Scale(
+            target_width,
+            target_height,
+            wx.IMAGE_QUALITY_HIGH,
+        )
+        self.bitmap.SetBitmap(wx.Bitmap(image))
+
+    def on_open_in_photo_viewer(self, event: wx.CommandEvent) -> None:
+        safe_name = re.sub(r"[^A-Za-z0-9._ -]+", "_", self.item.name).strip()
+        path = Path(tempfile.gettempdir()) / f"BlindSpot - {safe_name or 'album artwork'}.jpg"
+        path.write_bytes(self.artwork)
+        if not wx.LaunchDefaultApplication(str(path)):
+            wx.MessageBox(
+                msg.ALBUM_ARTWORK_VIEWER_FAILED,
+                "BlindSpot",
+                wx.OK | wx.ICON_ERROR,
+                self,
+            )
+
+
+class _NamedPageAccessible(wx.Accessible):
+    """Expose a notebook page label to MSAA clients such as JAWS."""
+
+    def __init__(self, window, title: str):
+        super().__init__(window)
+        self._title = title
+
+    def GetName(self, child_id):
+        if child_id == wx.ACC_SELF:
+            return wx.ACC_OK, self._title
+        return wx.ACC_NOT_IMPLEMENTED, ""
+
+    def GetRole(self, child_id):
+        if child_id == wx.ACC_SELF:
+            return wx.ACC_OK, wx.ROLE_SYSTEM_PROPERTYPAGE
+        return wx.ACC_NOT_IMPLEMENTED, wx.ROLE_SYSTEM_PANE
+
+
+class _NamedControlAccessible(wx.Accessible):
+    """Provide an explicit MSAA name for a native form control."""
+
+    def __init__(self, window: wx.Window, name: str) -> None:
+        super().__init__(window)
+        self._name = name
+
+    def GetName(self, child_id):
+        if child_id == wx.ACC_SELF:
+            return wx.ACC_OK, self._name
+        return wx.ACC_NOT_IMPLEMENTED, ""
 
 SEARCH_LABELS = [
     "Songs",
@@ -75,6 +217,9 @@ PHRASE_MODE_TIMER_MS = 25
 PREVIOUS_DOUBLE_PRESS_SECONDS = 0.5
 ENTER_KEY_CODES = (10, 13, wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER)
 DEVELOPER_DASHBOARD_URL = "https://developer.spotify.com/dashboard"
+TICKETMASTER_DEVELOPER_URL = (
+    "https://developer.ticketmaster.com/products-and-docs/apis/getting-started/"
+)
 PAYPAL_DONATE_URL = (
     "https://www.paypal.com/donate?"
     "business=samtaylor9%40me.com&currency_code=AUD&item_name=BlindSpot"
@@ -259,11 +404,59 @@ def resume_mode_from_settings(settings: dict) -> str:
     return "track_and_position" if settings.get("resume_last_track") else "none"
 
 
+def volume_percent_from_settings(settings: dict) -> int:
+    try:
+        volume = int(settings.get("playback_volume_percent", 80))
+    except (TypeError, ValueError):
+        return 80
+    return min(100, max(0, volume))
+
+
 def playback_state_for_resume(state: dict, mode: str) -> dict:
     stored = dict(state)
     if mode == "track":
         stored["progress_ms"] = 0
     return stored
+
+
+def radio_box_letter_index(box: wx.RadioBox, letter: str) -> int | None:
+    count = box.GetCount()
+    if not count:
+        return None
+    current = box.GetSelection()
+    for offset in range(1, count + 1):
+        index = (current + offset) % count
+        label = box.GetString(index)
+        if label.lstrip().casefold().startswith(letter):
+            return index
+    return None
+
+
+def move_radio_box_focus(box: wx.RadioBox, target: int) -> None:
+    """Move real keyboard focus to the target item, not just its checked state.
+
+    wx.RadioBox.SetSelection() only flips which button is checked; it does
+    not move keyboard focus and does not fire the platform accessibility
+    events a screen reader relies on, so a caller that only calls
+    SetSelection() produces a silent, unannounced change. Native radio
+    groups instead move focus (and announce the change) when the user
+    presses Up/Down, so we drive that same native path with synthetic
+    Up/Down key presses rather than faking the selection.
+    """
+    current = box.GetSelection()
+    count = box.GetCount()
+    if target == current or count <= 0:
+        return
+    forward_steps = (target - current) % count
+    backward_steps = (current - target) % count
+    if forward_steps <= backward_steps:
+        key, steps = wx.WXK_DOWN, forward_steps
+    else:
+        key, steps = wx.WXK_UP, backward_steps
+    simulator = wx.UIActionSimulator()
+    for _ in range(steps):
+        simulator.KeyDown(key)
+        simulator.KeyUp(key)
 
 
 def physical_control_down(event: wx.KeyEvent) -> bool:
@@ -776,6 +969,7 @@ class PreferencesDialog(wx.Dialog):
         logging_level: str,
         announce_track_changes: bool,
         resume_mode: str,
+        ticketmaster_api_key: str = "",
         open_logs_folder: Callable[[], None] | None = None,
         open_keyboard_manager: Callable[[wx.Window | None], None] | None = None,
     ) -> None:
@@ -848,6 +1042,39 @@ class PreferencesDialog(wx.Dialog):
             wx.LEFT | wx.RIGHT | wx.BOTTOM,
             12,
         )
+        outer.Add(
+            wx.StaticText(self, label="Ticketmaster API key"),
+            0,
+            wx.LEFT | wx.RIGHT | wx.TOP,
+            12,
+        )
+        self.ticketmaster_api_key = wx.TextCtrl(
+            self,
+            value=ticketmaster_api_key,
+        )
+        self.ticketmaster_api_key.SetName("Ticketmaster API key")
+        self.ticketmaster_api_key.SetAccessible(
+            _NamedControlAccessible(
+                self.ticketmaster_api_key,
+                "Ticketmaster API key",
+            )
+        )
+        outer.Add(
+            self.ticketmaster_api_key,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            12,
+        )
+        self.get_ticketmaster_key_button = wx.Button(
+            self,
+            label="&Get a Ticketmaster API key...",
+        )
+        outer.Add(
+            self.get_ticketmaster_key_button,
+            0,
+            wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            12,
+        )
         buttons = self.CreateSeparatedButtonSizer(wx.OK | wx.CANCEL)
         if buttons:
             outer.Add(buttons, 0, wx.EXPAND | wx.ALL, 12)
@@ -860,10 +1087,17 @@ class PreferencesDialog(wx.Dialog):
             wx.EVT_BUTTON,
             self.on_keyboard_manager,
         )
+        self.get_ticketmaster_key_button.Bind(
+            wx.EVT_BUTTON,
+            lambda event: webbrowser.open(TICKETMASTER_DEVELOPER_URL),
+        )
         self.announce_track_changes.SetFocus()
 
     def get_logging_level(self) -> str:
         return self.logging_level.GetStringSelection()
+
+    def get_ticketmaster_api_key(self) -> str:
+        return self.ticketmaster_api_key.GetValue().strip()
 
     def on_open_logs_folder(self, event: wx.Event) -> None:
         if self.open_logs_folder_callback:
@@ -1137,7 +1371,7 @@ class LyricsDialog(wx.Dialog):
             and not physical_control_down(event)
         ):
             LyricsDialog.cancel_phrase(self)
-            self.frame.seek(-5000)
+            self.frame.previous_track()
             return
         if (
             key == wx.WXK_F6
@@ -1146,7 +1380,7 @@ class LyricsDialog(wx.Dialog):
             and not physical_control_down(event)
         ):
             LyricsDialog.cancel_phrase(self)
-            self.frame.seek(5000)
+            self.frame.seek(-5000)
             return
         if (
             key == wx.WXK_F7
@@ -1155,7 +1389,7 @@ class LyricsDialog(wx.Dialog):
             and not physical_control_down(event)
         ):
             LyricsDialog.cancel_phrase(self)
-            self.frame.previous_track()
+            self.frame.toggle_pause_resume()
             return
         if (
             key == wx.WXK_F8
@@ -1164,7 +1398,7 @@ class LyricsDialog(wx.Dialog):
             and not physical_control_down(event)
         ):
             LyricsDialog.cancel_phrase(self)
-            self.frame.toggle_pause_resume()
+            self.frame.seek(5000)
             return
         if (
             key == wx.WXK_F9
@@ -1559,16 +1793,16 @@ class ItemList(ItemListBase):
         if panel_handler:
             panel_handler(event)
             return
-        if (
-            sys.platform == "darwin"
-            and ItemList.select_by_typed_letter(self, event)
-        ):
+        if ItemList.select_by_typed_letter(self, event):
             return
         frame = getattr(panel, "frame", None)
         if frame:
             # macOS DataView controls consume keyboard chords before their
-            # containing frame sees them. Route every key through the same
-            # global dispatcher used by the rest of the interface.
+            # containing frame sees them, and on Windows an unhandled bare
+            # letter otherwise falls through to native dialog mnemonic
+            # matching (e.g. plain "S" activating the "&Search" button).
+            # Route every key through the same global dispatcher used by
+            # the rest of the interface.
             frame.on_global_key(event)
         else:
             event.Skip()
@@ -1595,7 +1829,10 @@ class ItemList(ItemListBase):
         current = self.GetSelection()
         for offset in range(1, count + 1):
             row = (current + offset) % count
-            label = str(self.GetTextValue(row, 0))
+            if ITEM_LIST_USES_DATAVIEW:
+                label = str(self.GetTextValue(row, 0))
+            else:
+                label = str(self.GetItemText(row, 0))
             if label.lstrip().casefold().startswith(letter):
                 self.SetSelection(row)
                 return True
@@ -1982,6 +2219,16 @@ class SearchPanel(wx.Panel):
         item = self.results.selected_item()
         if not item or item.kind == ItemKind.HEADING:
             return
+        artist = SearchPanel.artist_for_album_view(self, item)
+        artist_actions = []
+        if artist:
+            artist_id, artist_name = artist
+            artist_actions.append(
+                (
+                    f"Show albums by &{artist_name}",
+                    lambda: self.open_artist_albums(artist_id, artist_name),
+                )
+            )
         self.frame.popup_item_menu(
             self.results,
             item,
@@ -1989,6 +2236,35 @@ class SearchPanel(wx.Panel):
             include_album_action=(
                 self.history.current.parent_kind != ItemKind.ALBUM
             ),
+            top_level_actions=artist_actions,
+        )
+
+    def artist_for_album_view(
+        self, item: SpotifyItem
+    ) -> tuple[str, str] | None:
+        state = self.history.current
+        if state.parent_kind == ItemKind.ALBUM:
+            if state.parent_artist_ids and state.parent_artist_names:
+                return state.parent_artist_ids[0], state.parent_artist_names[0]
+            return None
+        if item.kind != ItemKind.ALBUM:
+            return None
+        artists = item.raw.get("artists") or []
+        if not artists:
+            return None
+        artist_id = str(artists[0].get("id") or "")
+        artist_name = str(artists[0].get("name") or "")
+        if not artist_id or not artist_name:
+            return None
+        return artist_id, artist_name
+
+    def open_artist_albums(self, artist_id: str, artist_name: str) -> None:
+        artist = SpotifyItem(artist_id, ItemKind.ARTIST, artist_name)
+        self.history.remember_selection(self.results.GetSelection())
+        self.frame.run_task(
+            msg.opening(artist_name),
+            lambda: self.frame.spotify.children(artist),
+            lambda albums: self.open_children(artist, albums),
         )
 
     def on_navigation(self, event: wx.NavigationKeyEvent) -> None:
@@ -2351,6 +2627,284 @@ class NewMusicPanel(CollectionPanel):
         self.items.SetFocus()
         if no_new_releases:
             self.frame.say(msg.NO_MORE_RESULTS)
+
+
+class ConcertsPanel(wx.Panel):
+    def __init__(self, parent: wx.Window, frame: "MainFrame") -> None:
+        super().__init__(parent)
+        self.SetName("Concerts")
+        self.frame = frame
+        self.page = 0
+        self.loading = False
+        self.classifications_loading = False
+        self.classifications_loaded = False
+        self.categories: list[EventCategory] = []
+        outer = wx.BoxSizer(wx.VERTICAL)
+        fields = wx.FlexGridSizer(cols=2, hgap=10, vgap=8)
+        fields.AddGrowableCol(1, 1)
+        self.keyword = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
+        self.country = wx.Choice(
+            self,
+            choices=[
+                f"{name} ({code})" for code, name in TICKETMASTER_COUNTRIES
+            ],
+        )
+        self.country.SetSelection(
+            next(
+                index
+                for index, (code, _name) in enumerate(TICKETMASTER_COUNTRIES)
+                if code == "AU"
+            )
+        )
+        self.state = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
+        self.city = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
+        self.category = wx.ComboBox(
+            self,
+            choices=["All categories"],
+            style=wx.CB_READONLY,
+        )
+        self.category.SetSelection(0)
+        self.genre = wx.ComboBox(
+            self,
+            choices=["All genres"],
+            style=wx.CB_READONLY,
+        )
+        self.genre.SetSelection(0)
+        today = date.today()
+        date_offsets = (
+            (0, "Today"),
+            (1, "Tomorrow"),
+            (7, "One week from today"),
+            (30, "30 days from today"),
+            (90, "Three months from today"),
+            (180, "Six months from today"),
+            (365, "One year from today"),
+        )
+        self.date_values = [
+            (today + timedelta(days=offset)).isoformat()
+            for offset, _label in date_offsets
+        ]
+        date_labels = [
+            f"{label}, {(today + timedelta(days=offset)).isoformat()}"
+            for offset, label in date_offsets
+        ]
+        self.start_date = wx.ComboBox(
+            self,
+            choices=date_labels,
+            style=wx.CB_READONLY,
+        )
+        self.start_date.SetSelection(0)
+        self.end_date = wx.ComboBox(
+            self,
+            choices=["Any future date", *date_labels],
+            style=wx.CB_READONLY,
+        )
+        self.end_date.SetSelection(0)
+        for label, accessible_name, control in (
+            (
+                "&Keyword",
+                "Keyword, artist, event, or venue",
+                self.keyword,
+            ),
+            ("&Country", "Country", self.country),
+            ("&State code", "State or territory code", self.state),
+            ("Cit&y", "City", self.city),
+            ("C&ategory", "Event category", self.category),
+            ("&Genre", "Event genre", self.genre),
+            ("&From", "Concerts from date", self.start_date),
+            ("&Until", "Concerts until date", self.end_date),
+        ):
+            fields.Add(
+                wx.StaticText(self, label=label),
+                0,
+                wx.ALIGN_CENTER_VERTICAL,
+            )
+            fields.Add(control, 1, wx.EXPAND)
+            control.SetName(accessible_name)
+            control.SetAccessible(
+                _NamedControlAccessible(control, accessible_name)
+            )
+            if isinstance(control, wx.TextCtrl):
+                control.Bind(wx.EVT_TEXT_ENTER, self.on_search)
+        self.search_button = wx.Button(self, label="&Search concerts")
+        self.search_button.SetName("Search concerts")
+        self.heading = wx.StaticText(self, label="Upcoming concerts")
+        self.heading.SetName("Upcoming concerts")
+        self.items = ItemList(self)
+        self.items.SetName("Upcoming concert results")
+        self.status = wx.StaticText(
+            self,
+            label=(
+                "Enter search filters, then press Search concerts."
+                if frame.ticketmaster.api_key
+                else "Ticketmaster API key required. Add one in Preferences."
+            ),
+        )
+        self.status.SetName("Concert search status")
+        outer.Add(fields, 0, wx.EXPAND | wx.ALL, 10)
+        outer.Add(self.search_button, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        outer.Add(self.heading, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        outer.Add(self.items, 1, wx.EXPAND | wx.ALL, 10)
+        outer.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        self.SetSizer(outer)
+        self.search_button.Bind(wx.EVT_BUTTON, self.on_search)
+        self.items.Bind(self.items.ACTIVATED_EVENT, self.on_open)
+        self.category.Bind(wx.EVT_COMBOBOX, self.on_category_changed)
+
+    def ensure_classifications(self) -> None:
+        if (
+            self.classifications_loaded
+            or self.classifications_loading
+            or not self.frame.ticketmaster.api_key
+        ):
+            return
+        self.classifications_loading = True
+        self.frame.run_task(
+            "Loading Ticketmaster categories",
+            self.frame.ticketmaster.classifications,
+            self.show_classifications,
+            failure=self.finish_classification_error,
+        )
+
+    def finish_classification_error(self) -> None:
+        self.classifications_loading = False
+
+    def show_classifications(
+        self, categories: list[EventCategory]
+    ) -> None:
+        self.classifications_loading = False
+        self.classifications_loaded = True
+        self.categories = categories
+        self.category.Clear()
+        self.category.Append("All categories")
+        for category in categories:
+            self.category.Append(category.name)
+        self.category.SetSelection(0)
+        self.populate_genres()
+
+    def on_category_changed(self, event: wx.Event | None = None) -> None:
+        self.populate_genres()
+
+    def populate_genres(self) -> None:
+        self.genre.Clear()
+        self.genre.Append("All genres")
+        selected = self.category.GetSelection()
+        if selected > 0 and selected <= len(self.categories):
+            for _genre_id, genre_name in self.categories[selected - 1].genres:
+                self.genre.Append(genre_name)
+        self.genre.SetSelection(0)
+
+    def filters(self) -> dict[str, str]:
+        return {
+            "keyword": self.keyword.GetValue(),
+            "country": TICKETMASTER_COUNTRIES[
+                self.country.GetSelection()
+            ][0],
+            "state": self.state.GetValue(),
+            "city": self.city.GetValue(),
+            "genre": "",
+            "category_id": (
+                ""
+                if self.category.GetSelection() <= 0
+                else self.categories[self.category.GetSelection() - 1].id
+            ),
+            "genre_id": self.selected_genre_id(),
+            "start_date": self.date_values[self.start_date.GetSelection()],
+            "end_date": (
+                ""
+                if self.end_date.GetSelection() == 0
+                else self.date_values[self.end_date.GetSelection() - 1]
+            ),
+        }
+
+    def selected_genre_id(self) -> str:
+        category_index = self.category.GetSelection() - 1
+        genre_index = self.genre.GetSelection() - 1
+        if (
+            category_index < 0
+            or category_index >= len(self.categories)
+            or genre_index < 0
+            or genre_index >= len(self.categories[category_index].genres)
+        ):
+            return ""
+        return self.categories[category_index].genres[genre_index][0]
+
+    def update_api_key_status(self) -> None:
+        if not self.frame.ticketmaster.api_key:
+            self.status.SetLabel(
+                "Ticketmaster API key required. Add one in Preferences."
+            )
+        elif not self.items.items:
+            self.status.SetLabel(
+                "Enter search filters, then press Search concerts."
+            )
+
+    def on_search(self, event: wx.Event | None = None) -> None:
+        self.ensure_classifications()
+        filters = self.filters()
+        if (
+            filters["end_date"]
+            and filters["end_date"] < filters["start_date"]
+        ):
+            self.frame.say("Until date must not be earlier than From date.")
+            self.end_date.SetFocus()
+            return
+        self.page = 0
+        self.search_page(0, append=False)
+
+    def search_page(self, page: int, *, append: bool) -> None:
+        if self.loading:
+            return
+        self.loading = True
+        filters = self.filters()
+        self.frame.run_task(
+            "Searching upcoming concerts",
+            lambda: self.frame.ticketmaster.search(**filters, page=page),
+            lambda result: self.show_page(result, append=append),
+            failure=self.finish_error,
+        )
+
+    def finish_error(self) -> None:
+        self.loading = False
+
+    def show_page(self, result: ConcertPage, *, append: bool) -> None:
+        self.loading = False
+        self.page = result.page
+        existing = (
+            [item for item in self.items.items if item.id != "__load_more__"]
+            if append
+            else []
+        )
+        events = existing + result.events
+        rendered: list[ConcertEvent] = list(events)
+        if result.has_more:
+            rendered.append(ConcertEvent("__load_more__", "Load more results"))
+        selected = len(existing) if append and result.events else 0
+        self.items.set_items(rendered, selected=selected)
+        self.status.SetLabel(
+            f"Showing {len(events)} of {result.total_events} concerts."
+        )
+        self.frame.update_title_for_page(self, "Concerts")
+        if rendered:
+            self.items.SetFocus()
+        else:
+            self.frame.say("No upcoming concerts found.")
+            self.keyword.SetFocus()
+
+    def on_open(self, event: wx.Event | None = None) -> None:
+        item = self.items.selected_item()
+        if not item:
+            return
+        if item.id == "__load_more__":
+            self.search_page(self.page + 1, append=True)
+        elif item.url:
+            webbrowser.open(item.url)
+
+    def refresh(self) -> None:
+        self.on_search()
+
+    def on_context_menu(self, event: wx.Event | None = None) -> None:
+        self.on_open()
 
 
 class BookmarksPanel(CollectionPanel):
@@ -3264,6 +3818,7 @@ class MainFrame(wx.Frame):
             settings.get("announce_track_changes", False)
         )
         self.resume_mode = resume_mode_from_settings(settings)
+        self.playback_volume_percent = volume_percent_from_settings(settings)
         self.global_shortcuts = normalized_global_shortcuts(
             settings.get("global_shortcuts", {})
         )
@@ -3294,11 +3849,14 @@ class MainFrame(wx.Frame):
         self.pending_play_context: SpotifyItem | None = None
         self.pending_play_position_ms = 0
         self.lyrics = LRCLibClient()
+        self.ticketmaster = TicketmasterClient(
+            str(settings.get("ticketmaster_api_key") or "")
+        )
         self.remote_device_id: str | None = None
         self.remote_device_name = ""
         self.remote_supports_volume: bool | None = None
         self.pending_transfer_device: dict | None = None
-        self.volume_before_mute_percent = 50
+        self.volume_before_mute_percent = self.playback_volume_percent
         self.remote_refresh_pending = False
         self.remote_refresh_timer = wx.Timer(self)
         self.Bind(
@@ -3320,7 +3878,6 @@ class MainFrame(wx.Frame):
         self.CreateStatusBar()
         self._build_menu()
         self.notebook = wx.Notebook(self)
-        self.notebook.SetName("Main tabs")
         self.search = SearchPanel(self.notebook, self)
         self.liked = CollectionPanel(
             self.notebook,
@@ -3353,6 +3910,7 @@ class MainFrame(wx.Frame):
         self.podcasts = PodcastsPanel(self.notebook, self)
         self.saved_albums = SavedAlbumsPanel(self.notebook, self)
         self.new_music = NewMusicPanel(self.notebook, self)
+        self.concerts = ConcertsPanel(self.notebook, self)
         for panel, label in (
             (self.search, "Search"),
             (self.liked, "Liked Songs"),
@@ -3364,7 +3922,9 @@ class MainFrame(wx.Frame):
             (self.podcasts, "Podcasts"),
             (self.saved_albums, "Saved Albums"),
             (self.new_music, "New Music"),
+            (self.concerts, "Concerts"),
         ):
+            panel.SetAccessible(_NamedPageAccessible(panel, label))
             self.notebook.AddPage(panel, label)
         self.notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_tab_changed)
         self.set_view_title("Search")
@@ -3442,6 +4002,7 @@ class MainFrame(wx.Frame):
                 on_ready=self.on_player_ready,
                 on_error=self.on_player_error,
                 on_playback_update=self.on_playback_update,
+                initial_volume_percent=self.playback_volume_percent,
             )
         except Exception as error:
             logger.exception("Could not create BlindSpot web player")
@@ -3458,7 +4019,7 @@ class MainFrame(wx.Frame):
         )
         play_pause = go.Append(
             wx.ID_ANY,
-            f"&Pause or resume{menu_function_shortcut('F8')}",
+            f"&Pause or resume{menu_function_shortcut('F7')}",
         )
         mute = go.Append(
             wx.ID_ANY,
@@ -3505,7 +4066,7 @@ class MainFrame(wx.Frame):
         go.AppendSeparator()
         previous_track = go.Append(
             wx.ID_ANY,
-            f"Pre&vious track{menu_function_shortcut('F7')}",
+            f"Pre&vious track{menu_function_shortcut('F5')}",
         )
         next_track = go.Append(
             wx.ID_ANY,
@@ -3513,11 +4074,11 @@ class MainFrame(wx.Frame):
         )
         seek_backward = go.Append(
             wx.ID_ANY,
-            "Seek &backward 5 seconds (F5)",
+            "Seek &backward 5 seconds (F6)",
         )
         seek_forward = go.Append(
             wx.ID_ANY,
-            "Seek &forward 5 seconds (F6)",
+            "Seek &forward 5 seconds (F8)",
         )
         speak_total = go.Append(
             wx.ID_ANY,
@@ -3661,6 +4222,13 @@ class MainFrame(wx.Frame):
         open_new_music = go.Append(
             wx.ID_ANY,
             f"Open New &Music{menu_function_shortcut(f'{ctrl}+0')}",
+        )
+        open_concerts = go.Append(
+            wx.ID_ANY,
+            (
+                "Open &Concerts"
+                f"{menu_function_shortcut(f'{ctrl}+Shift+G')}"
+            ),
         )
         menu_bar.Append(go, "&Go")
 
@@ -3861,6 +4429,11 @@ class MainFrame(wx.Frame):
             wx.EVT_MENU,
             lambda event: self.open_new_music_tab(),
             open_new_music,
+        )
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.open_concerts_tab(),
+            open_concerts,
         )
         self.Bind(wx.EVT_MENU, self.on_preferences, preferences)
         self.Bind(wx.EVT_MENU, self.on_connect, connect)
@@ -4096,8 +4669,9 @@ class MainFrame(wx.Frame):
             settings.get("logging_level", "Off"),
             bool(settings.get("announce_track_changes", False)),
             resume_mode_from_settings(settings),
-            self.open_logs_folder,
-            self.open_keyboard_manager,
+            str(settings.get("ticketmaster_api_key") or ""),
+            open_logs_folder=self.open_logs_folder,
+            open_keyboard_manager=self.open_keyboard_manager,
         )
         if dialog.ShowModal() == wx.ID_OK:
             # Keyboard Manager can save globals while Preferences is open.
@@ -4113,6 +4687,13 @@ class MainFrame(wx.Frame):
             )
             self.resume_mode = dialog.get_resume_mode()
             settings["resume_mode"] = self.resume_mode
+            ticketmaster_api_key = dialog.get_ticketmaster_api_key()
+            settings["ticketmaster_api_key"] = ticketmaster_api_key
+            self.ticketmaster.api_key = ticketmaster_api_key
+            self.concerts.classifications_loaded = False
+            self.concerts.update_api_key_status()
+            if self.notebook.GetSelection() == 10:
+                self.concerts.ensure_classifications()
             settings.pop("resume_last_track", None)
             self.store.write("settings.json", settings)
             if self.resume_mode == "none":
@@ -4316,6 +4897,8 @@ class MainFrame(wx.Frame):
         selection = getattr(event, "GetSelection", lambda: -1)()
         if old_selection == 0 and selection != 0:
             self.discard_transient_open_album()
+        if selection == 10:
+            wx.CallAfter(self.concerts.ensure_classifications)
         self.SetTitle("BlindSpot")
         event.Skip()
 
@@ -4417,6 +5000,7 @@ class MainFrame(wx.Frame):
             "open_podcasts": 7,
             "open_saved_albums": 8,
             "open_new_music": 9,
+            "open_concerts": 10,
         }
         if action in tab_actions:
             page = tab_actions[action]
@@ -4427,6 +5011,8 @@ class MainFrame(wx.Frame):
                 self.search.focus_query()
             elif page == 9:
                 self.new_music.release_types.SetFocus()
+            elif page == 10:
+                self.concerts.keyword.SetFocus()
             return True
         if not focused_list:
             return False
@@ -4454,6 +5040,19 @@ class MainFrame(wx.Frame):
             contexts = ("Lists", "Main") if focused_list else ("Main",)
             if chord and keymap.disabled_default(chord, contexts):
                 return
+        focused_radio_box = radio_box_ancestor(focused)
+        if (
+            focused_radio_box is not None
+            and ord("A") <= key <= ord("Z")
+            and not event.AltDown()
+            and not physical_control_down(event)
+            and not bool(int(event.GetModifiers()) & wx.MOD_WIN)
+        ):
+            letter = chr(key).casefold()
+            index = radio_box_letter_index(focused_radio_box, letter)
+            if index is not None:
+                move_radio_box_focus(focused_radio_box, index)
+            return
         if key == wx.WXK_F1:
             self.on_manual()
         elif (
@@ -4487,28 +5086,28 @@ class MainFrame(wx.Frame):
             and not event.ShiftDown()
             and not physical_control_down(event)
         ):
-            self.seek(-5000)
+            self.previous_track()
         elif (
             key == wx.WXK_F6
             and not event.AltDown()
             and not event.ShiftDown()
             and not physical_control_down(event)
         ):
-            self.seek(5000)
+            self.seek(-5000)
         elif (
             key == wx.WXK_F7
             and not event.AltDown()
             and not event.ShiftDown()
             and not physical_control_down(event)
         ):
-            self.previous_track()
+            self.toggle_pause_resume()
         elif (
             key == wx.WXK_F8
             and not event.AltDown()
             and not event.ShiftDown()
             and not physical_control_down(event)
         ):
-            self.toggle_pause_resume()
+            self.seek(5000)
         elif (
             key == wx.WXK_F9
             and not event.AltDown()
@@ -4645,6 +5244,8 @@ class MainFrame(wx.Frame):
                 self.saved_albums.on_open()
             elif focused_list is self.new_music.items:
                 self.new_music.on_open()
+            elif focused_list is self.concerts.items:
+                self.concerts.on_open()
             else:
                 event.Skip()
         elif physical_control_down(event) and key in (ord("F"), ord("f")):
@@ -4653,7 +5254,13 @@ class MainFrame(wx.Frame):
             self.search.focus_query()
         elif physical_control_down(event) and key == ord(","):
             self.on_preferences()
-        elif physical_control_down(event) and (
+        elif (
+            physical_control_down(event)
+            and event.ShiftDown()
+            and key in (ord("G"), ord("g"))
+        ):
+            self.open_concerts_tab()
+        elif physical_control_down(event) and not event.ShiftDown() and (
             key == ord("0") or ord("1") <= key <= ord("9")
         ):
             page = 9 if key == ord("0") else key - ord("1")
@@ -4771,12 +5378,26 @@ class MainFrame(wx.Frame):
             controls = [self.notebook, self.podcasts.items]
         elif page == 8:
             controls = [self.notebook, self.saved_albums.items]
-        else:
+        elif page == 9:
             controls = [
                 self.notebook,
                 self.new_music.release_types,
                 self.new_music.search_button,
                 self.new_music.items,
+            ]
+        else:
+            controls = [
+                self.notebook,
+                self.concerts.keyword,
+                self.concerts.country,
+                self.concerts.state,
+                self.concerts.city,
+                self.concerts.category,
+                self.concerts.genre,
+                self.concerts.start_date,
+                self.concerts.end_date,
+                self.concerts.search_button,
+                self.concerts.items,
             ]
 
         focused = wx.Window.FindFocus()
@@ -5523,16 +6144,26 @@ class MainFrame(wx.Frame):
         if self.using_local_player():
             self.player.adjust_volume(
                 delta_percent,
-                lambda volume: self.say(f"{volume}%.")
-                if volume is not None
-                else None,
+                self.finish_adjust_volume,
             )
             return
         self.run_task(
             None,
             lambda: self.spotify.adjust_volume(delta_percent, device_id),
-            lambda volume: self.say(f"{volume}%."),
+            self.finish_adjust_volume,
         )
+
+    def finish_adjust_volume(self, volume: int | None) -> None:
+        if volume is None:
+            return
+        volume = min(100, max(0, int(volume)))
+        self.playback_volume_percent = volume
+        if volume > 0:
+            self.volume_before_mute_percent = volume
+        settings = self.store.read("settings.json", {}) or {}
+        settings["playback_volume_percent"] = volume
+        self.store.write("settings.json", settings)
+        self.say(f"{volume}%.")
 
     def toggle_mute(self) -> None:
         if self.remote_device_id and self.remote_supports_volume is False:
@@ -6020,6 +6651,11 @@ class MainFrame(wx.Frame):
         self.notebook.SetSelection(9)
         self.new_music.release_types.SetFocus()
 
+    def open_concerts_tab(self) -> None:
+        self.notebook.SetSelection(10)
+        self.concerts.ensure_classifications()
+        self.concerts.keyword.SetFocus()
+
     def show_selected_actions(self) -> None:
         page = self.notebook.GetSelection()
         panels = (
@@ -6033,6 +6669,7 @@ class MainFrame(wx.Frame):
             self.podcasts,
             self.saved_albums,
             getattr(self, "new_music", None),
+            getattr(self, "concerts", None),
         )
         if 0 <= page < len(panels):
             panels[page].on_context_menu()
@@ -6587,6 +7224,7 @@ class MainFrame(wx.Frame):
             self.podcasts,
             self.saved_albums,
             getattr(self, "new_music", None),
+            getattr(self, "concerts", None),
         )
         panels[page].items.SetFocus()
         return True
@@ -6637,6 +7275,30 @@ class MainFrame(wx.Frame):
                     play_callback or (lambda: self.play_playable_item(item)),
                 )
             )
+        if item.kind == ItemKind.ALBUM:
+            actions.append(
+                (
+                    menu.Append(wx.ID_ANY, "Display album &artwork..."),
+                    lambda: self.show_album_artwork(item),
+                )
+            )
+            if not top_level_actions:
+                artists = item.raw.get("artists") or []
+                if artists:
+                    artist_id = str(artists[0].get("id") or "")
+                    artist_name = str(artists[0].get("name") or "")
+                    if artist_id and artist_name:
+                        actions.append(
+                            (
+                                menu.Append(
+                                    wx.ID_ANY,
+                                    f"Show albums by &{artist_name}",
+                                ),
+                                lambda: self.show_artist_albums(
+                                    artist_id, artist_name
+                                ),
+                            )
+                        )
         if item.kind == ItemKind.PLAYLIST:
             actions.append(
                 (
@@ -6718,6 +7380,37 @@ class MainFrame(wx.Frame):
             )
         owner.PopupMenu(menu)
         menu.Destroy()
+
+    def show_artist_albums(self, artist_id: str, artist_name: str) -> None:
+        self.notebook.SetSelection(0)
+        self.search.open_artist_albums(artist_id, artist_name)
+        wx.CallAfter(self.focus_open_album)
+
+    def show_album_artwork(self, item: SpotifyItem) -> None:
+        url = album_artwork_url(item)
+        if not url:
+            self.say(msg.ALBUM_ARTWORK_UNAVAILABLE)
+            wx.MessageBox(
+                msg.ALBUM_ARTWORK_UNAVAILABLE,
+                "BlindSpot",
+                wx.OK | wx.ICON_INFORMATION,
+                self,
+            )
+            return
+        self.run_task(
+            msg.LOADING_ALBUM_ARTWORK,
+            lambda: download_album_artwork(url),
+            lambda artwork: self.display_album_artwork(item, artwork),
+        )
+
+    def display_album_artwork(self, item: SpotifyItem, artwork: bytes) -> None:
+        try:
+            dialog = AlbumArtworkDialog(self, item, artwork)
+        except ValueError as error:
+            self.show_error(str(error))
+            return
+        dialog.ShowModal()
+        dialog.Destroy()
 
     def find_episode_download(self, item: SpotifyItem) -> None:
         self.run_task(

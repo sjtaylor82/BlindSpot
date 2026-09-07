@@ -18,6 +18,7 @@ from blindspot.ui import (
     playback_state_for_resume,
     radio_box_ancestor,
     resume_mode_from_settings,
+    volume_percent_from_settings,
 )
 
 
@@ -108,6 +109,16 @@ class AccountSessionTests(unittest.TestCase):
 
 
 class PlaybackMemorySettingsTests(unittest.TestCase):
+    def test_named_control_accessible_exposes_explicit_self_name(self):
+        accessible = type("Accessible", (), {"_name": "Country code"})()
+
+        with patch("blindspot.ui.wx.ACC_SELF", 0), patch(
+            "blindspot.ui.wx.ACC_OK", "ok"
+        ):
+            result = ui._NamedControlAccessible.GetName(accessible, 0)
+
+        self.assertEqual(result, ("ok", "Country code"))
+
     def test_radio_button_focus_resolves_to_parent_radio_box(self):
         class RadioBox:
             def GetParent(self):
@@ -220,6 +231,56 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
             MainFrame.move_focus(frame, backward=False)
 
         self.assertEqual(focused_targets, [saved_albums])
+
+    def test_tab_from_concerts_tab_bar_focuses_concert_keyword(self):
+        focused_targets = []
+
+        class Control:
+            def SetFocus(self):
+                focused_targets.append(self)
+
+            def GetParent(self):
+                return None
+
+        notebook = Control()
+        notebook.GetSelection = lambda: 10
+        controls = [Control() for _ in range(10)]
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": notebook,
+                "concerts": type(
+                    "Concerts",
+                    (),
+                    dict(
+                        zip(
+                            (
+                                "keyword",
+                                "country",
+                                "state",
+                                "city",
+                                "category",
+                                "genre",
+                                "start_date",
+                                "end_date",
+                                "search_button",
+                                "items",
+                            ),
+                            controls,
+                        )
+                    ),
+                )(),
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.wx.Window.FindFocus", return_value=notebook),
+            patch("blindspot.ui.item_list_ancestor", return_value=None),
+        ):
+            MainFrame.move_focus(frame, backward=False)
+
+        self.assertEqual(focused_targets, [controls[0]])
 
     def test_mac_function_keys_are_not_menu_accelerators(self):
         self.assertEqual(menu_function_shortcut("F8", "darwin"), "")
@@ -530,6 +591,21 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
             "track",
         )
 
+    def test_saved_volume_is_validated_and_clamped(self):
+        self.assertEqual(volume_percent_from_settings({}), 80)
+        self.assertEqual(
+            volume_percent_from_settings({"playback_volume_percent": "67"}),
+            67,
+        )
+        self.assertEqual(
+            volume_percent_from_settings({"playback_volume_percent": 140}),
+            100,
+        )
+        self.assertEqual(
+            volume_percent_from_settings({"playback_volume_percent": "bad"}),
+            80,
+        )
+
     def test_track_only_storage_resets_position_without_mutating_state(self):
         state = {"progress_ms": 42_000, "item": {"id": "track"}}
 
@@ -604,7 +680,7 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
             {
                 "keymap": mapped,
                 "toggle_pause_resume": lambda self: self.fail(
-                    "Cleared F8 must not run"
+                    "Cleared F7 must not run"
                 ),
             },
         )()
@@ -612,7 +688,7 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
             "Event",
             (),
             {
-                "GetKeyCode": lambda self: ui.wx.WXK_F8,
+                "GetKeyCode": lambda self: ui.wx.WXK_F7,
                 "GetModifiers": lambda self: 0,
                 "ControlDown": lambda self: False,
                 "AltDown": lambda self: False,
@@ -1493,7 +1569,7 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
 
         self.assertEqual(forwarded, [event])
 
-    def test_mac_item_list_letter_selects_next_matching_row(self):
+    def test_dataview_item_list_letter_selects_next_matching_row(self):
         selected = []
         forwarded = []
         labels = ["Alpha", "Beta", "Bravo"]
@@ -1524,7 +1600,7 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
             },
         )()
 
-        with patch("blindspot.ui.sys.platform", "darwin"):
+        with patch("blindspot.ui.ITEM_LIST_USES_DATAVIEW", True):
             ui.ItemList.on_char_hook(item_list, event)
 
         self.assertEqual(selected, [2])
@@ -1933,6 +2009,69 @@ class SearchContextMenuTests(unittest.TestCase):
         SearchPanel.on_context_menu(panel)
 
         self.assertFalse(calls[0]["include_album_action"])
+
+    def test_album_track_offers_to_open_primary_artists_albums(self):
+        calls = []
+        track = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Song")
+        frame = type(
+            "Frame",
+            (),
+            {
+                "popup_item_menu": (
+                    lambda self, owner, item, **options: calls.append(options)
+                )
+            },
+        )()
+        panel = type(
+            "Panel",
+            (),
+            {
+                "frame": frame,
+                "results": type(
+                    "Results", (), {"selected_item": lambda self: track}
+                )(),
+                "history": ui.NavigationHistory(
+                    ui.ViewState(
+                        "Album",
+                        [track],
+                        parent_id="album",
+                        parent_kind=ui.ItemKind.ALBUM,
+                        parent_artist_names=("Main Artist",),
+                        parent_artist_ids=("artist-id",),
+                    )
+                ),
+                "on_open": lambda self: None,
+                "artist_for_album_view": SearchPanel.artist_for_album_view,
+                "open_artist_albums": lambda self, artist_id, name: None,
+            },
+        )()
+
+        SearchPanel.on_context_menu(panel)
+
+        label, _callback = calls[0]["top_level_actions"][0]
+        self.assertEqual(label, "Show albums by &Main Artist")
+
+    def test_album_result_offers_to_open_primary_artists_albums(self):
+        album = ui.SpotifyItem(
+            "album",
+            ui.ItemKind.ALBUM,
+            "Album",
+            raw={"artists": [{"id": "artist-id", "name": "Main Artist"}]},
+        )
+        panel = type(
+            "Panel",
+            (),
+            {
+                "history": ui.NavigationHistory(
+                    ui.ViewState("Results", [album])
+                )
+            },
+        )()
+
+        self.assertEqual(
+            SearchPanel.artist_for_album_view(panel, album),
+            ("artist-id", "Main Artist"),
+        )
 
 
 class SearchPaginationTests(unittest.TestCase):
@@ -3159,6 +3298,32 @@ class MuteTests(unittest.TestCase):
         )
         self.assertEqual(messages, ["Muted.", "Unmuted."])
 
+    def test_manual_volume_adjustment_is_saved(self):
+        messages = []
+        with tempfile.TemporaryDirectory() as folder:
+            store = ui.PortableStore(Path(folder))
+            store.write("settings.json", {"unrelated": True})
+            frame = type(
+                "Frame",
+                (),
+                {
+                    "store": store,
+                    "playback_volume_percent": 80,
+                    "volume_before_mute_percent": 80,
+                    "say": lambda self, message: messages.append(message),
+                },
+            )()
+
+            MainFrame.finish_adjust_volume(frame, 67)
+
+            self.assertEqual(frame.playback_volume_percent, 67)
+            self.assertEqual(frame.volume_before_mute_percent, 67)
+            self.assertEqual(
+                store.read("settings.json"),
+                {"unrelated": True, "playback_volume_percent": 67},
+            )
+        self.assertEqual(messages, ["67%."])
+
 
 class PlaybackFeedbackTests(unittest.TestCase):
     def test_pending_forced_transfer_does_not_retarget_transport_controls(self):
@@ -3478,6 +3643,32 @@ class MultipleQueueTests(unittest.TestCase):
 
 
 class PlaylistInformationTests(unittest.TestCase):
+    def test_album_artwork_url_selects_largest_available_image(self):
+        album = ui.SpotifyItem(
+            "album",
+            ui.ItemKind.ALBUM,
+            "Album",
+            raw={
+                "images": [
+                    {"url": "small", "width": 64, "height": 64},
+                    {"url": "large", "width": 640, "height": 640},
+                    {"url": "medium", "width": 300, "height": 300},
+                ]
+            },
+        )
+
+        self.assertEqual(ui.album_artwork_url(album), "large")
+
+    def test_album_artwork_url_is_empty_when_spotify_has_no_image(self):
+        album = ui.SpotifyItem(
+            "album",
+            ui.ItemKind.ALBUM,
+            "Album",
+            raw={},
+        )
+
+        self.assertEqual(ui.album_artwork_url(album), "")
+
     def test_playlist_information_shows_owner_and_details(self):
         playlist = ui.SpotifyItem(
             "playlist",
@@ -4037,10 +4228,10 @@ class LyricsKeyboardTests(unittest.TestCase):
             frame.commands,
             [
                 ("play", item),
-                ("seek", -5000),
-                ("seek", 5000),
                 ("previous",),
+                ("seek", -5000),
                 ("pause_resume",),
+                ("seek", 5000),
                 ("next",),
                 ("mute",),
                 ("volume", -5),
@@ -4087,15 +4278,15 @@ class LyricsKeyboardTests(unittest.TestCase):
                 ("mute",),
                 ("volume", -5),
                 ("volume", 5),
-                ("seek", -5000),
-                ("seek", 5000),
                 ("previous",),
+                ("seek", -5000),
                 ("pause_resume",),
+                ("seek", 5000),
                 ("next",),
             ],
         )
 
-    def test_f8_retains_normal_pause_resume_behavior_in_lyrics(self):
+    def test_f7_retains_normal_pause_resume_behavior_in_lyrics(self):
         toggled = []
         frame = type(
             "Frame",
@@ -4106,7 +4297,7 @@ class LyricsKeyboardTests(unittest.TestCase):
         )()
         dialog = type("Dialog", (), {"frame": frame})()
 
-        LyricsDialog.on_dialog_key(dialog, self.Event(ui.wx.WXK_F8))
+        LyricsDialog.on_dialog_key(dialog, self.Event(ui.wx.WXK_F7))
 
         self.assertEqual(toggled, [True])
 

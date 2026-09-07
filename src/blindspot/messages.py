@@ -169,6 +169,10 @@ PLAYLIST_ITEMS_UNAVAILABLE = (
     "Individual tracks can't be browsed. Press F4 to play the playlist."
 )
 ALBUM_NOT_PROVIDED = "Spotify did not provide an album for this track."
+LOADING_ALBUM_ARTWORK = "Loading album artwork."
+ALBUM_ARTWORK_UNAVAILABLE = "Spotify did not provide artwork for this album."
+ALBUM_ARTWORK_INVALID = "The album artwork could not be displayed."
+ALBUM_ARTWORK_VIEWER_FAILED = "The default photo viewer could not be opened."
 RECENT_PERMISSION_REQUIRED = (
     "Recently Played needs an additional Spotify permission."
 )
