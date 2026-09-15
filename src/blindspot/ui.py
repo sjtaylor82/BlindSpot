@@ -161,35 +161,49 @@ class AlbumArtworkDialog(wx.Dialog):
             )
 
 
-class _NamedPageAccessible(wx.Accessible):
-    """Expose a notebook page label to MSAA clients such as JAWS."""
+if sys.platform == "win32":
+    class _NamedPageAccessible(wx.Accessible):
+        """Expose a notebook page label to MSAA clients such as JAWS."""
 
-    def __init__(self, window, title: str):
-        super().__init__(window)
-        self._title = title
+        def __init__(self, window, title: str):
+            super().__init__(window)
+            self._title = title
 
-    def GetName(self, child_id):
-        if child_id == wx.ACC_SELF:
-            return wx.ACC_OK, self._title
-        return wx.ACC_NOT_IMPLEMENTED, ""
+        def GetName(self, child_id):
+            if child_id == wx.ACC_SELF:
+                return wx.ACC_OK, self._title
+            return wx.ACC_NOT_IMPLEMENTED, ""
 
-    def GetRole(self, child_id):
-        if child_id == wx.ACC_SELF:
-            return wx.ACC_OK, wx.ROLE_SYSTEM_PROPERTYPAGE
-        return wx.ACC_NOT_IMPLEMENTED, wx.ROLE_SYSTEM_PANE
+        def GetRole(self, child_id):
+            if child_id == wx.ACC_SELF:
+                return wx.ACC_OK, wx.ROLE_SYSTEM_PROPERTYPAGE
+            return wx.ACC_NOT_IMPLEMENTED, wx.ROLE_SYSTEM_PANE
 
 
-class _NamedControlAccessible(wx.Accessible):
-    """Provide an explicit MSAA name for a native form control."""
+    class _NamedControlAccessible(wx.Accessible):
+        """Provide an explicit MSAA name for a native form control."""
 
-    def __init__(self, window: wx.Window, name: str) -> None:
-        super().__init__(window)
-        self._name = name
+        def __init__(self, window: wx.Window, name: str) -> None:
+            super().__init__(window)
+            self._name = name
 
-    def GetName(self, child_id):
-        if child_id == wx.ACC_SELF:
-            return wx.ACC_OK, self._name
-        return wx.ACC_NOT_IMPLEMENTED, ""
+        def GetName(self, child_id):
+            if child_id == wx.ACC_SELF:
+                return wx.ACC_OK, self._name
+            return wx.ACC_NOT_IMPLEMENTED, ""
+else:
+    _NamedPageAccessible = None
+    _NamedControlAccessible = None
+
+
+def set_windows_accessible(
+    window: wx.Window,
+    accessible_type: type[wx.Accessible] | None,
+    name: str,
+) -> None:
+    """Attach a custom MSAA object only on Windows."""
+    if sys.platform == "win32" and accessible_type is not None:
+        window.SetAccessible(accessible_type(window, name))
 
 SEARCH_LABELS = [
     "Songs",
@@ -1053,11 +1067,10 @@ class PreferencesDialog(wx.Dialog):
             value=ticketmaster_api_key,
         )
         self.ticketmaster_api_key.SetName("Ticketmaster API key")
-        self.ticketmaster_api_key.SetAccessible(
-            _NamedControlAccessible(
-                self.ticketmaster_api_key,
-                "Ticketmaster API key",
-            )
+        set_windows_accessible(
+            self.ticketmaster_api_key,
+            _NamedControlAccessible,
+            "Ticketmaster API key",
         )
         outer.Add(
             self.ticketmaster_api_key,
@@ -2721,8 +2734,10 @@ class ConcertsPanel(wx.Panel):
             )
             fields.Add(control, 1, wx.EXPAND)
             control.SetName(accessible_name)
-            control.SetAccessible(
-                _NamedControlAccessible(control, accessible_name)
+            set_windows_accessible(
+                control,
+                _NamedControlAccessible,
+                accessible_name,
             )
             if isinstance(control, wx.TextCtrl):
                 control.Bind(wx.EVT_TEXT_ENTER, self.on_search)
@@ -3924,7 +3939,7 @@ class MainFrame(wx.Frame):
             (self.new_music, "New Music"),
             (self.concerts, "Concerts"),
         ):
-            panel.SetAccessible(_NamedPageAccessible(panel, label))
+            set_windows_accessible(panel, _NamedPageAccessible, label)
             self.notebook.AddPage(panel, label)
         self.notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_tab_changed)
         self.set_view_title("Search")

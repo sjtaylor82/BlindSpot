@@ -109,6 +109,33 @@ class AccountSessionTests(unittest.TestCase):
 
 
 class PlaybackMemorySettingsTests(unittest.TestCase):
+    @unittest.skipUnless(ui.sys.platform == "darwin", "macOS-only assertion")
+    def test_macos_does_not_define_msaa_accessible_classes(self):
+        self.assertIsNone(ui._NamedPageAccessible)
+        self.assertIsNone(ui._NamedControlAccessible)
+
+    def test_custom_accessible_is_not_constructed_off_windows(self):
+        window = Mock()
+        accessible_type = Mock()
+
+        with patch("blindspot.ui.sys.platform", "darwin"):
+            ui.set_windows_accessible(window, accessible_type, "Country code")
+
+        accessible_type.assert_not_called()
+        window.SetAccessible.assert_not_called()
+
+    def test_custom_accessible_is_attached_on_windows(self):
+        window = Mock()
+        accessible = object()
+        accessible_type = Mock(return_value=accessible)
+
+        with patch("blindspot.ui.sys.platform", "win32"):
+            ui.set_windows_accessible(window, accessible_type, "Country code")
+
+        accessible_type.assert_called_once_with(window, "Country code")
+        window.SetAccessible.assert_called_once_with(accessible)
+
+    @unittest.skipUnless(ui.sys.platform == "win32", "MSAA is Windows-only")
     def test_named_control_accessible_exposes_explicit_self_name(self):
         accessible = type("Accessible", (), {"_name": "Country code"})()
 
