@@ -36,6 +36,9 @@ class UpdateVersionTests(unittest.TestCase):
         progress = []
 
         with tempfile.TemporaryDirectory() as directory, patch(
+            "blindspot.updates.sys.platform",
+            "win32",
+        ), patch(
             "blindspot.updates.supports_managed_download",
             return_value=True,
         ), patch(
