@@ -16,6 +16,20 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
 - Enter drills into containers and plays tracks or episodes.
 - Backspace returns to the previous view and restores the selected row.
 - Q queues an item, L likes or unlikes it, and Ctrl+F returns to search.
+- Track and artist context menus can find similar Spotify content using
+  recommendations provided by Last.fm. BlindSpot includes a default Last.fm
+  application key, which can be replaced in Preferences.
+- Track context menus can open a Last.fm similar-track mix for inspection,
+  start it now as an ordered Spotify playback sequence, or append it after the
+  current queue. The Go menu offers the same actions for the currently playing
+  track. BlindSpot requests up to 50 Last.fm candidates and resolves browsed
+  results in pages of 20; fewer may remain after Spotify matching and duplicate
+  removal.
+- Starting a mix resolves and starts the first page, then prepares the remaining
+  candidates in the background and appends matched tracks to the mix. BlindSpot
+  starts one track and places the rest in Spotify's queue, avoiding the looping
+  behaviour of Spotify's multi-URI playback context. Repeat is switched off
+  before a mix starts.
 - Spotify login uses OAuth Authorization Code with PKCE; no client secret is
   stored or required.
 - An integrated Spotify Web Playback SDK instance makes BlindSpot its own Spotify
@@ -68,7 +82,14 @@ Register this redirect URI in the Spotify developer dashboard:
 - Ctrl+Space on Windows: select or deselect the focused list item while
   preserving other selections. On macOS, use VoiceOver's native selection
   commands.
+- Ctrl+A on Windows and Linux, or Command+A on macOS: select every item in
+  the focused list. Select all is also available from the Edit menu and list
+  context menus.
 - Ctrl+Q: queue marked tracks in list order, or the focused track if none are marked.
+- Ctrl+Shift+M opens a Last.fm mix for the focused track; Ctrl+Shift+P starts
+  it. Ctrl+Alt+M and Ctrl+Alt+P perform those actions for the currently playing
+  track. On macOS, the current-track shortcuts are Option+Command+M and
+  Option+Command+P. All shortcuts can be changed in the keyboard manager.
 - Ctrl+L: like or unlike the selected item.
 - Ctrl+Shift+L: like or unlike the currently loaded track.
 - Ctrl+Shift+B: bookmark the current playback position.

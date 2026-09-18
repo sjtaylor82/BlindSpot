@@ -352,9 +352,34 @@ class SpotifyClient:
             return items
         if item.kind == ItemKind.ARTIST:
             values = self._paged_items(
-                "GET", f"/artists/{item.id}/albums", query={"limit": 10}
+                "GET",
+                f"/artists/{item.id}/albums",
+                query={"include_groups": "album", "limit": 10},
             )
-            return [self._map_item(x, ItemKind.ALBUM) for x in values]
+            unique_values = {
+                value.get("id"): value
+                for value in values
+                if value and value.get("id")
+            }
+            ordered_values = sorted(
+                unique_values.values(),
+                key=lambda value: (
+                    str(value.get("release_date") or ""),
+                    str(value.get("name") or "").casefold(),
+                    str(value.get("id") or ""),
+                ),
+                reverse=True,
+            )
+            items = [
+                self._map_item(value, ItemKind.ALBUM)
+                for value in ordered_values
+            ]
+            logger.info(
+                "Loaded %d unique albums for artist from %d releases",
+                len(items),
+                len(values),
+            )
+            return items
         if item.kind == ItemKind.PLAYLIST:
             try:
                 entries = self._paged_items(
@@ -410,11 +435,15 @@ class SpotifyClient:
         return self._map_item(album, ItemKind.ALBUM)
 
     def liked_songs(self) -> list[SpotifyItem]:
-        data = self._request("GET", "/me/tracks", query={"limit": 50})
+        values = self._paged_items(
+            "GET",
+            "/me/tracks",
+            query={"limit": 50},
+        )
         return [
-            self._map_item(x["track"], ItemKind.TRACK)
-            for x in data.get("items", [])
-            if x.get("track")
+            self._map_item(entry["track"], ItemKind.TRACK)
+            for entry in values
+            if entry.get("track")
         ]
 
     def recently_played(self) -> list[SpotifyItem]:
@@ -530,20 +559,27 @@ class SpotifyClient:
         page_query = dict(query)
         values = []
         while True:
-            data = self._request(method, path, query=page_query)
-            page = [value for value in data.get("items", []) if value]
+            data = self._request(method, path, query=dict(page_query))
+            raw_page = data.get("items", [])
+            page = [value for value in raw_page if value]
             values.extend(page)
             total = int(data.get("total") or len(values))
-            if not page or len(values) >= total:
+            offset = int(data.get("offset") or page_query.get("offset") or 0)
+            next_offset = offset + len(raw_page)
+            if not raw_page or next_offset >= total:
                 return values
-            page_query["offset"] = len(values)
+            page_query = {**page_query, "offset": next_offset}
 
     def user_playlists(self) -> list[SpotifyItem]:
         profile = self._request("GET", "/me")
         user_id = profile.get("id", "")
-        data = self._request("GET", "/me/playlists", query={"limit": 50})
+        values = self._paged_items(
+            "GET",
+            "/me/playlists",
+            query={"limit": 50},
+        )
         playlists = []
-        for value in data.get("items", []):
+        for value in values:
             if not value:
                 continue
             item = self._map_item(value, ItemKind.PLAYLIST)
@@ -687,6 +723,54 @@ class SpotifyClient:
                 results.append(candidate)
         return results
 
+    def find_track(self, name: str, artist: str) -> SpotifyItem | None:
+        query = f'track:"{name}" artist:"{artist}"'
+        data = self._request(
+            "GET",
+            "/search",
+            query={
+                "q": query,
+                "type": "track",
+                "limit": 10,
+                "offset": 0,
+                "include_external": "audio",
+            },
+        )
+        wanted_name = _search_normalized(name)
+        wanted_artist = _search_normalized(artist)
+        candidates = [
+            self._map_item(value, ItemKind.TRACK)
+            for value in (data.get("tracks") or {}).get("items", [])
+            if value
+        ]
+        return next(
+            (
+                item
+                for item in candidates
+                if _search_normalized(item.name) == wanted_name
+                and _search_normalized(_primary_track_artist(item.artist))
+                == wanted_artist
+            ),
+            candidates[0] if candidates else None,
+        )
+
+    def find_artist(self, name: str) -> SpotifyItem | None:
+        data = self._request(
+            "GET",
+            "/search",
+            query={"q": f'artist:"{name}"', "type": "artist", "limit": 10, "offset": 0},
+        )
+        candidates = [
+            self._map_item(value, ItemKind.ARTIST)
+            for value in (data.get("artists") or {}).get("items", [])
+            if value
+        ]
+        wanted = _search_normalized(name)
+        return next(
+            (item for item in candidates if _search_normalized(item.name) == wanted),
+            candidates[0] if candidates else None,
+        )
+
     def replace_playlist_item(
         self,
         playlist: SpotifyItem,
@@ -786,6 +870,36 @@ class SpotifyClient:
                 device.get("name", "Unknown"),
                 device.get("type", "unknown"),
             )
+            self._request(
+                "PUT",
+                "/me/player/play",
+                query={"device_id": device["id"]},
+                body=body,
+                allow_empty=True,
+            )
+
+    def play_items(
+        self,
+        items: list[SpotifyItem],
+        device_id: str | None = None,
+    ) -> None:
+        uris = [item.uri for item in items if item.playable and item.uri]
+        if not uris:
+            return
+        body = {"uris": uris}
+        query = {"device_id": device_id} if device_id else None
+        try:
+            self._request(
+                "PUT",
+                "/me/player/play",
+                query=query,
+                body=body,
+                allow_empty=True,
+            )
+        except SpotifyError as error:
+            if device_id or "No active device found" not in str(error):
+                raise
+            device = self._preferred_device()
             self._request(
                 "PUT",
                 "/me/player/play",
@@ -1045,9 +1159,9 @@ class SpotifyClient:
         if kind == ItemKind.ALBUM:
             total = value.get("total_tracks")
         elif kind == ItemKind.PLAYLIST:
-            tracks = value.get("tracks") or {}
-            if isinstance(tracks, dict):
-                total = tracks.get("total")
+            contents = value.get("items") or value.get("tracks") or {}
+            if isinstance(contents, dict):
+                total = contents.get("total")
         elif kind == ItemKind.SHOW:
             total = value.get("total_episodes")
             artists = str(value.get("publisher") or "")

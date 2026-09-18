@@ -246,7 +246,8 @@ class PlaybackCommandTests(unittest.TestCase):
             {
                 "id": "playlist",
                 "name": "Playlist",
-                "tracks": {"total": 22},
+                "items": {"total": 22},
+                "tracks": {"total": 99},
             },
             ItemKind.PLAYLIST,
         )
@@ -288,6 +289,73 @@ class PlaybackCommandTests(unittest.TestCase):
 
         self.assertFalse(playlist.raw["editable"])
         self.assertFalse(playlist.raw["owned"])
+
+    def test_user_playlists_loads_every_page_in_order(self):
+        def playlist(number):
+            return {
+                "id": f"playlist-{number}",
+                "name": f"Playlist {number}",
+                "uri": f"spotify:playlist:playlist-{number}",
+                "owner": {"id": "current-user"},
+                "collaborative": False,
+            }
+
+        client = PlaylistClient(
+            [
+                {"id": "current-user"},
+                {
+                    "items": [playlist(number) for number in range(50)],
+                    "total": 52,
+                },
+                {
+                    "items": [playlist(50), playlist(51)],
+                    "total": 52,
+                },
+            ]
+        )
+
+        playlists = client.user_playlists()
+
+        self.assertEqual(len(playlists), 52)
+        self.assertEqual(playlists[50].id, "playlist-50")
+        self.assertEqual(playlists[51].id, "playlist-51")
+        self.assertEqual(
+            [call[2] for call in client.calls if call[1] == "/me/playlists"],
+            [{"limit": 50}, {"limit": 50, "offset": 50}],
+        )
+
+    def test_liked_songs_loads_every_page_in_order(self):
+        def saved_track(number):
+            return {
+                "track": {
+                    "id": f"track-{number}",
+                    "name": f"Track {number}",
+                    "uri": f"spotify:track:track-{number}",
+                }
+            }
+
+        client = PlaylistClient(
+            [
+                {
+                    "items": [saved_track(number) for number in range(50)],
+                    "total": 52,
+                },
+                {
+                    "items": [saved_track(50), saved_track(51)],
+                    "total": 52,
+                },
+            ]
+        )
+
+        tracks = client.liked_songs()
+
+        self.assertEqual(len(tracks), 52)
+        self.assertEqual(tracks[50].id, "track-50")
+        self.assertEqual(tracks[51].id, "track-51")
+        self.assertEqual(
+            [call[2] for call in client.calls],
+            [{"limit": 50}, {"limit": 50, "offset": 50}],
+        )
 
     def test_rename_playlist_uses_details_endpoint(self):
         client = CommandClient([])
@@ -521,16 +589,26 @@ class PlaybackCommandTests(unittest.TestCase):
 
         self.assertEqual(client.children(playlist)[0].id, "track-1")
 
-    def test_artist_albums_use_spotify_limit_and_load_every_page(self):
+    def test_artist_albums_filter_to_albums_and_load_every_page(self):
         first_page = {
             "items": [
-                {"id": f"album-{index}", "name": f"Album {index}"}
+                {
+                    "id": f"album-{index}",
+                    "name": f"Album {index}",
+                    "release_date": f"20{index:02d}-01-01",
+                }
                 for index in range(10)
             ],
             "total": 11,
         }
         second_page = {
-            "items": [{"id": "album-10", "name": "Album 10"}],
+            "items": [
+                {
+                    "id": "album-10",
+                    "name": "Album 10",
+                    "release_date": "2010-01-01",
+                }
+            ],
             "total": 11,
         }
         client = CommandClient([first_page, second_page])
@@ -539,8 +617,28 @@ class PlaybackCommandTests(unittest.TestCase):
         albums = client.children(artist)
 
         self.assertEqual(len(albums), 11)
-        self.assertEqual(client.calls[0][2]["limit"], 10)
-        self.assertEqual(client.calls[1][2], {"limit": 10, "offset": 10})
+        self.assertEqual(albums[0].id, "album-10")
+        self.assertEqual(
+            client.calls[0][2],
+            {"include_groups": "album", "limit": 10},
+        )
+        self.assertEqual(
+            client.calls[1][2],
+            {"include_groups": "album", "limit": 10, "offset": 10},
+        )
+
+    def test_artist_albums_remove_duplicate_ids(self):
+        album = {
+            "id": "album-1",
+            "name": "Album",
+            "release_date": "2026-01-01",
+        }
+        client = CommandClient([{"items": [album, dict(album)], "total": 2}])
+        artist = SpotifyItem("artist-1", ItemKind.ARTIST, "Artist")
+
+        albums = client.children(artist)
+
+        self.assertEqual([item.id for item in albums], ["album-1"])
 
     def test_album_for_track_uses_embedded_album_without_request(self):
         client = PlaylistClient([])
@@ -1100,6 +1198,32 @@ class PlaybackCommandTests(unittest.TestCase):
             },
         )
         self.assertTrue(client.calls[-1][4])
+
+    def test_play_items_starts_an_ordered_playback_sequence(self):
+        client = CommandClient([])
+        tracks = [
+            SpotifyItem(
+                f"track-{number}",
+                ItemKind.TRACK,
+                f"Song {number}",
+                uri=f"spotify:track:track-{number}",
+            )
+            for number in (1, 2, 3)
+        ]
+
+        client.play_items(tracks, "blindspot-device")
+
+        self.assertEqual(client.calls[-1][1], "/me/player/play")
+        self.assertEqual(
+            client.calls[-1][3],
+            {
+                "uris": [
+                    "spotify:track:track-1",
+                    "spotify:track:track-2",
+                    "spotify:track:track-3",
+                ]
+            },
+        )
 
     def test_play_at_restores_playlist_context_and_track_offset(self):
         client = CommandClient([])

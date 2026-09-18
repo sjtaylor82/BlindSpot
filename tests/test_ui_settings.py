@@ -1231,6 +1231,8 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
                 "notebook": notebook,
                 "recently_played": recent,
                 "SetTitle": lambda self, title: titles.append(title),
+                "set_view_title": MainFrame.set_view_title,
+                "title_for_page": MainFrame.title_for_page,
             },
         )()
         event = type(
@@ -1245,7 +1247,7 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
         MainFrame.on_tab_changed(frame, event)
 
         self.assertEqual(refreshed, [])
-        self.assertEqual(titles, ["BlindSpot"])
+        self.assertEqual(titles, ["Recently Played - BlindSpot"])
 
     def test_focusing_tab_bar_uses_static_window_title(self):
         titles = []
@@ -1376,6 +1378,144 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
         MainFrame.toggle_like_current_track(frame)
 
         self.assertEqual(toggled, [playing])
+
+    def test_open_similar_mix_announces_source_and_result_count(self):
+        source = ui.SpotifyItem("source", ui.ItemKind.TRACK, "Source song")
+        results = [
+            ui.SpotifyItem("one", ui.ItemKind.TRACK, "Related one"),
+            ui.SpotifyItem("two", ui.ItemKind.TRACK, "Related two"),
+        ]
+        shown = []
+        spoken = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "show_lastfm_results": (
+                    lambda self, title, values: shown.append((title, values))
+                ),
+                "say": lambda self, message: spoken.append(message),
+            },
+        )()
+
+        MainFrame.finish_open_similar_mix(frame, source, results)
+
+        self.assertEqual(shown[0][1], results)
+        self.assertIn("Source song", shown[0][0])
+        self.assertEqual(
+            spoken,
+            ["Opened Last.fm similar-track mix for Source song, 2 tracks"],
+        )
+
+    def test_start_similar_mix_plays_results_and_announces_source(self):
+        source = ui.SpotifyItem("source", ui.ItemKind.TRACK, "Source song")
+        results = [ui.SpotifyItem("one", ui.ItemKind.TRACK, "Related one")]
+        calls = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "play_items": (
+                    lambda self, values, **options: calls.append(
+                        (values, options)
+                    )
+                )
+            },
+        )()
+
+        MainFrame.finish_start_similar_mix(frame, source, results)
+
+        self.assertEqual(calls[0][0], [results[0]])
+        self.assertEqual(
+            calls[0][1]["started_message"],
+            "Started Last.fm similar-track mix for Source song, 1 track ready",
+        )
+        self.assertTrue(calls[0][1]["disable_repeat"])
+        self.assertIsNotNone(calls[0][1]["after_started"])
+
+    def test_open_similar_mix_adds_load_more_marker_for_remaining_candidates(self):
+        source = ui.SpotifyItem("source", ui.ItemKind.TRACK, "Source song")
+        result = ui.SpotifyItem("one", ui.ItemKind.TRACK, "Related one")
+        remaining = [ui.SimilarTrack("Later", "Artist")]
+        shown = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "show_lastfm_results": (
+                    lambda self, title, values: shown.extend(values)
+                ),
+                "say": lambda self, message: None,
+            },
+        )()
+
+        MainFrame.finish_open_similar_mix(
+            frame,
+            source,
+            [result],
+            remaining,
+            {source.id, result.id},
+        )
+
+        self.assertEqual(shown[0], result)
+        self.assertTrue(shown[1].raw["lastfm_load_more"])
+        self.assertEqual(shown[1].raw["remaining"], remaining)
+
+    def test_lastfm_matching_removes_duplicates_across_pages(self):
+        duplicate = ui.SpotifyItem("same", ui.ItemKind.TRACK, "Same")
+        unique = ui.SpotifyItem("unique", ui.ItemKind.TRACK, "Unique")
+        spotify = type(
+            "Spotify",
+            (),
+            {
+                "find_track": lambda self, name, artist: (
+                    duplicate if name in {"First", "Duplicate"} else unique
+                )
+            },
+        )()
+        frame = type("Frame", (), {"spotify": spotify})()
+        seen = set()
+
+        results = MainFrame.match_lastfm_tracks(
+            frame,
+            [
+                ui.SimilarTrack("First", "Artist"),
+                ui.SimilarTrack("Duplicate", "Artist"),
+                ui.SimilarTrack("Unique", "Artist"),
+            ],
+            seen,
+        )
+
+        self.assertEqual(results, [duplicate, unique])
+        self.assertEqual(seen, {"same", "unique"})
+
+    def test_queue_similar_mix_defers_results_after_current_queue(self):
+        source = ui.SpotifyItem("source", ui.ItemKind.TRACK, "Source song")
+        results = [ui.SpotifyItem("one", ui.ItemKind.TRACK, "Related one")]
+        finished = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "deferred_queue_items": [],
+                "queue_should_be_deferred": lambda self: True,
+                "finish_queue_many": (
+                    lambda self, values, **options: finished.append(
+                        (values, options)
+                    )
+                ),
+            },
+        )()
+
+        MainFrame.finish_queue_similar_mix(frame, source, results)
+
+        self.assertEqual(frame.deferred_queue_items, results)
+        self.assertEqual(finished[0][0], results)
+        self.assertEqual(
+            finished[0][1]["announcement"],
+            "Added Last.fm similar-track mix for Source song "
+            "after the current queue, 1 track",
+        )
 
     def test_native_list_insert_adapter_adds_row_at_requested_position(self):
         inserted = []
@@ -1711,7 +1851,157 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
         self.assertEqual(called, [6])
 
 
+class NowPlayingTests(unittest.TestCase):
+    def test_current_track_context_menu_exposes_direct_actions(self):
+        calls = []
+        track = ui.SpotifyItem(
+            "track-1",
+            ui.ItemKind.TRACK,
+            "Song",
+            raw={"artists": [{"id": "artist-1", "name": "Artist"}]},
+        )
+        frame = type(
+            "Frame",
+            (),
+            {
+                "popup_item_menu": (
+                    lambda self, owner, item, **options: calls.append(options)
+                ),
+                "show_lyrics_for_item": lambda self, item: None,
+                "choose_playlist_for_item": lambda self, item: None,
+                "show_artist_albums": lambda self, artist_id, name: None,
+            },
+        )()
+        panel = type(
+            "Panel",
+            (),
+            {
+                "frame": frame,
+                "items": object(),
+                "selected_item": lambda self: track,
+            },
+        )()
+
+        ui.NowPlayingPanel.on_context_menu(panel)
+
+        labels = [label for label, _callback in calls[0]["top_level_actions"]]
+        self.assertEqual(
+            labels,
+            [
+                "Show &lyrics",
+                "Add to &playlist...",
+                "Show albums by &Artist",
+            ],
+        )
+
+    def test_now_playing_row_tracks_current_item(self):
+        updates = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "now_playing": type(
+                    "Panel",
+                    (),
+                    {"set_item": lambda self, item: updates.append(item)},
+                )()
+            },
+        )()
+        track = ui.SpotifyItem("track-1", ui.ItemKind.TRACK, "Song")
+
+        MainFrame.update_now_playing(frame, track)
+        MainFrame.update_now_playing(frame, None)
+
+        self.assertEqual(updates, [track, None])
+
+
 class SearchContextMenuTests(unittest.TestCase):
+    def test_shared_album_open_route_retains_album_for_artwork_button(self):
+        album = ui.SpotifyItem(
+            "album",
+            ui.ItemKind.ALBUM,
+            "Album",
+            raw={"images": [{"url": "art"}]},
+        )
+        track = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Track")
+        history = ui.NavigationHistory(ui.ViewState("Search", []))
+        rendered = []
+        selections = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": type(
+                    "Notebook",
+                    (),
+                    {
+                        "GetSelection": lambda self: 8,
+                        "SetSelection": (
+                            lambda self, page: selections.append(page)
+                        ),
+                    },
+                )(),
+                "search": type(
+                    "Search",
+                    (),
+                    {
+                        "history": history,
+                        "render": (
+                            lambda self, state, focus: rendered.append(state)
+                        ),
+                    },
+                )(),
+                "open_album_return_page": None,
+                "open_album_return_state": None,
+                "focus_open_album": lambda self: None,
+                "say": lambda self, message: None,
+            },
+        )()
+
+        with patch("blindspot.ui.wx.CallAfter"):
+            MainFrame.finish_open_album(frame, album, [track])
+
+        self.assertIs(rendered[0].parent_item, album)
+        self.assertEqual(selections, [0])
+
+    def test_album_artwork_button_uses_open_album_not_selected_track(self):
+        album = ui.SpotifyItem(
+            "album",
+            ui.ItemKind.ALBUM,
+            "Album",
+            raw={"images": [{"url": "art"}]},
+        )
+        track = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Track")
+        shown = []
+        panel = type(
+            "Panel",
+            (),
+            {
+                "history": ui.NavigationHistory(
+                    ui.ViewState(
+                        "Album",
+                        [track],
+                        parent_id=album.id,
+                        parent_kind=album.kind,
+                        parent_item=album,
+                    )
+                ),
+                "frame": type(
+                    "Frame",
+                    (),
+                    {
+                        "show_album_artwork": (
+                            lambda self, item: shown.append(item)
+                        )
+                    },
+                )(),
+            },
+        )()
+
+        SearchPanel.on_display_album_artwork(panel)
+
+        self.assertEqual(shown, [album])
+
     def test_back_from_album_opened_in_playlist_returns_to_playlist(self):
         initial = ui.ViewState("Search results", [])
         album_state = ui.ViewState(
@@ -1945,6 +2235,49 @@ class SearchContextMenuTests(unittest.TestCase):
         self.assertEqual(played[0][0].uri, "spotify:album:album")
         self.assertEqual(played[0][1], track)
 
+    def test_f4_plays_multiple_selected_tracks_as_one_sequence(self):
+        tracks = [
+            ui.SpotifyItem(
+                f"track-{number}",
+                ui.ItemKind.TRACK,
+                f"Track {number}",
+                uri=f"spotify:track:track-{number}",
+            )
+            for number in (1, 2, 3)
+        ]
+        played = []
+        item_list = type(
+            "Items",
+            (),
+            {"marked_items": lambda self: tracks},
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": type(
+                    "Notebook", (), {"GetSelection": lambda self: 1}
+                )(),
+                "liked": type("Liked", (), {"items": item_list})(),
+                "search": type("Search", (), {"results": item_list})(),
+                "queue": type("Queue", (), {"items": item_list})(),
+                "playlists": type("Playlists", (), {"items": item_list})(),
+                "recently_played": type("Recent", (), {"items": item_list})(),
+                "bookmarks": type("Bookmarks", (), {"items": item_list})(),
+                "audiobooks": type("Audiobooks", (), {"items": item_list})(),
+                "podcasts": type("Podcasts", (), {"items": item_list})(),
+                "saved_albums": type("Albums", (), {"items": item_list})(),
+                "new_music": type("NewMusic", (), {"items": item_list})(),
+                "current_selected_item": lambda self: tracks[0],
+                "current_item_list": lambda self: item_list,
+                "play_items": lambda self, values: played.extend(values),
+            },
+        )()
+
+        MainFrame.play_selected(frame)
+
+        self.assertEqual(played, tracks)
+
     def test_album_track_label_keeps_only_number_name_and_guest_artist(self):
         state = ui.ViewState(
             "Album",
@@ -2097,6 +2430,28 @@ class SearchContextMenuTests(unittest.TestCase):
 
         self.assertEqual(
             SearchPanel.artist_for_album_view(panel, album),
+            ("artist-id", "Main Artist"),
+        )
+
+    def test_track_search_result_offers_primary_artists_albums(self):
+        track = ui.SpotifyItem(
+            "track",
+            ui.ItemKind.TRACK,
+            "Song",
+            raw={"artists": [{"id": "artist-id", "name": "Main Artist"}]},
+        )
+        panel = type(
+            "Panel",
+            (),
+            {
+                "history": ui.NavigationHistory(
+                    ui.ViewState("Results", [track])
+                )
+            },
+        )()
+
+        self.assertEqual(
+            SearchPanel.artist_for_album_view(panel, track),
             ("artist-id", "Main Artist"),
         )
 
@@ -3670,6 +4025,23 @@ class MultipleQueueTests(unittest.TestCase):
 
 
 class PlaylistInformationTests(unittest.TestCase):
+    def test_album_artwork_download_uses_bundled_certificate_store(self):
+        response = Mock()
+        response.read.return_value = b"image"
+        response_context = Mock()
+        response_context.__enter__ = Mock(return_value=response)
+        response_context.__exit__ = Mock(return_value=False)
+
+        with patch(
+            "blindspot.ui.urllib.request.urlopen",
+            return_value=response_context,
+        ) as urlopen:
+            result = ui.download_album_artwork("https://example.com/art.jpg")
+
+        self.assertEqual(result, b"image")
+        self.assertIs(urlopen.call_args.kwargs["context"], ui.TLS_CONTEXT)
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 20)
+
     def test_album_artwork_url_selects_largest_available_image(self):
         album = ui.SpotifyItem(
             "album",
@@ -3725,6 +4097,53 @@ class PlaylistInformationTests(unittest.TestCase):
 
 
 class PlaylistRefreshTests(unittest.TestCase):
+    def test_item_list_handles_select_all_before_panel_key_routing(self):
+        selected = []
+        announcements = []
+        frame = type(
+            "Frame",
+            (),
+            {"say": lambda self, value: announcements.append(value)},
+        )()
+        panel = type(
+            "Panel",
+            (),
+            {
+                "frame": frame,
+                "on_item_list_char_hook": (
+                    lambda self, event: self.fail(
+                        "Select all must be handled by the list"
+                    )
+                ),
+            },
+        )()
+        item_list = type(
+            "ItemList",
+            (),
+            {
+                "GetParent": lambda self: panel,
+                "select_all_items": lambda self: selected.append(True),
+                "GetSelections": lambda self: [0, 1, 2],
+            },
+        )()
+        event = type(
+            "Event",
+            (),
+            {
+                "GetKeyCode": lambda self: ord("A"),
+                "GetModifiers": lambda self: ui.wx.MOD_CONTROL,
+                "ControlDown": lambda self: True,
+                "AltDown": lambda self: False,
+                "ShiftDown": lambda self: False,
+            },
+        )()
+
+        with patch("blindspot.ui.sys.platform", "win32"):
+            ui.ItemList.on_char_hook(item_list, event)
+
+        self.assertEqual(selected, [True])
+        self.assertEqual(announcements, ["3 items selected"])
+
     def test_item_list_routes_keys_to_alternate_dialog_before_main_frame(self):
         routed = []
         event = object()
@@ -4964,6 +5383,30 @@ class LyricsKeyboardTests(unittest.TestCase):
             MainFrame.on_global_key(frame, event)
 
         self.assertTrue(event.skipped)
+
+    def test_select_all_action_selects_every_item_in_focused_list(self):
+        selected = []
+        focused_list = type(
+            "FocusedList",
+            (),
+            {"select_all_items": lambda self: selected.append(True)},
+        )()
+        frame = object()
+
+        with patch.object(
+            MainFrame,
+            "keymap_action_for_event",
+            return_value="select_all",
+        ):
+            handled = MainFrame.dispatch_mapped_key(
+                frame,
+                self.Event(ord("A"), control=True),
+                focused_list,
+                focused_list,
+            )
+
+        self.assertTrue(handled)
+        self.assertEqual(selected, [True])
 
     def test_bare_space_is_left_to_native_controls(self):
         event = self.Event(32)

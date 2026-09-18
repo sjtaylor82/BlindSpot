@@ -86,7 +86,12 @@ MANUAL_NOT_FOUND = "manual not found."
 UPDATE_DOWNLOAD_FAILED = "The BlindSpot update could not be downloaded."
 UPDATE_CHECK_FAILED = "BlindSpot could not check for updates."
 UPDATE_INSTALL_PROMPT = "Download and install the update now?"
+UPDATE_DOWNLOAD_PROMPT = "Download the update and reveal it in Finder?"
 UPDATE_PAGE_PROMPT = "Open the download page now?"
+UPDATE_READY_MACOS = (
+    "The BlindSpot update is ready in Downloads. Quit BlindSpot, extract "
+    "the ZIP, and replace the current BlindSpot.app with the new one."
+)
 RECENT_AUTHORIZED = "Recently Played authorized."
 RECENT_ACCESS_NOT_GRANTED_STATUS = (
     "Spotify did not grant access to Recently Played."

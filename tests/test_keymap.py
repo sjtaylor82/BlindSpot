@@ -27,6 +27,16 @@ class KeyMapTests(unittest.TestCase):
         windows = keymap.KeyMap(platform="win32")
         mac = keymap.KeyMap(platform="darwin")
 
+        self.assertEqual(windows.bindings("select_all"), ("Control+A",))
+        self.assertEqual(mac.bindings("select_all"), ("Command+A",))
+        self.assertEqual(
+            windows.bindings("open_similar_focused"),
+            ("Control+Shift+M",),
+        )
+        self.assertEqual(
+            mac.bindings("start_similar_current"),
+            ("Option+Command+P",),
+        )
         self.assertEqual(windows.bindings("item_actions"), ("Shift+F10",))
         self.assertEqual(mac.bindings("item_actions"), ("Option+M",))
         self.assertEqual(

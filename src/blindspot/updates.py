@@ -9,6 +9,7 @@ import tempfile
 import time
 import urllib.request
 import webbrowser
+from pathlib import Path
 
 from . import messages as msg
 from .network import TLS_CONTEXT
@@ -100,32 +101,77 @@ def supports_automatic_update(
     )
 
 
+def supports_managed_download(
+    release: Release,
+    platform: str = sys.platform,
+    frozen: bool | None = None,
+) -> bool:
+    if frozen is None:
+        frozen = bool(getattr(sys, "frozen", False))
+    return bool(
+        frozen
+        and platform in {"win32", "darwin"}
+        and pick_asset(release, platform) is not None
+    )
+
+
 def download_and_install(
     release: Release,
     progress_callback=None,
 ) -> bool:
-    if not supports_automatic_update(release):
+    if not supports_managed_download(release):
         webbrowser.open(release.url)
         return True
-    asset = pick_asset(release)
+    asset = pick_asset(release, sys.platform)
+    if sys.platform == "darwin":
+        downloads = Path.home() / "Downloads"
+        downloads.mkdir(parents=True, exist_ok=True)
+        destination = str(
+            downloads / f"BlindSpot-macOS-{release.version}.zip"
+        )
+    else:
+        destination = os.path.join(
+            tempfile.gettempdir(),
+            str(asset["name"]),
+        )
+    partial = destination + ".part"
 
-    destination = os.path.join(
-        tempfile.gettempdir(),
-        str(asset["name"]),
-    )
-
-    def report(block_number, block_size, total_size):
-        if progress_callback and total_size > 0:
-            progress_callback(
-                min(100, int(block_number * block_size * 100 / total_size))
-            )
-
-    urllib.request.urlretrieve(
+    request = urllib.request.Request(
         str(asset["browser_download_url"]),
-        destination,
-        reporthook=report,
+        headers={"User-Agent": "BlindSpot updater"},
     )
-    schedule_windows_replacement(destination)
+    try:
+        with (
+            urllib.request.urlopen(
+                request,
+                timeout=30,
+                context=TLS_CONTEXT,
+            ) as response,
+            open(partial, "wb") as output,
+        ):
+            total = int(response.headers.get("Content-Length") or 0)
+            downloaded = 0
+            while chunk := response.read(1024 * 1024):
+                output.write(chunk)
+                downloaded += len(chunk)
+                if progress_callback and total > 0:
+                    progress_callback(
+                        min(100, int(downloaded * 100 / total))
+                    )
+        os.replace(partial, destination)
+    except Exception:
+        try:
+            os.remove(partial)
+        except FileNotFoundError:
+            pass
+        raise
+    if sys.platform == "win32":
+        schedule_windows_replacement(destination)
+    else:
+        subprocess.run(
+            ["open", "-R", destination],
+            check=False,
+        )
     return True
 
 
