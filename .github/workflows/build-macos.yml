@@ -17,10 +17,10 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -61,7 +61,7 @@ jobs:
             dist/BlindSpot-macOS dist/BlindSpot-macOS.zip
 
       - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: BlindSpot-macOS
           path: dist/BlindSpot-macOS.zip
