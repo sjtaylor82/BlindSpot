@@ -10,7 +10,7 @@
       reports that BlindSpot is already running.</p>
   <main>
     <h1>BlindSpot manual</h1>
-    <p>Build 2026.9.1</p>
+    <p>Build 2026.9.2</p>
     <p>BlindSpot is a portable, keyboard-first Spotify client for Windows and macOS.</p>
 
     <h2>Main interface</h2>
@@ -84,7 +84,9 @@
       current queue. Opening the mix displays up to 50 candidates in pages of 20 without changing playback;
       starting it plays the first matched page while the remaining candidates are prepared and appended in the
       background. BlindSpot starts one track and queues the rest so Spotify does not loop a multi-track playback
-      context. Duplicate Spotify matches are removed across pages. Repeat is switched off before starting a mix.
+      context. When about ten queued mix tracks remain, BlindSpot uses the current track to find and append another
+      deduplicated batch. Playing an unrelated item ends the continuous mix. Duplicate Spotify matches are removed
+      throughout the session. Repeat is switched off before starting a mix.
       Ctrl+Shift+M opens a mix for the focused track and Ctrl+Shift+P starts it. The Go menu provides equivalent
       actions for the currently playing track.</p>
     <p>The playlist context menu provides Open, Play, New playlist, Rename for
@@ -207,11 +209,21 @@
       determined by the individual's Spotify plan. </p>
 
     <h2>Podcasts</h2>
+    <p>Press Ctrl+8 to open Podcasts. Choose a category such as Comedy, News,
+      Science or Technology, then activate Browse podcasts to explore matching
+      Spotify shows. These are relevance-ranked Spotify search results, not a
+      complete Spotify catalogue. Each show identifies its publisher; use its
+      context menu for the description, or press Enter to browse episodes.
+      Choose Show saved podcasts to return to followed shows and saved episodes.</p>
     <p>Search offers Podcasts for matching whole shows and Podcast episodes
-      for matching individual episodes. Opening a podcast lists all of its episodes,
-      including additional pages beyond the first 50.</p>
-    <p>Press Ctrl+8 to browse subscribed podcasts and saved episodes in one
-      list. Episodes use their Spotify resume positions when available.
+      for matching individual episodes. These searches display up to 50 results
+      at a time; choose Show next 50 podcasts or Show next 50 episodes to append
+      another page. Opening a podcast lists its first 50 episodes. Choose Show
+      next 50 episodes at the end of the list to continue browsing. BlindSpot
+      retains the existing entries, moves focus to the first newly added episode,
+      and announces how many were loaded.</p>
+    <p>Followed podcasts and saved episodes appear together when the saved view
+      is selected. Episodes use their Spotify resume positions when available.
 Choose Download episode from a podcast episode's context menu to save its public RSS media file.
       BlindSpot locates the publisher's public feed independently of Spotify,
       so downloads may be unavailable for private or Spotify-exclusive

@@ -233,6 +233,25 @@ SEARCH_TYPES = [
     "audiobook",
     "all",
 ]
+
+PODCAST_BROWSE_CATEGORIES = (
+    ("General discovery", "podcast"),
+    ("Arts", "arts podcast"),
+    ("Business", "business podcast"),
+    ("Comedy", "comedy podcast"),
+    ("Education", "education podcast"),
+    ("Fiction", "fiction podcast"),
+    ("Health", "health podcast"),
+    ("History", "history podcast"),
+    ("Kids and family", "kids family podcast"),
+    ("Music", "music podcast"),
+    ("News", "news podcast"),
+    ("Science", "science podcast"),
+    ("Society and culture", "society culture podcast"),
+    ("Sports", "sports podcast"),
+    ("Technology", "technology podcast"),
+    ("True crime", "true crime podcast"),
+)
 BRAILLE_LYRICS_TIMER_MS = 100
 BRAILLE_LYRIC_LEAD_MS = 1_000
 PHRASE_MODE_TIMER_MS = 25
@@ -2135,6 +2154,9 @@ class SearchPanel(wx.Panel):
         item = self.results.selected_item()
         if not item:
             return
+        if item.raw.get("load_more_episodes"):
+            self.load_more_episodes(item)
+            return
         if item.raw.get("lastfm_load_more"):
             self.frame.load_more_lastfm_mix(item)
             return
@@ -2181,7 +2203,16 @@ class SearchPanel(wx.Panel):
         existing = [
             item for item in state.items if not item.raw.get("load_more")
         ]
-        new_results = list(items)
+        existing_ids = {
+            item.id
+            for item in existing
+            if item.kind != ItemKind.HEADING
+        }
+        new_results = [
+            item
+            for item in items
+            if item.kind == ItemKind.HEADING or item.id not in existing_ids
+        ]
         result_count = sum(
             item.kind != ItemKind.HEADING for item in new_results
         )
@@ -2189,8 +2220,50 @@ class SearchPanel(wx.Panel):
         state.items[:] = existing + new_results
         state.selected = first_new if result_count else max(0, first_new - 1)
         self.render(state, focus=True)
-        if not result_count:
+        if result_count:
+            self.frame.say(f"Loaded {result_count} additional results.")
+        else:
             self.frame.say(msg.NO_MORE_RESULTS)
+
+    def load_more_episodes(self, item: SpotifyItem) -> None:
+        state = self.history.current
+        show = state.parent_item
+        if not show or show.kind != ItemKind.SHOW:
+            return
+        offset = int(item.raw.get("next_offset") or 0)
+        self.frame.run_task(
+            msg.LOADING_MORE_RESULTS,
+            lambda: self.frame.spotify.podcast_episodes(show, offset),
+            lambda episodes: (
+                self.append_episodes(episodes)
+                if self.history.current is state
+                else None
+            ),
+        )
+
+    def append_episodes(self, episodes: list[SpotifyItem]) -> None:
+        state = self.history.current
+        existing = [
+            item
+            for item in state.items
+            if not item.raw.get("load_more_episodes")
+        ]
+        existing_ids = {item.id for item in existing}
+        new_episodes = [
+            item
+            for item in episodes
+            if item.raw.get("load_more_episodes") or item.id not in existing_ids
+        ]
+        added = sum(item.kind == ItemKind.EPISODE for item in new_episodes)
+        first_new = len(existing)
+        state.items[:] = existing + new_episodes
+        state.selected = first_new if added else max(0, first_new - 1)
+        self.render(state, focus=True)
+        self.frame.say(
+            f"Loaded {added} additional episodes."
+            if added
+            else msg.NO_MORE_RESULTS
+        )
 
     def open_children(self, parent: SpotifyItem, items: list[SpotifyItem]) -> None:
         logger.info("Displaying %d children for %r", len(items), parent.name)
@@ -3741,6 +3814,87 @@ class PodcastsPanel(PlaylistsPanel):
         self.history.reset(ViewState("Podcasts", []))
         self.heading.SetLabel("Podcasts")
         self.status.SetLabel(msg.PODCASTS_LOAD_HINT)
+        browse_controls = wx.BoxSizer(wx.HORIZONTAL)
+        browse_controls.Add(
+            wx.StaticText(self, label="Browse category"),
+            0,
+            wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+            6,
+        )
+        self.browse_category = wx.Choice(
+            self,
+            choices=[label for label, _query in PODCAST_BROWSE_CATEGORIES],
+        )
+        self.browse_category.SetSelection(0)
+        browse_controls.Add(self.browse_category, 1, wx.RIGHT, 6)
+        self.browse_button = wx.Button(self, label="&Browse podcasts")
+        browse_controls.Add(self.browse_button, 0, wx.RIGHT, 6)
+        self.saved_button = wx.Button(self, label="Show &saved podcasts")
+        browse_controls.Add(self.saved_button, 0)
+        self.GetSizer().Insert(
+            1,
+            browse_controls,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            10,
+        )
+        self.browse_button.Bind(wx.EVT_BUTTON, self.on_browse)
+        self.saved_button.Bind(wx.EVT_BUTTON, self.on_show_saved)
+        self.saved_button.MoveBeforeInTabOrder(self.items)
+        self.browse_button.MoveBeforeInTabOrder(self.saved_button)
+        self.browse_category.MoveBeforeInTabOrder(self.browse_button)
+        self.Layout()
+
+    def on_browse(self, event: wx.Event | None = None) -> None:
+        if self.loading:
+            return
+        index = self.browse_category.GetSelection()
+        label, query = PODCAST_BROWSE_CATEGORIES[max(0, index)]
+        self.loading = True
+        self.frame.run_task(
+            msg.SEARCHING_SPOTIFY,
+            lambda: self.frame.spotify.search(query, "show"),
+            lambda shows: self.show_browse_results(label, query, shows),
+            failure=self.finish_load_error,
+        )
+
+    def show_browse_results(
+        self,
+        label: str,
+        query: str,
+        shows: list[SpotifyItem],
+    ) -> None:
+        self.loading = False
+        self.loaded_once = True
+        state = ViewState(
+            f"Browse podcasts: {label}",
+            shows,
+            query=query,
+            category="show",
+        )
+        self.history.reset(state)
+        self.current_playlist = None
+        self.render(state, focus=True)
+        count = sum(show.kind == ItemKind.SHOW for show in shows)
+        self.status.SetLabel(
+            f"{count} podcast search results. Not a complete Spotify catalogue."
+        )
+        if not count:
+            self.frame.say("No podcasts found for this category.")
+
+    def on_show_saved(self, event: wx.Event | None = None) -> None:
+        if self.loading:
+            return
+        self.loading = True
+        self.frame.run_task(
+            None,
+            lambda: (
+                self.frame.spotify.saved_shows(),
+                self.frame.spotify.saved_episodes(),
+            ),
+            lambda result: self.show_library(*result),
+            failure=self.finish_load_error,
+        )
 
     def refresh(self) -> None:
         if self.loading:
@@ -3791,7 +3945,15 @@ class PodcastsPanel(PlaylistsPanel):
 
     def on_open(self, event: wx.Event | None = None) -> None:
         item = self.items.selected_item()
-        if not item or item.kind == ItemKind.HEADING:
+        if not item:
+            return
+        if item.raw.get("load_more"):
+            self.load_more_podcasts(item)
+            return
+        if item.raw.get("load_more_episodes"):
+            self.load_more_episodes(item)
+            return
+        if item.kind == ItemKind.HEADING:
             return
         if item.kind == ItemKind.EPISODE:
             self.frame.play_playable_item(item)
@@ -3805,6 +3967,49 @@ class PodcastsPanel(PlaylistsPanel):
             lambda: self.frame.spotify.children(item),
             lambda episodes: self.show_episodes(item, episodes),
             failure=self.finish_load_error,
+        )
+
+    def load_more_podcasts(self, item: SpotifyItem) -> None:
+        state = self.history.current
+        if state.category != "show" or not state.query:
+            return
+        offset = int(item.raw.get("next_offset") or 0)
+        self.loading = True
+        self.frame.run_task(
+            msg.LOADING_MORE_RESULTS,
+            lambda: self.frame.spotify.search(state.query, "show", offset),
+            lambda shows: self.append_browse_results(state, shows),
+            failure=self.finish_load_error,
+        )
+
+    def append_browse_results(
+        self,
+        state: ViewState,
+        shows: list[SpotifyItem],
+    ) -> None:
+        self.loading = False
+        if self.history.current is not state:
+            return
+        existing = [show for show in state.items if not show.raw.get("load_more")]
+        existing_ids = {show.id for show in existing}
+        additions = [
+            show
+            for show in shows
+            if show.raw.get("load_more") or show.id not in existing_ids
+        ]
+        added = sum(show.kind == ItemKind.SHOW for show in additions)
+        first_new = len(existing)
+        state.items[:] = existing + additions
+        state.selected = first_new if added else max(0, first_new - 1)
+        self.render(state, focus=True)
+        self.status.SetLabel(
+            f"{len(existing) + added} podcast search results. "
+            "Not a complete Spotify catalogue."
+        )
+        self.frame.say(
+            f"Loaded {added} additional podcasts."
+            if added
+            else msg.NO_MORE_RESULTS
         )
 
     def show_episodes(
@@ -3827,6 +4032,53 @@ class PodcastsPanel(PlaylistsPanel):
             focus=window_is_or_descendant(wx.Window.FindFocus(), self.items),
         )
 
+    def load_more_episodes(self, item: SpotifyItem) -> None:
+        state = self.history.current
+        show = self.current_playlist
+        if not show:
+            return
+        offset = int(item.raw.get("next_offset") or 0)
+        self.loading = True
+        self.frame.run_task(
+            msg.LOADING_MORE_RESULTS,
+            lambda: self.frame.spotify.podcast_episodes(show, offset),
+            lambda episodes: self.append_episodes(state, episodes),
+            failure=self.finish_load_error,
+        )
+
+    def append_episodes(
+        self,
+        state: ViewState,
+        episodes: list[SpotifyItem],
+    ) -> None:
+        self.loading = False
+        if self.history.current is not state:
+            return
+        existing = [
+            episode
+            for episode in state.items
+            if not episode.raw.get("load_more_episodes")
+        ]
+        existing_ids = {episode.id for episode in existing}
+        new_episodes = [
+            episode
+            for episode in episodes
+            if episode.raw.get("load_more_episodes")
+            or episode.id not in existing_ids
+        ]
+        added = sum(
+            episode.kind == ItemKind.EPISODE for episode in new_episodes
+        )
+        first_new = len(existing)
+        state.items[:] = existing + new_episodes
+        state.selected = first_new if added else max(0, first_new - 1)
+        self.render(state, focus=True)
+        self.frame.say(
+            f"Loaded {added} additional episodes."
+            if added
+            else msg.NO_MORE_RESULTS
+        )
+
     def on_key(self, event: wx.KeyEvent) -> None:
         key = event.GetKeyCode()
         if (
@@ -3840,7 +4092,11 @@ class PodcastsPanel(PlaylistsPanel):
             self.on_open()
         elif key == wx.WXK_BACK:
             self.go_back()
-        elif key == wx.WXK_DELETE and not self.history.can_go_back:
+        elif (
+            key == wx.WXK_DELETE
+            and not self.history.can_go_back
+            and self.history.current.category != "show"
+        ):
             item = self.items.selected_item()
             if item:
                 self.remove_saved_item(item)
@@ -3853,7 +4109,10 @@ class PodcastsPanel(PlaylistsPanel):
         item = self.items.selected_item()
         if not item or item.kind == ItemKind.HEADING:
             return
-        saved_library_item = not self.history.can_go_back
+        saved_library_item = (
+            not self.history.can_go_back
+            and self.history.current.category != "show"
+        )
         remove_callback = None
         remove_label = None
         if saved_library_item and item.kind == ItemKind.SHOW:
@@ -4025,6 +4284,8 @@ class MainFrame(wx.Frame):
         self.deferred_queue_items: list[SpotifyItem] = []
         self.deferred_queue_flushing = False
         self.deferred_queue_start_item: SpotifyItem | None = None
+        self.continuous_mix_generation = 0
+        self.continuous_mix: dict[str, object] | None = None
         self.open_album_return_page: int | None = None
         self.open_album_return_state: ViewState | None = None
         self.announcer = Auto()
@@ -5666,7 +5927,13 @@ class MainFrame(wx.Frame):
         elif page == 6:
             controls = [self.notebook, self.audiobooks.items]
         elif page == 7:
-            controls = [self.notebook, self.podcasts.items]
+            controls = [
+                self.notebook,
+                self.podcasts.browse_category,
+                self.podcasts.browse_button,
+                self.podcasts.saved_button,
+                self.podcasts.items,
+            ]
         elif page == 8:
             controls = [self.notebook, self.saved_albums.items]
         elif page == 9:
@@ -7319,6 +7586,7 @@ class MainFrame(wx.Frame):
             self.last_player_item_id = self.current_player_item.id
             if is_new_track:
                 self.set_view_title(self.current_player_item.name)
+                self.update_continuous_similar_mix(self.current_player_item)
             if is_new_track and state.get("is_playing"):
                 self.remember_recently_played(self.current_player_item)
             suppress_announcement = (
@@ -7722,7 +7990,11 @@ class MainFrame(wx.Frame):
             actions.append(
                 (
                     menu.Append(wx.ID_ANY, "&Play now"),
-                    play_callback or (lambda: self.play_playable_item(item)),
+                    lambda: self.play_now_from_menu(
+                        owner,
+                        item,
+                        play_callback,
+                    ),
                 )
             )
         if item.kind == ItemKind.ALBUM:
@@ -7786,6 +8058,16 @@ class MainFrame(wx.Frame):
                 )
             )
         if item.kind == ItemKind.TRACK:
+            if not any(
+                label.replace("&", "").casefold() == "show lyrics"
+                for label, _callback in (top_level_actions or [])
+            ):
+                actions.append(
+                    (
+                        menu.Append(wx.ID_ANY, "Show &lyrics"),
+                        lambda: self.show_lyrics_for_item(item),
+                    )
+                )
             mix_menu = wx.Menu()
             open_mix = mix_menu.Append(wx.ID_ANY, "&Open for inspection")
             start_mix = mix_menu.Append(wx.ID_ANY, "Start &now")
@@ -7878,6 +8160,26 @@ class MainFrame(wx.Frame):
             )
         owner.PopupMenu(menu)
         menu.Destroy()
+
+    def play_now_from_menu(
+        self,
+        owner: wx.Window,
+        item: SpotifyItem,
+        play_callback: Callable[[], None] | None = None,
+    ) -> None:
+        marked_items = getattr(owner, "marked_items", None)
+        selected = [
+            selected_item
+            for selected_item in (marked_items() if marked_items else [])
+            if selected_item.playable and selected_item.uri
+        ]
+        if len(selected) > 1:
+            self.play_items(selected)
+            return
+        if play_callback:
+            play_callback()
+            return
+        self.play_playable_item(item)
 
     def show_artist_albums(self, artist_id: str, artist_name: str) -> None:
         self.notebook.SetSelection(0)
@@ -8034,6 +8336,15 @@ class MainFrame(wx.Frame):
             return
         remaining = list(remaining or [])
         seen = set(seen or {source.id, *(item.id for item in results)})
+        self.continuous_mix_generation = (
+            getattr(self, "continuous_mix_generation", 0) + 1
+        )
+        self.continuous_mix = {
+            "generation": self.continuous_mix_generation,
+            "seen": seen,
+            "queued": {item.id for item in results},
+            "building": True,
+        }
         noun = "track" if len(results) == 1 else "tracks"
         continuation = lambda: self.queue_initial_similar_mix(
             source,
@@ -8061,6 +8372,8 @@ class MainFrame(wx.Frame):
         if not results:
             if remaining:
                 self.continue_similar_mix(source, remaining, seen)
+            else:
+                self.finish_continuous_mix_build()
             return
         device_id = self.player_device_id()
         if not device_id:
@@ -8080,6 +8393,8 @@ class MainFrame(wx.Frame):
             )
             if remaining:
                 self.continue_similar_mix(source, remaining, seen)
+            else:
+                self.finish_continuous_mix_build()
 
         self.run_task(None, add_all, queued)
 
@@ -8104,6 +8419,7 @@ class MainFrame(wx.Frame):
         results: list[SpotifyItem],
     ) -> None:
         if not results:
+            self.finish_continuous_mix_build()
             return
         device_id = self.player_device_id()
         if not device_id:
@@ -8113,17 +8429,101 @@ class MainFrame(wx.Frame):
             for item in results:
                 self.spotify.add_to_queue(item, device_id)
 
-        self.run_task(
-            None,
-            add_all,
-            lambda result: self.finish_queue_many(
+        def queued(result: object) -> None:
+            self.finish_queue_many(
                 results,
                 announcement=(
                     f"Added {len(results)} more tracks to the Last.fm mix "
                     f"for {source.name}"
                 ),
+            )
+            session = getattr(self, "continuous_mix", None)
+            if session:
+                queued_ids = session.get("queued")
+                if isinstance(queued_ids, set):
+                    queued_ids.update(item.id for item in results)
+            self.finish_continuous_mix_build()
+
+        self.run_task(
+            None,
+            add_all,
+            queued,
+        )
+
+    def finish_continuous_mix_build(self) -> None:
+        session = getattr(self, "continuous_mix", None)
+        if not session:
+            return
+        session["building"] = False
+        item = getattr(self, "current_player_item", None)
+        if item:
+            self.update_continuous_similar_mix(item)
+
+    def update_continuous_similar_mix(self, item: SpotifyItem) -> None:
+        session = getattr(self, "continuous_mix", None)
+        if not session:
+            return
+        seen = session.get("seen")
+        queued = session.get("queued")
+        if not isinstance(seen, set) or not isinstance(queued, set):
+            self.continuous_mix = None
+            return
+        if item.id not in seen:
+            self.continuous_mix = None
+            return
+        queued.discard(item.id)
+        if session.get("building") or len(queued) > 10:
+            return
+        session["building"] = True
+        generation = int(session.get("generation") or 0)
+        source_artist = item.artist.split(",", 1)[0].strip()
+
+        def find_more() -> list[SpotifyItem]:
+            candidates = self.lastfm.similar_tracks(item.name, source_artist)
+            return self.match_lastfm_tracks(candidates, seen)
+
+        self.run_task(
+            None,
+            find_more,
+            lambda results: self.queue_continuous_similar_results(
+                item,
+                results,
+                generation,
             ),
         )
+
+    def queue_continuous_similar_results(
+        self,
+        source: SpotifyItem,
+        results: list[SpotifyItem],
+        generation: int,
+    ) -> None:
+        session = getattr(self, "continuous_mix", None)
+        if not session or session.get("generation") != generation:
+            return
+        if not results:
+            session["building"] = False
+            return
+        device_id = self.player_device_id()
+        if not device_id:
+            session["building"] = False
+            return
+
+        def add_all() -> None:
+            for result in results:
+                self.spotify.add_to_queue(result, device_id)
+
+        def queued(result: object) -> None:
+            current_session = getattr(self, "continuous_mix", None)
+            if not current_session or current_session.get("generation") != generation:
+                return
+            queued_ids = current_session.get("queued")
+            if isinstance(queued_ids, set):
+                queued_ids.update(item.id for item in results)
+            current_session["building"] = False
+            self.finish_queue_many(results)
+
+        self.run_task(None, add_all, queued)
 
     def queue_similar_mix(self, item: SpotifyItem | None) -> None:
         if not item or item.kind != ItemKind.TRACK:

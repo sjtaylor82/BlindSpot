@@ -202,11 +202,20 @@ class SpotifyClient:
             if category == "all"
             else category
         )
+        podcast_category = category in {"show", "episode"}
         request_limit = 4 if category == "all" else 10
         offsets = (
             [offset]
             if category == "all"
-            else [value for value in (offset, offset + 10) if value <= 1000]
+            else [
+                value
+                for value in (
+                    (offset, offset + 10, offset + 20, offset + 30, offset + 40)
+                    if podcast_category
+                    else (offset, offset + 10)
+                )
+                if value <= 1000
+            ]
         )
         payloads = [
             self._request(
@@ -249,7 +258,9 @@ class SpotifyClient:
                 self._map_item(value, kind)
                 for value in values
             )
-        next_offset = offset + (request_limit if category == "all" else 20)
+        next_offset = offset + (
+            50 if podcast_category else request_limit if category == "all" else 20
+        )
         has_more = next_offset <= 1000 and any(
             int((payload.get(key) or {}).get("total") or 0) > next_offset
             for payload in payloads
@@ -260,7 +271,13 @@ class SpotifyClient:
                 SpotifyItem(
                     "__load_more__",
                     ItemKind.HEADING,
-                    "Load more results",
+                    (
+                        "Show next 50 podcasts"
+                        if category == "show"
+                        else "Show next 50 episodes"
+                        if category == "episode"
+                        else "Load more results"
+                    ),
                     raw={
                         "load_more": True,
                         "next_offset": next_offset,
@@ -402,28 +419,52 @@ class SpotifyClient:
                     values.append(self._map_item(value, self._kind_for(value)))
             return values
         if item.kind == ItemKind.SHOW:
-            values = self._paged_items(
-                "GET", f"/shows/{item.id}/episodes", query={"limit": 50}
-            )
-            episodes = [
-                self._map_item(x, ItemKind.EPISODE, album=item.name)
-                for x in values
-            ]
-            for episode in episodes:
-                if not episode.artist:
-                    episode.artist = item.artist
-                episode.raw.setdefault(
-                    "show",
-                    {
-                        "id": item.id,
-                        "name": item.name,
-                        "publisher": item.artist,
-                    },
-                )
-            return episodes
+            return self.podcast_episodes(item)
         if item.kind == ItemKind.AUDIOBOOK:
             return self.audiobook_chapters(item)
         return []
+
+    def podcast_episodes(
+        self,
+        show: SpotifyItem,
+        offset: int = 0,
+    ) -> list[SpotifyItem]:
+        page = self._request(
+            "GET",
+            f"/shows/{show.id}/episodes",
+            query={"limit": 50, "offset": offset},
+        )
+        values = [value for value in page.get("items", []) if value]
+        episodes = [
+            self._map_item(value, ItemKind.EPISODE, album=show.name)
+            for value in values
+        ]
+        for episode in episodes:
+            if not episode.artist:
+                episode.artist = show.artist
+            episode.raw.setdefault(
+                "show",
+                {
+                    "id": show.id,
+                    "name": show.name,
+                    "publisher": show.artist,
+                },
+            )
+        next_offset = offset + len(values)
+        total = int(page.get("total") or next_offset)
+        if values and next_offset < total:
+            episodes.append(
+                SpotifyItem(
+                    "__load_more_episodes__",
+                    ItemKind.HEADING,
+                    "Show next 50 episodes",
+                    raw={
+                        "load_more_episodes": True,
+                        "next_offset": next_offset,
+                    },
+                )
+            )
+        return episodes
 
     def album_for_track(self, item: SpotifyItem) -> SpotifyItem:
         album = item.raw.get("album") or {}

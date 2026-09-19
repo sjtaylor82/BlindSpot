@@ -259,6 +259,50 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
 
         self.assertEqual(focused_targets, [saved_albums])
 
+    def test_tab_from_podcasts_tab_bar_focuses_browse_category(self):
+        focused_targets = []
+
+        class Control:
+            def SetFocus(self):
+                focused_targets.append(self)
+
+            def GetParent(self):
+                return None
+
+        notebook = Control()
+        notebook.GetSelection = lambda: 7
+        controls = [Control() for _ in range(4)]
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": notebook,
+                "podcasts": type(
+                    "Podcasts",
+                    (),
+                    dict(
+                        zip(
+                            (
+                                "browse_category",
+                                "browse_button",
+                                "saved_button",
+                                "items",
+                            ),
+                            controls,
+                        )
+                    ),
+                )(),
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.wx.Window.FindFocus", return_value=notebook),
+            patch("blindspot.ui.item_list_ancestor", return_value=None),
+        ):
+            MainFrame.move_focus(frame, backward=False)
+
+        self.assertEqual(focused_targets, [controls[0]])
+
     def test_tab_from_concerts_tab_bar_focuses_concert_keyword(self):
         focused_targets = []
 
@@ -1433,6 +1477,81 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
         self.assertTrue(calls[0][1]["disable_repeat"])
         self.assertIsNotNone(calls[0][1]["after_started"])
 
+    def test_started_similar_mix_creates_continuous_session(self):
+        source = ui.SpotifyItem("source", ui.ItemKind.TRACK, "Source song")
+        results = [
+            ui.SpotifyItem("one", ui.ItemKind.TRACK, "Related one"),
+            ui.SpotifyItem("two", ui.ItemKind.TRACK, "Related two"),
+        ]
+        frame = type(
+            "Frame",
+            (),
+            {
+                "continuous_mix_generation": 0,
+                "continuous_mix": None,
+                "play_items": lambda self, values, **options: None,
+            },
+        )()
+
+        MainFrame.finish_start_similar_mix(frame, source, results)
+
+        self.assertEqual(frame.continuous_mix_generation, 1)
+        self.assertEqual(frame.continuous_mix["seen"], {"source", "one", "two"})
+        self.assertEqual(frame.continuous_mix["queued"], {"one", "two"})
+        self.assertTrue(frame.continuous_mix["building"])
+
+    def test_continuous_mix_replenishes_when_tracked_queue_runs_low(self):
+        current = ui.SpotifyItem(
+            "current",
+            ui.ItemKind.TRACK,
+            "Current",
+            artist="Artist",
+        )
+        tasks = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "continuous_mix": {
+                    "generation": 3,
+                    "seen": {"current", "next"},
+                    "queued": {"current", "next"},
+                    "building": False,
+                },
+                "lastfm": object(),
+                "run_task": (
+                    lambda self, message, operation, completed: tasks.append(
+                        (operation, completed)
+                    )
+                ),
+            },
+        )()
+
+        MainFrame.update_continuous_similar_mix(frame, current)
+
+        self.assertEqual(frame.continuous_mix["queued"], {"next"})
+        self.assertTrue(frame.continuous_mix["building"])
+        self.assertEqual(len(tasks), 1)
+
+    def test_unrelated_playback_ends_continuous_mix(self):
+        unrelated = ui.SpotifyItem("other", ui.ItemKind.TRACK, "Other")
+        frame = type(
+            "Frame",
+            (),
+            {
+                "continuous_mix": {
+                    "generation": 1,
+                    "seen": {"mix-track"},
+                    "queued": set(),
+                    "building": False,
+                }
+            },
+        )()
+
+        MainFrame.update_continuous_similar_mix(frame, unrelated)
+
+        self.assertIsNone(frame.continuous_mix)
+
     def test_open_similar_mix_adds_load_more_marker_for_remaining_candidates(self):
         source = ui.SpotifyItem("source", ui.ItemKind.TRACK, "Source song")
         result = ui.SpotifyItem("one", ui.ItemKind.TRACK, "Related one")
@@ -1916,6 +2035,48 @@ class NowPlayingTests(unittest.TestCase):
 
 
 class SearchContextMenuTests(unittest.TestCase):
+    def test_shared_track_context_menu_contains_show_lyrics(self):
+        labels = []
+
+        class Menu:
+            def Append(self, item_id, label):
+                labels.append(label)
+                return object()
+
+            def AppendSubMenu(self, menu, label):
+                labels.append(label)
+
+            def AppendSeparator(self):
+                pass
+
+            def Bind(self, event, callback, item):
+                pass
+
+            def Destroy(self):
+                pass
+
+        track = ui.SpotifyItem(
+            "track",
+            ui.ItemKind.TRACK,
+            "Track",
+            uri="spotify:track:track",
+        )
+        owner = type(
+            "Items",
+            (),
+            {"PopupMenu": lambda self, menu: None},
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {"current_player_item": None},
+        )()
+
+        with patch("blindspot.ui.wx.Menu", side_effect=lambda: Menu()):
+            MainFrame.popup_item_menu(frame, owner, track)
+
+        self.assertIn("Show &lyrics", labels)
+
     def test_shared_album_open_route_retains_album_for_artwork_button(self):
         album = ui.SpotifyItem(
             "album",
@@ -2278,6 +2439,63 @@ class SearchContextMenuTests(unittest.TestCase):
 
         self.assertEqual(played, tracks)
 
+    def test_context_play_now_plays_marked_tracks_as_one_sequence(self):
+        tracks = [
+            ui.SpotifyItem(
+                f"track-{number}",
+                ui.ItemKind.TRACK,
+                f"Track {number}",
+                uri=f"spotify:track:track-{number}",
+            )
+            for number in (1, 2, 3)
+        ]
+        played = []
+        focused_only = []
+        owner = type(
+            "Items",
+            (),
+            {"marked_items": lambda self: tracks},
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {"play_items": lambda self, values: played.extend(values)},
+        )()
+
+        MainFrame.play_now_from_menu(
+            frame,
+            owner,
+            tracks[0],
+            lambda: focused_only.append(tracks[0]),
+        )
+
+        self.assertEqual(played, tracks)
+        self.assertEqual(focused_only, [])
+
+    def test_context_play_now_preserves_single_item_callback(self):
+        track = ui.SpotifyItem(
+            "track-1",
+            ui.ItemKind.TRACK,
+            "Track 1",
+            uri="spotify:track:track-1",
+        )
+        called = []
+        owner = type(
+            "Items",
+            (),
+            {"marked_items": lambda self: [track]},
+        )()
+        frame = object()
+
+        MainFrame.play_now_from_menu(
+            frame,
+            owner,
+            track,
+            lambda: called.append(track),
+        )
+
+        self.assertEqual(called, [track])
+
     def test_album_track_label_keeps_only_number_name_and_guest_artist(self):
         state = ui.ViewState(
             "Album",
@@ -2503,7 +2721,7 @@ class SearchPaginationTests(unittest.TestCase):
             ["first", "second", "__load_more__"],
         )
         self.assertEqual(state.selected, 1)
-        self.assertEqual(spoken, [])
+        self.assertEqual(spoken, ["Loaded 1 additional results."])
         self.assertTrue(rendered[0][1])
 
 
@@ -2860,6 +3078,92 @@ class NewMusicTests(unittest.TestCase):
 
 
 class PodcastSupportTests(unittest.TestCase):
+    def test_browse_category_displays_scoped_podcast_results(self):
+        rendered = []
+        status_labels = []
+        show = ui.SpotifyItem("show", ui.ItemKind.SHOW, "Show")
+        loader = ui.SpotifyItem(
+            "__load_more__",
+            ui.ItemKind.HEADING,
+            "Show next 50 podcasts",
+            raw={"load_more": True, "next_offset": 50},
+        )
+        panel = type(
+            "Panel",
+            (),
+            {
+                "loading": True,
+                "loaded_once": False,
+                "history": ui.NavigationHistory(ui.ViewState("Podcasts", [])),
+                "current_playlist": None,
+                "status": type(
+                    "Status",
+                    (),
+                    {"SetLabel": lambda self, label: status_labels.append(label)},
+                )(),
+                "render": lambda self, state, *, focus: rendered.append(state),
+                "frame": type("Frame", (), {"say": lambda self, message: None})(),
+            },
+        )()
+
+        PodcastsPanel.show_browse_results(
+            panel,
+            "Comedy",
+            "comedy podcast",
+            [show, loader],
+        )
+
+        self.assertEqual(rendered[0].title, "Browse podcasts: Comedy")
+        self.assertEqual(rendered[0].query, "comedy podcast")
+        self.assertEqual(rendered[0].category, "show")
+        self.assertIn("Not a complete Spotify catalogue", status_labels[0])
+
+    def test_more_browse_results_append_without_duplicates(self):
+        first = ui.SpotifyItem("first", ui.ItemKind.SHOW, "First")
+        duplicate = ui.SpotifyItem("first", ui.ItemKind.SHOW, "First")
+        second = ui.SpotifyItem("second", ui.ItemKind.SHOW, "Second")
+        loader = ui.SpotifyItem(
+            "__load_more__",
+            ui.ItemKind.HEADING,
+            "Show next 50 podcasts",
+            raw={"load_more": True, "next_offset": 100},
+        )
+        state = ui.ViewState(
+            "Browse podcasts: Comedy",
+            [first],
+            query="comedy podcast",
+            category="show",
+        )
+        spoken = []
+        panel = type(
+            "Panel",
+            (),
+            {
+                "loading": True,
+                "history": ui.NavigationHistory(state),
+                "status": type("Status", (), {"SetLabel": lambda self, label: None})(),
+                "render": lambda self, value, *, focus: None,
+                "frame": type(
+                    "Frame",
+                    (),
+                    {"say": lambda self, message: spoken.append(message)},
+                )(),
+            },
+        )()
+
+        PodcastsPanel.append_browse_results(
+            panel,
+            state,
+            [duplicate, second, loader],
+        )
+
+        self.assertEqual(
+            [item.id for item in state.items],
+            ["first", "second", "__load_more__"],
+        )
+        self.assertEqual(state.selected, 1)
+        self.assertEqual(spoken, ["Loaded 1 additional podcasts."])
+
     def test_saved_library_lists_shows_and_episodes_without_section_rows(self):
         rendered = []
         status_labels = []
@@ -2942,6 +3246,49 @@ class PodcastSupportTests(unittest.TestCase):
 
         self.assertEqual(calls[0]["remove_label"], "&Unsubscribe...")
         self.assertIsNotNone(calls[0]["remove_callback"])
+
+    def test_discovered_show_context_menu_does_not_offer_unsubscribe(self):
+        calls = []
+        show = ui.SpotifyItem(
+            "show",
+            ui.ItemKind.SHOW,
+            "Show",
+            uri="spotify:show:show",
+        )
+        panel = type(
+            "Panel",
+            (),
+            {
+                "items": type(
+                    "Items",
+                    (),
+                    {"selected_item": lambda self: show},
+                )(),
+                "history": ui.NavigationHistory(
+                    ui.ViewState(
+                        "Browse podcasts",
+                        [show],
+                        query="podcast",
+                        category="show",
+                    )
+                ),
+                "frame": type(
+                    "Frame",
+                    (),
+                    {
+                        "popup_item_menu": (
+                            lambda self, owner, item, **options: calls.append(options)
+                        )
+                    },
+                )(),
+                "on_open": lambda self: None,
+                "remove_saved_item": lambda self, item: None,
+            },
+        )()
+
+        PodcastsPanel.on_context_menu(panel)
+
+        self.assertIsNone(calls[0]["remove_callback"])
 
     def test_unsubscribe_removes_show_and_refreshes_library(self):
         removed = []

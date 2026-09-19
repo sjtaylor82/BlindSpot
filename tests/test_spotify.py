@@ -1016,7 +1016,7 @@ class PlaybackCommandTests(unittest.TestCase):
             ("GET", "/me/albums", {"limit": 50}),
         )
 
-    def test_show_episode_browsing_fetches_every_page(self):
+    def test_show_episode_browsing_exposes_next_fifty_page(self):
         first_page = [
             {
                 "id": f"episode-{number}",
@@ -1052,10 +1052,17 @@ class PlaybackCommandTests(unittest.TestCase):
         episodes = client.children(show)
 
         self.assertEqual(len(episodes), 51)
-        self.assertEqual(client.calls[1][2], {"limit": 50, "offset": 50})
+        self.assertEqual(client.calls[0][2], {"limit": 50, "offset": 0})
         self.assertEqual(episodes[0].album, "Show")
         self.assertEqual(episodes[0].artist, "Publisher")
         self.assertEqual(episodes[0].raw["show"]["id"], "show")
+        self.assertTrue(episodes[-1].raw["load_more_episodes"])
+        self.assertEqual(episodes[-1].raw["next_offset"], 50)
+
+        next_page = client.podcast_episodes(show, 50)
+
+        self.assertEqual(client.calls[1][2], {"limit": 50, "offset": 50})
+        self.assertEqual([episode.id for episode in next_page], ["episode-50"])
 
     def test_episode_metadata_includes_description_and_resume_position(self):
         client = SpotifyClient.__new__(SpotifyClient)
@@ -1406,6 +1413,56 @@ class SearchClient(SpotifyClient):
 
 
 class SearchBatchTests(unittest.TestCase):
+    def test_podcast_search_uses_explicit_fifty_item_pages(self):
+        class PodcastSearchClient(SpotifyClient):
+            def __init__(self):
+                self.calls = []
+
+            def _request(
+                self,
+                method,
+                path,
+                *,
+                query=None,
+                body=None,
+                allow_empty=False,
+            ):
+                self.calls.append((method, path, query))
+                offset = query["offset"]
+                return {
+                    "shows": {
+                        "items": [
+                            {
+                                "id": f"show-{offset}",
+                                "name": f"Show {offset}",
+                                "type": "show",
+                                "uri": f"spotify:show:{offset}",
+                                "publisher": "Publisher",
+                            }
+                        ],
+                        "total": 75,
+                    }
+                }
+
+        client = PodcastSearchClient()
+
+        first_page = client.search("query", "show")
+        second_page = client.search("query", "show", 50)
+
+        self.assertTrue(
+            all(call[2]["limit"] == 10 for call in client.calls)
+        )
+        self.assertEqual(
+            [call[2]["offset"] for call in client.calls],
+            [0, 10, 20, 30, 40, 50, 60, 70, 80, 90],
+        )
+        self.assertEqual(first_page[-1].name, "Show next 50 podcasts")
+        self.assertEqual(first_page[-1].raw["next_offset"], 50)
+        self.assertEqual(
+            [item.id for item in second_page],
+            ["show-50", "show-60", "show-70", "show-80", "show-90"],
+        )
+
     def test_live_category_search_combines_two_ten_item_requests(self):
         client = SearchClient()
 

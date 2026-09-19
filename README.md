@@ -16,6 +16,9 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
 - Enter drills into containers and plays tracks or episodes.
 - Backspace returns to the previous view and restores the selected row.
 - Q queues an item, L likes or unlikes it, and Ctrl+F returns to search.
+- The Podcasts tab browses category-based Spotify podcast search results in
+  accessible 50-show pages, alongside followed shows and saved episodes. Show
+  descriptions, publishers, and paginated episode lists remain available.
 - Track and artist context menus can find similar Spotify content using
   recommendations provided by Last.fm. BlindSpot includes a default Last.fm
   application key, which can be replaced in Preferences.
@@ -29,7 +32,9 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
   candidates in the background and appends matched tracks to the mix. BlindSpot
   starts one track and places the rest in Spotify's queue, avoiding the looping
   behaviour of Spotify's multi-URI playback context. Repeat is switched off
-  before a mix starts.
+  before a mix starts. When about ten queued mix tracks remain, BlindSpot uses
+  the current track to find and append another deduplicated batch. Playing an
+  unrelated item ends this continuous mix session.
 - Spotify login uses OAuth Authorization Code with PKCE; no client secret is
   stored or required.
 - An integrated Spotify Web Playback SDK instance makes BlindSpot its own Spotify
