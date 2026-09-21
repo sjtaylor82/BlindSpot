@@ -3775,7 +3775,7 @@ class NewMusicTests(unittest.TestCase):
         self.assertEqual(panel.result_mode, "chart")
         self.assertIsNone(panel.pending_marker)
         self.assertIsNone(panel.labels[-1])
-        self.assertTrue(panel.statuses[-1].startswith("1 chart entries."))
+        self.assertTrue(panel.statuses[-1].startswith("1 chart entry."))
         self.assertIn("Australia", panel.statuses[-1])
 
     def test_new_releases_search_replaces_previous_chart_results(self):
@@ -5071,7 +5071,7 @@ class PodcastSupportTests(unittest.TestCase):
             ["first", "second", "__load_more__"],
         )
         self.assertEqual(state.selected, 1)
-        self.assertEqual(spoken, ["Loaded 1 additional podcasts."])
+        self.assertEqual(spoken, ["Loaded 1 additional podcast."])
 
     def test_saved_library_lists_shows_and_episodes_without_section_rows(self):
         rendered = []

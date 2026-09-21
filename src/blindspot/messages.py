@@ -323,6 +323,64 @@ def item_count(count: int) -> str:
     return ntr("{count} item.", "{count} items.", count).format(count=count)
 
 
+def selected_count(count: int) -> str:
+    return ntr(
+        "{count} item selected", "{count} items selected", count
+    ).format(count=count)
+
+
+def matching_items(matches: int, total: int) -> str:
+    return ntr(
+        "{matches} matching item in {total}.",
+        "{matches} matching items in {total}.",
+        matches,
+    ).format(matches=matches, total=total)
+
+
+def matching_loaded_items(matches: int, total: int) -> str:
+    return ntr(
+        "{matches} matching loaded item in {total}.",
+        "{matches} matching loaded items in {total}.",
+        matches,
+    ).format(matches=matches, total=total)
+
+
+def matching_chart_entries(matches: int, total: int) -> str:
+    return ntr(
+        "{matches} matching chart entry in {total}.",
+        "{matches} matching chart entries in {total}.",
+        matches,
+    ).format(matches=matches, total=total)
+
+
+def chart_entry_count(total: int) -> str:
+    return ntr(
+        "{total} chart entry.", "{total} chart entries.", total
+    ).format(total=total)
+
+
+def track_count(count: int) -> str:
+    return ntr("{count} track", "{count} tracks", count).format(count=count)
+
+
+def song_count(count: int) -> str:
+    return ntr("{count} song", "{count} songs", count).format(count=count)
+
+
+def album_count(count: int) -> str:
+    return ntr("{count} album", "{count} albums", count).format(count=count)
+
+
+def counted_rows(rows: list, album_kind: object, track_kind: object) -> str:
+    """Name a mixed selection: all albums, all songs, or just items."""
+    count = len(rows)
+    if all(row.kind == album_kind for row in rows):
+        return album_count(count)
+    if all(row.kind == track_kind for row in rows):
+        return song_count(count)
+    return ntr("{count} item", "{count} items", count).format(count=count)
+
+
 def named_item_count(name: str, count: int) -> str:
     return tr("{name}. {items}").format(name=name, items=item_count(count))
 

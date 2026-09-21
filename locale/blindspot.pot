@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: BlindSpot 2026.9.2\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-09-21 13:56+1000\n"
+"POT-Creation-Date: 2026-09-21 14:06+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -647,6 +647,69 @@ msgstr[1] ""
 
 #: blindspot/messages.py
 #, python-brace-format
+msgid "{count} item selected"
+msgid_plural "{count} items selected"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{matches} matching item in {total}."
+msgid_plural "{matches} matching items in {total}."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{matches} matching loaded item in {total}."
+msgid_plural "{matches} matching loaded items in {total}."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{matches} matching chart entry in {total}."
+msgid_plural "{matches} matching chart entries in {total}."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{total} chart entry."
+msgid_plural "{total} chart entries."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{count} track"
+msgid_plural "{count} tracks"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{count} song"
+msgid_plural "{count} songs"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{count} album"
+msgid_plural "{count} albums"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{count} item"
+msgid_plural "{count} items"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
 msgid "{name}. {items}"
 msgstr ""
 
@@ -808,10 +871,6 @@ msgid "Owner: {owner}"
 msgstr ""
 
 #: blindspot/messages.py
-msgid "Unknown"
-msgstr ""
-
-#: blindspot/messages.py
 #, python-brace-format
 msgid "Tracks: {total}"
 msgstr ""
@@ -908,6 +967,534 @@ msgstr ""
 msgid "LRCLIB returned error {status}."
 msgstr ""
 
+#: blindspot/messages.py blindspot/ui.py
+msgid "Unknown"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Album artwork for {name}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid " by {artist}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open in &photo viewer"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Close"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Songs"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Albums"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Artists"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Playlists"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Podcasts"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Podcast episodes"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Audiobooks"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "All"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "General discovery"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Arts"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Business"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Comedy"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Education"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Fiction"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Health"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "History"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Kids and family"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Music"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "News"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Science"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Society and culture"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Sports"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Technology"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "True crime"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "All listening statuses"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Not started"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "In progress"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Completed"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Arabic"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Bulgarian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Bengali"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Catalan"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Czech"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Danish"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "German"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Greek"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "English"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Spanish"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Estonian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Persian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Finnish"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Filipino"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "French"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Hebrew"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Hindi"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Croatian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Hungarian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Indonesian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Icelandic"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Italian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Japanese"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Korean"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Lithuanian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Latvian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Malay"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Dutch"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Norwegian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Polish"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Portuguese"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Romanian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Russian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Slovak"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Slovenian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Serbian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Swedish"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Swahili"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Tamil"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Thai"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Turkish"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Ukrainian"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Urdu"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Vietnamese"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Chinese"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Off"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Debug"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Information"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Warnings"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Errors"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Computer"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Tablet"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Smartphone"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Speaker"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "TV"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "AV receiver"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Set-top box"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Audio dongle"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Game console"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Cast video"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Cast audio"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Car"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Unknown device"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Original order"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Title"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Artist"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Album"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Duration"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Date added"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Do not remember the last played track"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Remember the last played track"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Remember the last played track and position"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Disc {disc_number} track {track_number} {name}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid " — featuring {join}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "BlindSpot setup"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Setup instructions"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Open Spotify Developer Dashboard"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Redirect URI"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Spotify Client ID"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Connect to Spotify"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Assign global shortcut: {action_label}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Assign key: {action_label}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Press a key combination. Escape cancels."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Keyboard Manager"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Context"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "All commands"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Search commands"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Commands and assigned keys"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Assign..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Clear"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Assign &global..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Clear g&lobal"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Restore &defaults"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "; global: {global_label}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Replace {label}?"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "BlindSpot preferences"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Speak track name when playback changes"
+msgstr ""
+
 #: blindspot/ui.py
 msgid "Language (restart required)"
 msgstr ""
@@ -917,6 +1504,1555 @@ msgid "System default"
 msgstr ""
 
 #: blindspot/ui.py
+msgid "Startup playback memory"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Keyboard Manager..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Logging level"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open &logs folder"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Ticketmaster API key"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Get a Ticketmaster API key..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Last.fm API key"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Lyrics for {track_name} - BlindSpot"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid " by {artist_name}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Follow playback on braille display"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Enable phrase mode"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Lyrics for {heading}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "First"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Last"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{seconds:g} seconds early"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{seconds:g} seconds late"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Alternate versions of {name}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Alternate versions"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Replace"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Review"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Replace playlist track..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Create playlist"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Playlist name"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Public playlist"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Items"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Search results"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Search query"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Genre"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "None"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Search for"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Search"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Display album &artwork..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Last.fm genre and tag browsing is available for Songs, Albums, and Artists."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Finding {tag} {category} results using Last.fm"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Results for {query}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Last.fm tag: {tag}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{count} Spotify match from Last.fm tag {tag}."
+msgid_plural "{count} Spotify matches from Last.fm tag {tag}."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "No Spotify matches found for Last.fm tag {tag}."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Loading more Last.fm tag results"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Loaded {added} additional result."
+msgid_plural "Loaded {added} additional results."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Loaded {result_count} additional results."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Loaded {added} additional episode."
+msgid_plural "Loaded {added} additional episodes."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Show albums by &{artist_name}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Related albums..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Filter"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Filter this list"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "descending"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "ascending"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid " Sorted by {sort_label} {direction}."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Saved Albums"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "released {release_date}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{count} version"
+msgid_plural "{count} versions"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{count} artist"
+msgid_plural "{count} artists"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{versions} by {artists}, from MusicBrainz."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Live and karaoke recordings and recordings by {value} are left out."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "the original artist"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Checked the first {examined} of {total_recordings} recordings."
+msgstr ""
+
+#: blindspot/ui.py
+msgid ""
+"Songs are looked up on Spotify only when you play, queue or save them, so "
+"some may be unavailable."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ""
+"Experimental US Billboard Hot 100 for {chart_date}, read live from the "
+"community archive at {PROJECT_URL}. This is an unofficial external dataset "
+"and may change or disappear. Songs are looked up on Spotify only when you "
+"act on them."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Most played albums on Apple Music in {country_name}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Most played on Apple Music in {country_name}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ", loaded {stamp}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ""
+"{source}. Apple publishes rank only, with no play counts, reporting period "
+"or measurement time. Albums are looked up on Spotify only when you play, "
+"queue or save them, so a few may turn out to be unavailable."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ""
+"{source}. Apple publishes rank only, with no play counts, reporting period "
+"or measurement time. Songs are looked up on Spotify only when you play, "
+"queue or save them, so a few may turn out to be unavailable."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Discover"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "New releases"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Top songs"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Top albums"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Historical US Hot 100 (experimental)"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Release type"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Singles and EPs"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Compilations"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Chart country"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Historical chart date (YYYY-MM-DD)"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Chart date, year-month-day"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Enter the chart date as year-month-day."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Loading experimental historical chart"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Concerts"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "All categories"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "All genres"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Today"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Tomorrow"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "One week from today"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "30 days from today"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Three months from today"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Six months from today"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "One year from today"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Any future date"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Keyword"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Keyword, artist, event, or venue"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Country"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Country"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&State code"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "State or territory code"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Cit&y"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "City"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "C&ategory"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Event category"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Genre"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Event genre"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&From"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Concerts from date"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Until"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Concerts until date"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Search concerts"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Search concerts"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Upcoming concerts"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Upcoming concert results"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Enter search filters, then press Search concerts."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Ticketmaster API key required. Add one in Preferences."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Concert search status"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Loading Ticketmaster categories"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Until date must not be earlier than From date."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Searching upcoming concerts"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Load more results"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Showing {count} of {total_events} concert."
+msgid_plural "Showing {count} of {total_events} concerts."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+msgid "No upcoming concerts found."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Bookmarks"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Enter a bookmark name. Leave blank to use the track or episode title."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Rename bookmark"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Resume from bookmark"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open &album"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Add to &queue"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Save to library"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Re&name bookmark..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Delete bookmark"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{name}, read only"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Remove \"{name}\" from the playlist \"{playlist}\"?"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Remove playlist item"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Copy to playlist..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Move to another &playlist..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Find &alternate versions..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Remove from playlist"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Replace playlist track"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Move &up"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Move to &top"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Move &down"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Move to &bottom"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Move to &position..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Move playlist item"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Open"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Play"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Playlist &information..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&New playlist..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Re&name..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Remove from &library..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Rename playlist"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Remove playlist"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Browse category"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Language"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Browse podcasts"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Show &saved podcasts"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Listening status"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "All languages"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Unknown language"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Browse podcasts: {label}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{count} podcast search result. Not a complete Spotify catalogue."
+msgid_plural "{count} podcast search results. Not a complete Spotify catalogue."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+msgid "No podcasts found with the selected category and language."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{total} podcast search result. Not a complete Spotify catalogue."
+msgid_plural "{total} podcast search results. Not a complete Spotify catalogue."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Loaded {added} additional podcast."
+msgid_plural "Loaded {added} additional podcasts."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+msgid "&Unsubscribe..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Remove saved &episode..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Unsubscribe"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Remove saved episode"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Now Playing"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Nothing playing"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Show &lyrics"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Add to &playlist..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Error"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Copy error details"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Capture log for developer"
+msgstr ""
+
+#: blindspot/ui.py
+msgid ""
+"This report lists BlindSpot and system versions, non-secret settings and the"
+" last error. Passwords, tokens and API keys are always removed. Read it "
+"below before you copy or save it."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Include recent &log lines"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Include song, artist and &playlist names and search terms in the log lines"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Report contents"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Copy to clipboard"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Save to file..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Close"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Liked Songs"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Queue"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Recently Played"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Search"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Export list..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&File"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Select &all (Command+A)"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Select &all (Ctrl+A)"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Cu&t playlist items ({clipboard_key}+X)"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "&Copy playlist items ({clipboard_key}+C)"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "&Paste playlist items ({clipboard_key}+V)"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Edit"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Play focused item"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Pause or resume"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Mute or unmute"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open focused track's &album"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Choose playback &device..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "After current &track"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "After &15 minutes"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "After &30 minutes"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "After &60 minutes"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Cancel sleep timer"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Sleep ti&mer..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Bookmark current &position"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Pre&vious track"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Next track"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Seek &backward 5 seconds (F6)"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Seek &forward 5 seconds (F8)"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Speak &total time"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Speak &elapsed time"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Speak &remaining time"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Jump to time..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Speak current track"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Speak &up next"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "L&yrics..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Repeat"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Shuffle"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Volume &down 5 percent"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Volume &up 5 percent"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Add marked items to &queue"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Like/unlike selected item"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Like/unlike &now playing"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Open for inspection"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Start &now"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Add after current &queue"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Last.fm mix for now &playing"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Add selected to a pl&aylist..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Selected item &actions..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Refresh current &view"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open &Liked Songs"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open &Queue"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open Playlists"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open Recently Played"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open &Bookmarks"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open &Audiobooks"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open Pod&casts"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open Saved &Albums"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open &Discover"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open &Concerts"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Go"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Sort by"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Descending"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&View"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Preferences..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Connect to Spotify..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Refresh Spotify permissions..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Sign &out and erase credentials"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Account"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "E&xit\tAlt+F4"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Options"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Manual"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Check for &updates..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Donate to Project"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Copy last &error details"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Capture &log for developer..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&About BlindSpot..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Help"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{title} - BlindSpot"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Save report"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Text file"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Report saved to {name}."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Loading {name} to export"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Export list"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Plain text"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "CSV spreadsheet"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Sign out of BlindSpot"
+msgstr ""
+
+#: blindspot/ui.py
 msgid "Restart BlindSpot to use the new language."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Keyboard map saved."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "BlindSpot update available"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Downloading update"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Downloading BlindSpot update..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Check for updates"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "BlindSpot update ready"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "About BlindSpot"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "After current track"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "After 15 minutes"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "After 30 minutes"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "After 60 minutes"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Cancel sleep timer"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Sleep timer"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Unnamed device"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "device"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "active"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "volume {volume} percent"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Refresh device list"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Choose playback device - BlindSpot"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Continue playing on this device"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Move to this device without playing"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Force transfer on next play"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Choose what BlindSpot should do with this device."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Connected device action - BlindSpot"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{name} description"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{name} information"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Jump to time"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "bookmarked at {minutes} {seconds}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{count} minute"
+msgid_plural "{count} minutes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{count} second"
+msgid_plural "{count} seconds"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+msgid "played recently in BlindSpot"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Bookmark renamed."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Bookmark name cleared."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Cut is available only inside an editable playlist."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Cut {count} item. Open a playlist and paste."
+msgid_plural "Cut {count} items. Open a playlist and paste."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Copied {count} item. Open a playlist and paste."
+msgid_plural "Copied {count} items. Open a playlist and paste."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+msgid "The playlist clipboard is empty."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open an editable playlist before pasting."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "The cut items are already in this playlist."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Move to playlist"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Copy to playlist"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Moved {count} item to the playlist."
+msgid_plural "Moved {count} items to the playlist."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Added {count} item to the playlist."
+msgid_plural "Added {count} items to the playlist."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+msgid "&Remove from Liked Songs"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Play now"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Description..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Move"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Download episode..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Similar-track mix (Last.&fm)"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Find similar &artists (Last.fm)"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Browse &genres (Last.fm)..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Find &covers (MusicBrainz)"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Open on Last.&fm..."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Select &all ({shortcut})"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Finding albums related to {name}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Related albums to {name}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "No related albums found for {name}."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Show more Last.fm tag results"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{name} by {artist} was not found on Spotify."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Finding {name} on Spotify"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Finding {items} on Spotify"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{items} were not found on Spotify."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Finding tracks similar to {name} using Last.fm. Please wait."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "No Last.fm similar-track mix found for {name}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Load more similar tracks"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Tracks similar to {name}, provided by Last.fm"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Opened Last.fm similar-track mix for {name}, {tracks}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Loaded {count} more similar track for {name}"
+msgid_plural "Loaded {count} more similar tracks for {name}"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Loading more tracks similar to {name}. Please wait."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Started Last.fm similar-track mix for {name}, {count} track ready"
+msgid_plural "Started Last.fm similar-track mix for {name}, {count} tracks ready"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Queued {count} more track in the Last.fm mix for {name}"
+msgid_plural "Queued {count} more tracks in the Last.fm mix for {name}"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Added {count} more track to the Last.fm mix for {name}"
+msgid_plural "Added {count} more tracks to the Last.fm mix for {name}"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Added Last.fm similar-track mix for {name} after the current queue, {tracks}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "The currently playing item is not a track"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Finding covers of {name} using MusicBrainz. This can take up to 20 seconds."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "MusicBrainz lists no other studio versions of {name}."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Covers of {base_track_title}, provided by MusicBrainz"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Finding genres for {name} using Last.fm"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Last.fm has no genre tags for {name}."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ""
+"Last.fm community tags for {name}. Choose one to browse more songs with that"
+" tag."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ""
+"Last.fm community tags for {name}. Choose one to browse more artists with "
+"that tag."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Browse genres"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{name} ({weight} out of 100)"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Finding {tag} {noun} results using Last.fm"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Finding artists similar to {name} using Last.fm"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Artists similar to {name}, provided by Last.fm"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Download podcast episode"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Audio files"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "All files"
 msgstr ""
 
