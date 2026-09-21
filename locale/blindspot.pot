@@ -1,0 +1,922 @@
+# Translations template for BlindSpot.
+# Copyright (C) 2026 Sam Taylor
+# This file is distributed under the same license as the BlindSpot project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: BlindSpot 2026.9.2\n"
+"Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
+"POT-Creation-Date: 2026-09-21 13:56+1000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: blindspot/i18n.py
+msgctxt "The name of this language, written in that language"
+msgid "English"
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"Welcome to BlindSpot\n"
+"This app requires a developer account. This is a one-time setup."
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"1. Open the Spotify Developer Dashboard and create an app.\n"
+"2. Use BlindSpot Personal as its name. Select both Web API and Web Playback "
+"SDK.\n"
+"3. Add this redirect URI: http://127.0.0.1:43821/callback\n"
+"4. Open the app's settings, copy its Client ID, and paste it here.\n"
+"Do not copy or share the Client Secret."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Paste the Client ID from your Spotify application."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Enter a Spotify Client ID first."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Connect BlindSpot to Spotify first."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "BlindSpot is already running."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Synced lyrics unavailable for this track."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Move to a synced lyric line."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Enter a search query."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Searching Spotify"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Loading more Spotify results"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No more results."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Read only."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Renamed."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Removed from library."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No description available."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No item selected."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Select a playable item."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Nothing playing."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No track."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Queue empty."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "This track is instrumental."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Bookmark deleted."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Select a track or episode."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No playlists."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Choose a playlist."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Enter a new playlist name."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Added."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Ready."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No playable tracks selected."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Queued."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Finding episode download."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Downloading episode."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Episode downloaded."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Muted."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Unmuted."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Shuffle on."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Shuffle off."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Repeat off."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Repeat all."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Repeat one."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Liked."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Unliked."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Move into the list to load playlists."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Move into the list to load saved audiobooks."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Move into the list to load saved podcasts."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Spotify authorization required."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Not connected to Spotify. Use the Account menu to connect."
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"Browsing is connected. Refresh Spotify permissions from the Account menu to "
+"enable BlindSpot's player."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Main tabs."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Recently Played needs an additional Spotify permission. Authorize it now?"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Recently Played was not authorized."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "authorization already in progress."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Complete Spotify login in your browser."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Recently Played authorization was not completed."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Erase Spotify session from folder?"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Signed out and erased credentials."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "manual not found."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "The BlindSpot update could not be downloaded."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "BlindSpot could not check for updates."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Download and install the update now?"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Download the update and reveal it in Finder?"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Open the download page now?"
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"The BlindSpot update is ready in Downloads. Quit BlindSpot, extract the ZIP,"
+" and replace the current BlindSpot.app with the new one."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Recently Played authorized."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Spotify did not grant access to Recently Played."
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"Spotify did not grant Recently Played access for this app. The tab is "
+"unavailable."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Connected to Spotify. Starting player."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No song selected."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Sleep timer set for end of track."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Sleep timer cancelled."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No sleep timer set."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Sleep timer. Playback stopped."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No controllable devices available. Open Spotify on the device and try again."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Choose when playback should stop."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "not ready."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "player starting."
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"BlindSpot's player requires Microsoft WebView2. Install the Evergreen "
+"WebView2 Runtime and restart BlindSpot."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "BlindSpot could not start the system web browser component."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "BlindSpot's Spotify playback device went offline."
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"The browser blocked automatic playback. Press Play again to activate "
+"BlindSpot's player."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No tracks."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Unknown Spotify player error"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "The web player page could not load."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "The system may use this key."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "VoiceOver may use this key."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "This key normally navigates. Assign anyway?"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "This key normally types. Assign anyway?"
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"Global shortcuts work while BlindSpot is in the background and may override "
+"shortcuts in other applications. Enable this assignment at your own risk?"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Getting lyrics."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Getting available devices."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Select the Spotify Connect device for playback."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Choose New releases or Top songs, then activate Search."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Loading chart"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Error details copied to the clipboard."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No error has occurred in this session."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "The clipboard could not be opened."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Report copied to the clipboard."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "There are no songs to export here. Open a playlist or album, or select one."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Exported {count} item to {filename}."
+msgid_plural "Exported {count} items to {filename}."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+msgid ""
+" This was a partial list. Choose the Show more row and export again to "
+"include everything."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "The file could not be saved: {detail}"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Enter seconds, minutes and seconds, or hours, minutes and seconds."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Enter a time such as 90, 1:30, or 1:02:30."
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"Spotify authorization timed out. BlindSpot is still available; try again "
+"from the Account menu."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Spotify login state did not match"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Spotify authorization code was missing"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "BlindSpot received the Spotify response. You may close this browser tab."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "There is not enough track information to find lyrics."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Lyrics unavailable for this track."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "LRCLIB is busy. Please try again later."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Lyrics could not be retrieved."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "The end of this lyric line is unavailable."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Enter a valid playlist position."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No alternate versions were found."
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"This recording occurs more than once in the playlist, so BlindSpot cannot "
+"safely replace only this occurrence."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Playlist track replaced."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "The BlindSpot logs folder could not be opened."
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"Unable to browse. You don't own or collaborate on this playlist. Press F4 to"
+" play."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Spotify did not provide an album for this track."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Loading album artwork."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Spotify did not provide artwork for this album."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "The album artwork could not be displayed."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "The default photo viewer could not be opened."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Recently Played needs an additional Spotify permission."
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"No controllable Spotify device is available. Open Spotify on your computer, "
+"phone, or speaker, then try again."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "playback device not active."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Spotify did not report the current volume."
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"Spotify cannot play this audiobook chapter for this account. Audiobook "
+"playback depends on the individual's Spotify plan and available listening "
+"time."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Spotify returned an empty response."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "The update helper stopped during preparation."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Update preparation timed out."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "The update could not be prepared."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Press the shortcut for {action}. Press Escape to cancel."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{shortcut} is assigned to {action}. Replace assignment?"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{boundary} synced lyric line."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Enter a position from 1 to {total}."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Moved to position {position} of {total}."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Replace \"{original}\" with \"{replacement}\"?"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Lyrics now {timing}."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "No results for {query}."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{count} result."
+msgid_plural "{count} results."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{count} item."
+msgid_plural "{count} items."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{name}. {items}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Loading {title}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Press F5 to load {title}."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Opening {name}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Opening album for {name}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Remove {name} from your Spotify library?"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{items} Refresh Spotify permissions to read chapter resume positions."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{podcasts} and {episodes}."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{count} podcast"
+msgid_plural "{count} podcasts"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{count} saved episode"
+msgid_plural "{count} saved episodes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Unsubscribe from {name}?"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Remove {name}?"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid ""
+"BlindSpot {version} is available.\n"
+"\n"
+"{action}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "BlindSpot {version} is up to date."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid ""
+"BlindSpot\n"
+"Build {version}\n"
+"Copyright © 2026 Sam Taylor\n"
+"A portable, accessible Spotify client."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Could not register global {shortcuts}. Another app may already be using it."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Sleep timer set for {minutes} minute."
+msgid_plural "Sleep timer set for {minutes} minutes."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Playing on {name}."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Playback moved to {name} without playing."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{name} will receive a forced transfer on the next play."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Transferring playback to {name}."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Playing {name}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{name} does not support volume control."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Bookmark saved at {position}."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Resumed {name} at {position}."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Queued {count} track."
+msgid_plural "Queued {count} tracks."
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+msgid "Public"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Private"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Unspecified"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Owner: {owner}"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Unknown"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Tracks: {total}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Visibility: {visibility}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Collaborative: {collaborative}"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Yes"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Description: {description}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Spotify returned {status}: {detail}"
+msgstr ""
+
+#: blindspot/messages.py
+msgid "Spotify is limiting BlindSpot's requests. Wait a little while and try again."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "about a minute"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{seconds} second"
+msgid_plural "{seconds} seconds"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "about {minutes} minute"
+msgid_plural "about {minutes} minutes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "about {hours} hour"
+msgid_plural "about {hours} hours"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Spotify is limiting BlindSpot's requests. Try again in {wait}."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Could not contact Spotify: {detail}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Spotify login failed: {detail}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Spotify {source}: {detail}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Lyrics unavailable for {name}."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "LRCLIB is busy. Try again in {seconds} seconds."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "LRCLIB returned error {status}."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Language (restart required)"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "System default"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Restart BlindSpot to use the new language."
+msgstr ""
+

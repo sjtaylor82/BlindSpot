@@ -23,6 +23,7 @@ from accessible_output2.outputs.auto import Auto
 from . import __version__
 from . import diagnostics
 from . import export as exporting
+from . import i18n
 from . import messages as msg
 from .applemusic import (
     CHART_COUNTRIES,
@@ -36,6 +37,7 @@ from .logging_setup import LOG_LEVELS, configure_logging
 from .lyrics import LRCLibClient, Lyrics, LyricsUnavailable
 from .lastfm import DEFAULT_API_KEY as DEFAULT_LASTFM_API_KEY, LastfmClient
 from .lastfm import GenreTag, SimilarTrack, TaggedItem
+from .i18n import ntr, ptr, tr, tr_noop
 from .historical_charts import HistoricalHot100Client, PROJECT_URL
 from .musicbrainz import CoversUnavailable, CoverResults, MusicBrainzClient
 from .keymap import (
@@ -1259,6 +1261,7 @@ class PreferencesDialog(wx.Dialog):
         lastfm_api_key: str = DEFAULT_LASTFM_API_KEY,
         open_logs_folder: Callable[[], None] | None = None,
         open_keyboard_manager: Callable[[wx.Window | None], None] | None = None,
+        language: str = i18n.DEFAULT_LANGUAGE_SETTING,
     ) -> None:
         super().__init__(parent, title="BlindSpot preferences")
         self.open_logs_folder_callback = open_logs_folder
@@ -1273,6 +1276,28 @@ class PreferencesDialog(wx.Dialog):
             self.announce_track_changes,
             0,
             wx.ALL,
+            12,
+        )
+        self.language_codes = [i18n.SYSTEM_LANGUAGE] + [
+            code for code, _name in i18n.available_languages()
+        ]
+        self.language = wx.RadioBox(
+            self,
+            label=tr("Language (restart required)"),
+            choices=[tr("System default")]
+            + [name for _code, name in i18n.available_languages()],
+            majorDimension=1,
+            style=wx.RA_SPECIFY_ROWS,
+        )
+        self.language.SetSelection(
+            self.language_codes.index(language)
+            if language in self.language_codes
+            else self.language_codes.index(i18n.DEFAULT_LANGUAGE)
+        )
+        outer.Add(
+            self.language,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
             12,
         )
         self.resume_mode = wx.RadioBox(
@@ -1395,6 +1420,9 @@ class PreferencesDialog(wx.Dialog):
 
     def get_logging_level(self) -> str:
         return self.logging_level.GetStringSelection()
+
+    def get_language(self) -> str:
+        return self.language_codes[self.language.GetSelection()]
 
     def get_ticketmaster_api_key(self) -> str:
         return self.ticketmaster_api_key.GetValue().strip()
@@ -6830,6 +6858,9 @@ class MainFrame(wx.Frame):
             str(settings.get("lastfm_api_key") or DEFAULT_LASTFM_API_KEY),
             open_logs_folder=self.open_logs_folder,
             open_keyboard_manager=self.open_keyboard_manager,
+            language=str(
+                settings.get("language") or i18n.DEFAULT_LANGUAGE_SETTING
+            ),
         )
         if dialog.ShowModal() == wx.ID_OK:
             # Keyboard Manager can save globals while Preferences is open.
@@ -6837,6 +6868,11 @@ class MainFrame(wx.Frame):
             settings = self.store.read("settings.json", {}) or {}
             level = dialog.get_logging_level()
             settings["logging_level"] = level
+            previous_language = str(
+                settings.get("language") or i18n.DEFAULT_LANGUAGE_SETTING
+            )
+            language = dialog.get_language()
+            settings["language"] = language
             self.announce_track_changes = (
                 dialog.get_announce_track_changes()
             )
@@ -6869,6 +6905,8 @@ class MainFrame(wx.Frame):
                     ),
                 )
             configure_logging(self.store.root / "blindspot.log", level)
+            if language != previous_language:
+                self.say(tr("Restart BlindSpot to use the new language."))
         dialog.Destroy()
 
     def open_keyboard_manager(

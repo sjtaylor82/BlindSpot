@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import wx
 
+from . import i18n
 from . import messages as msg
 from .logging_setup import configure_logging
 from .portable import PortableStore
@@ -24,6 +25,9 @@ class BlindSpotApp(wx.App):
             return False
         store = PortableStore()
         settings = store.read("settings.json", {}) or {}
+        i18n.set_language(
+            settings.get("language") or i18n.DEFAULT_LANGUAGE_SETTING
+        )
         configure_logging(
             store.root / "blindspot.log",
             settings.get("logging_level", "Off"),

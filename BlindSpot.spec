@@ -1,10 +1,22 @@
 # Build from the BlindSpot directory with:
 # python -m PyInstaller --noconfirm BlindSpot.spec
 
+import subprocess
 import sys
 from pathlib import Path
 
 import wx
+
+
+# Build the translation catalogues the application loads at run time.
+subprocess.run(
+    [sys.executable, "scripts/i18n.py", "compile"],
+    check=True,
+)
+translations = [
+    (str(path), str(path.parent))
+    for path in sorted(Path("locale").glob("*/LC_MESSAGES/*.mo"))
+]
 
 
 binaries = []
@@ -25,6 +37,7 @@ a = Analysis(
         ("manual.html", "."),
         ("LICENSE", "."),
         ("portable_updater.ps1", "."),
+        *translations,
     ],
     hiddenimports=(
         ["appscript", "accessible_output2.outputs.voiceover"]
