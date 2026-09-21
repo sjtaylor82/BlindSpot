@@ -625,7 +625,9 @@ def album_track_label(
         if item.artist.casefold() not in album_artist_names:
             featured.append(item.artist)
     if featured:
-        label += tr(" — featuring {join}").format(join=', '.join(featured))
+        label += tr(" — featuring {artists}").format(
+            artists=", ".join(featured)
+        )
     return label
 
 
@@ -652,7 +654,7 @@ def normalized_global_shortcuts(value: object) -> dict[str, dict[str, int]]:
 
 def shortcut_label(shortcut: dict[str, int] | None) -> str:
     if not shortcut:
-        return "Not assigned"
+        return tr("Not assigned")
     modifiers = int(shortcut.get("modifiers", 0))
     keycode = int(shortcut.get("keycode", 0))
     special_keys = {
@@ -2532,9 +2534,7 @@ class SearchPanel(wx.Panel):
                 self.categories.SetFocus()
                 return
             self.frame.run_task(
-                tr(
-                    "Finding {tag} {category} results using Last.fm"
-                ).format(tag=tag, category=category),
+                msg.finding_tag_results(tag, category),
                 lambda: self.frame.lastfm_tag_results(
                     tag,
                     category,
@@ -2732,9 +2732,13 @@ class SearchPanel(wx.Panel):
         state.selected = first_new if result_count else max(0, first_new - 1)
         self.render(state, focus=True)
         if result_count:
-            self.frame.say(tr(
-                "Loaded {result_count} additional results."
-            ).format(result_count=result_count))
+            self.frame.say(
+                ntr(
+                    "Loaded {count} additional result.",
+                    "Loaded {count} additional results.",
+                    result_count,
+                ).format(count=result_count)
+            )
         else:
             self.frame.say(msg.NO_MORE_RESULTS)
 
@@ -11283,9 +11287,7 @@ class MainFrame(wx.Frame):
         tag = tags[dialog.GetSelection()].name
         dialog.Destroy()
         self.run_task(
-            tr(
-                "Finding {tag} {noun} results using Last.fm"
-            ).format(tag=tag, noun=noun),
+            msg.finding_tag_results(tag, category),
             lambda: self.lastfm_tag_results(tag, category),
             lambda items: self.finish_browse_genre(tag, category, items),
         )

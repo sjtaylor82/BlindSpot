@@ -3298,7 +3298,7 @@ class SearchPaginationTests(unittest.TestCase):
             ["first", "second", "__load_more__"],
         )
         self.assertEqual(state.selected, 1)
-        self.assertEqual(spoken, ["Loaded 1 additional results."])
+        self.assertEqual(spoken, ["Loaded 1 additional result."])
         self.assertTrue(rendered[0][1])
 
 

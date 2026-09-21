@@ -373,6 +373,16 @@ def minutes_seconds(minutes: int, seconds: int) -> str:
     )
 
 
+def finding_tag_results(tag: str, category: str) -> str:
+    if category == "album":
+        return tr("Finding {tag} album results using Last.fm").format(tag=tag)
+    if category == "artist":
+        return tr("Finding {tag} artist results using Last.fm").format(
+            tag=tag
+        )
+    return tr("Finding {tag} track results using Last.fm").format(tag=tag)
+
+
 def selected_count(count: int) -> str:
     return ntr(
         "{count} item selected", "{count} items selected", count

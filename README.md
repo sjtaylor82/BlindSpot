@@ -271,6 +271,32 @@ the ZIP, preserve the `data` folder, replace the application files after
 BlindSpot closes, and restart automatically. On macOS, the release page opens
 for a manual replacement of the running app bundle.
 
+## Languages
+
+BlindSpot's interface can be translated. English is the built-in language and
+the fallback for any message a translation has not covered. A language is a
+single gettext `.po` file under `locale/`, so a translator needs a text editor
+rather than programming skills. See [locale/README.md](locale/README.md) for
+the translator guide.
+
+Polish is included as a first draft produced with Claude and awaiting review by
+a native speaker. It is not selected by default: choose it in Options,
+Preferences, Language, then restart BlindSpot.
+
+For developers, user-visible text goes through `tr()`, `ntr()` (plurals),
+`ptr()` (context) and `tr_noop()` (module-level tables) from
+`blindspot.i18n`. Maintain the catalogues with `scripts/i18n.py`, which needs
+Babel (`python -m pip install babel`):
+
+```
+python scripts/i18n.py update    # refresh locale/blindspot.pot and every .po
+python scripts/i18n.py check     # validate translations and show coverage
+python scripts/i18n.py compile   # build the .mo files the app loads
+```
+
+Compiled `.mo` files are build output. The release builds compile them, and CI
+fails if the template is stale or a translation breaks a placeholder.
+
 ## License
 
 Copyright © 2026 Sam Taylor. BlindSpot is free software licensed under the

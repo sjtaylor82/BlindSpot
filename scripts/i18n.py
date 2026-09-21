@@ -238,17 +238,23 @@ def command_check(_: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
-def compile_catalogues(*, quiet: bool = False) -> int:
+def compile_catalogues(*, quiet: bool = False, output: Path | None = None) -> int:
+    """Compile every .po to a .mo, beside it or under ``output``."""
     count = 0
     for path in catalogue_files():
+        code = path.parent.parent.name
         with path.open("rb") as handle:
-            catalog = read_po(handle, locale=path.parent.parent.name)
-        target = path.with_suffix(".mo")
+            catalog = read_po(handle, locale=code)
+        if output is None:
+            target = path.with_suffix(".mo")
+        else:
+            target = output / code / "LC_MESSAGES" / f"{DOMAIN}.mo"
+            target.parent.mkdir(parents=True, exist_ok=True)
         with target.open("wb") as handle:
             write_mo(handle, catalog)
         count += 1
         if not quiet:
-            print(f"compiled {target.relative_to(ROOT)}")
+            print(f"compiled {target}")
     return count
 
 

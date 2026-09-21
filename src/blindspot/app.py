@@ -1,13 +1,37 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import wx
 
 from . import i18n
 from . import messages as msg
 from .logging_setup import configure_logging
-from .portable import PortableStore
+from .portable import PortableStore, resource_directory
 from .spotify import SpotifyClient
 from .ui import MainFrame
+
+
+def activate_wx_locale(code: str) -> wx.Locale | None:
+    """Translate wxWidgets' own text (stock buttons) into the app language.
+
+    The returned object must stay alive for the translation to remain active.
+    """
+    if code == i18n.DEFAULT_LANGUAGE:
+        return None
+    info = wx.Locale.FindLanguageInfo(code)
+    if info is None:
+        return None
+    for folder in (
+        Path(wx.__file__).resolve().parent / "locale",
+        resource_directory() / "wx" / "locale",
+    ):
+        wx.Locale.AddCatalogLookupPathPrefix(str(folder))
+    locale = wx.Locale()
+    if not locale.Init(info.Language, wx.LOCALE_DONT_LOAD_DEFAULT):
+        return None
+    locale.AddCatalog("wxstd")
+    return locale
 
 
 class BlindSpotApp(wx.App):
@@ -25,9 +49,10 @@ class BlindSpotApp(wx.App):
             return False
         store = PortableStore()
         settings = store.read("settings.json", {}) or {}
-        i18n.set_language(
+        language = i18n.set_language(
             settings.get("language") or i18n.DEFAULT_LANGUAGE_SETTING
         )
+        self.wx_locale = activate_wx_locale(language)
         configure_logging(
             store.root / "blindspot.log",
             settings.get("logging_level", "Off"),

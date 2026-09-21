@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: BlindSpot 2026.9.2\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-09-21 14:11+1000\n"
+"POT-Creation-Date: 2026-09-21 14:16+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1256,6 +1256,21 @@ msgstr[1] ""
 
 #: blindspot/messages.py
 #, python-brace-format
+msgid "Finding {tag} album results using Last.fm"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Finding {tag} artist results using Last.fm"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Finding {tag} track results using Last.fm"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
 msgid "{count} item selected"
 msgid_plural "{count} items selected"
 msgstr[0] ""
@@ -2323,7 +2338,7 @@ msgstr ""
 
 #: blindspot/ui.py
 #, python-brace-format
-msgid " — featuring {join}"
+msgid " — featuring {artists}"
 msgstr ""
 
 #: blindspot/ui.py
@@ -2570,11 +2585,6 @@ msgstr ""
 
 #: blindspot/ui.py
 #, python-brace-format
-msgid "Finding {tag} {category} results using Last.fm"
-msgstr ""
-
-#: blindspot/ui.py
-#, python-brace-format
 msgid "Results for {query}"
 msgstr ""
 
@@ -2608,8 +2618,10 @@ msgstr[1] ""
 
 #: blindspot/ui.py
 #, python-brace-format
-msgid "Loaded {result_count} additional results."
-msgstr ""
+msgid "Loaded {count} additional result."
+msgid_plural "Loaded {count} additional results."
+msgstr[0] ""
+msgstr[1] ""
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -3932,11 +3944,6 @@ msgstr ""
 #: blindspot/ui.py
 #, python-brace-format
 msgid "{name} ({weight} out of 100)"
-msgstr ""
-
-#: blindspot/ui.py
-#, python-brace-format
-msgid "Finding {tag} {noun} results using Last.fm"
 msgstr ""
 
 #: blindspot/ui.py

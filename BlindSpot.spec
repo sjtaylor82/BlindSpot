@@ -17,6 +17,15 @@ translations = [
     (str(path), str(path.parent))
     for path in sorted(Path("locale").glob("*/LC_MESSAGES/*.mo"))
 ]
+# wxWidgets' own catalogues translate stock buttons such as OK and Cancel.
+wx_locale = Path(wx.__file__).resolve().parent / "locale"
+for catalogue in sorted(Path("locale").glob("*/LC_MESSAGES/*.mo")):
+    code = catalogue.parent.parent.name
+    stock = wx_locale / code / "LC_MESSAGES" / "wxstd.mo"
+    if stock.is_file():
+        translations.append(
+            (str(stock), str(Path("wx") / "locale" / code / "LC_MESSAGES"))
+        )
 
 
 binaries = []
