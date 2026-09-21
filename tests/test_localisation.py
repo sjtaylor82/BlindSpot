@@ -12,6 +12,7 @@ from pathlib import Path
 
 from blindspot import i18n
 from blindspot import messages as msg
+from blindspot.applemusic import loaded_label
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "i18n.py"
@@ -108,6 +109,13 @@ class ShippedCatalogueTests(unittest.TestCase):
         self.assertEqual("0:05", msg.clock_time(datetime(2026, 3, 5, 0, 5)))
         self.assertEqual("18:05", msg.clock_time(datetime(2026, 3, 5, 18, 5)))
         self.assertEqual("6:05", msg.clock_time(datetime(2026, 3, 5, 6, 5)))
+
+    def test_apple_music_timestamp_uses_polish_date_and_time(self) -> None:
+        i18n.set_language("pl")
+        label = loaded_label(1_790_000_000.0)
+        self.assertNotIn(" at ", label)
+        self.assertNotIn("AM", label)
+        self.assertNotIn("PM", label)
 
     def test_english_clock_keeps_the_hour_at_midnight(self) -> None:
         self.assertEqual("12:05 AM", msg.clock_time(datetime(2026, 3, 5, 0, 5)))
