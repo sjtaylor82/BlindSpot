@@ -84,7 +84,16 @@ def _played_at_label(value: str) -> str:
 
 
 class SpotifyError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: int | None = None,
+        retry_after: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status = status
+        self.retry_after = retry_after
 
 
 class PlaylistContentsUnavailable(SpotifyError):
@@ -107,6 +116,7 @@ class SpotifyClient:
         self.store = store
         self.token = store.read("authentication.json", {}) or {}
         self._token_lock = threading.Lock()
+        self._account_country = ""
 
     @property
     def client_id(self) -> str:
@@ -184,6 +194,7 @@ class SpotifyClient:
 
     def sign_out(self) -> None:
         self.token = {}
+        self._account_country = ""
         self.store.remove("authentication.json")
 
     def search(
@@ -272,9 +283,9 @@ class SpotifyClient:
                     "__load_more__",
                     ItemKind.HEADING,
                     (
-                        "Show next 50 podcasts"
+                        "Show more podcasts"
                         if category == "show"
-                        else "Show next 50 episodes"
+                        else "Show more episodes"
                         if category == "episode"
                         else "Load more results"
                     ),
@@ -416,7 +427,9 @@ class SpotifyClient:
                     continue
                 value = entry.get("item") or entry.get("track") or entry
                 if value.get("id"):
-                    values.append(self._map_item(value, self._kind_for(value)))
+                    mapped = self._map_item(value, self._kind_for(value))
+                    mapped.raw["added_at"] = str(entry.get("added_at") or "")
+                    values.append(mapped)
             return values
         if item.kind == ItemKind.SHOW:
             return self.podcast_episodes(item)
@@ -457,7 +470,7 @@ class SpotifyClient:
                 SpotifyItem(
                     "__load_more_episodes__",
                     ItemKind.HEADING,
-                    "Show next 50 episodes",
+                    "Show more episodes",
                     raw={
                         "load_more_episodes": True,
                         "next_offset": next_offset,
@@ -481,11 +494,14 @@ class SpotifyClient:
             "/me/tracks",
             query={"limit": 50},
         )
-        return [
-            self._map_item(entry["track"], ItemKind.TRACK)
-            for entry in values
-            if entry.get("track")
-        ]
+        items = []
+        for entry in values:
+            if not entry.get("track"):
+                continue
+            item = self._map_item(entry["track"], ItemKind.TRACK)
+            item.raw["added_at"] = str(entry.get("added_at") or "")
+            items.append(item)
+        return items
 
     def recently_played(self) -> list[SpotifyItem]:
         if not self.has_scope("user-read-recently-played"):
@@ -530,11 +546,14 @@ class SpotifyClient:
 
     def saved_albums(self) -> list[SpotifyItem]:
         values = self._paged_items("GET", "/me/albums", query={"limit": 50})
-        return [
-            self._map_item(entry["album"], ItemKind.ALBUM)
-            for entry in values
-            if entry and entry.get("album")
-        ]
+        items = []
+        for entry in values:
+            if not entry or not entry.get("album"):
+                continue
+            item = self._map_item(entry["album"], ItemKind.ALBUM)
+            item.raw["added_at"] = str(entry.get("added_at") or "")
+            items.append(item)
+        return items
 
     def saved_shows(self) -> list[SpotifyItem]:
         values = self._paged_items("GET", "/me/shows", query={"limit": 50})
@@ -611,6 +630,13 @@ class SpotifyClient:
                 return values
             page_query = {**page_query, "offset": next_offset}
 
+    def account_country(self) -> str:
+        """Return the account's ISO country code, or an empty string."""
+        if not self._account_country:
+            profile = self._request("GET", "/me")
+            self._account_country = str(profile.get("country") or "")
+        return self._account_country
+
     def user_playlists(self) -> list[SpotifyItem]:
         profile = self._request("GET", "/me")
         user_id = profile.get("id", "")
@@ -635,11 +661,24 @@ class SpotifyClient:
         return playlists
 
     def add_to_playlist(self, playlist: SpotifyItem, item: SpotifyItem) -> None:
-        self._request(
-            "POST",
-            f"/playlists/{playlist.id}/items",
-            body={"uris": [item.uri]},
-        )
+        self.add_items_to_playlist(playlist, [item])
+
+    def add_items_to_playlist(
+        self,
+        playlist: SpotifyItem,
+        items: list[SpotifyItem],
+    ) -> int:
+        uris = [item.uri for item in items if item.uri]
+        added = 0
+        for start in range(0, len(uris), 100):
+            batch = uris[start : start + 100]
+            self._request(
+                "POST",
+                f"/playlists/{playlist.id}/items",
+                body={"uris": batch},
+            )
+            added += len(batch)
+        return added
 
     def create_playlist(self, name: str, public: bool = False) -> SpotifyItem:
         value = self._request(
@@ -678,6 +717,23 @@ class SpotifyClient:
             f"/playlists/{playlist.id}/items",
             body={"items": [{"uri": item.uri}]},
         )
+
+    def remove_items_from_playlist(
+        self,
+        playlist: SpotifyItem,
+        items: list[SpotifyItem],
+    ) -> int:
+        uris = [item.uri for item in items if item.uri]
+        removed = 0
+        for start in range(0, len(uris), 100):
+            batch = uris[start : start + 100]
+            self._request(
+                "DELETE",
+                f"/playlists/{playlist.id}/items",
+                body={"items": [{"uri": uri} for uri in batch]},
+            )
+            removed += len(batch)
+        return removed
 
     def reorder_playlist_item(
         self,
@@ -809,6 +865,30 @@ class SpotifyClient:
         wanted = _search_normalized(name)
         return next(
             (item for item in candidates if _search_normalized(item.name) == wanted),
+            candidates[0] if candidates else None,
+        )
+
+    def find_album(self, name: str, artist: str) -> SpotifyItem | None:
+        query = f'album:"{name}" artist:"{artist}"'
+        data = self._request(
+            "GET",
+            "/search",
+            query={"q": query, "type": "album", "limit": 10, "offset": 0},
+        )
+        candidates = [
+            self._map_item(value, ItemKind.ALBUM)
+            for value in (data.get("albums") or {}).get("items", [])
+            if value
+        ]
+        wanted_name = _search_normalized(name)
+        wanted_artist = _search_normalized(artist)
+        return next(
+            (
+                item
+                for item in candidates
+                if _search_normalized(item.name) == wanted_name
+                and _search_normalized(item.artist) == wanted_artist
+            ),
             candidates[0] if candidates else None,
         )
 
@@ -1333,7 +1413,18 @@ class SpotifyClient:
                 urllib.parse.urlparse(request.full_url).path,
                 message,
             )
-            raise SpotifyError(msg.spotify_error(error.code, message)) from error
+            header = error.headers.get("Retry-After") if error.headers else None
+            try:
+                retry_after = int(header) if header else None
+            except ValueError:
+                retry_after = None
+            raise SpotifyError(
+                msg.spotify_rate_limited(retry_after)
+                if error.code == 429
+                else msg.spotify_error(error.code, message),
+                status=error.code,
+                retry_after=retry_after,
+            ) from error
         except OSError as error:
             logger.exception("Spotify connection failed")
             raise SpotifyError(msg.spotify_contact_failed(error)) from error

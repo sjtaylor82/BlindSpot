@@ -218,6 +218,130 @@ class CommandClient(SpotifyClient):
         return self.responses.pop(0) if self.responses else {}
 
 
+class PlaylistBatchTests(unittest.TestCase):
+    def test_add_items_to_playlist_preserves_order_and_batches_at_one_hundred(self):
+        client = CommandClient([{}, {}])
+        playlist = SpotifyItem("list", ItemKind.PLAYLIST, "List")
+        items = [
+            SpotifyItem(
+                str(number),
+                ItemKind.TRACK,
+                f"Track {number}",
+                uri=f"spotify:track:{number}",
+            )
+            for number in range(101)
+        ]
+
+        added = client.add_items_to_playlist(playlist, items)
+
+        self.assertEqual(added, 101)
+        self.assertEqual(
+            client.calls[0][3]["uris"],
+            [f"spotify:track:{number}" for number in range(100)],
+        )
+        self.assertEqual(client.calls[1][3]["uris"], ["spotify:track:100"])
+
+    def test_remove_items_preserves_order_and_batches_at_one_hundred(self):
+        client = CommandClient([{}, {}])
+        playlist = SpotifyItem("list", ItemKind.PLAYLIST, "List")
+        items = [
+            SpotifyItem(
+                str(number),
+                ItemKind.TRACK,
+                f"Track {number}",
+                uri=f"spotify:track:{number}",
+            )
+            for number in range(101)
+        ]
+
+        removed = client.remove_items_from_playlist(playlist, items)
+
+        self.assertEqual(removed, 101)
+        self.assertEqual(
+            client.calls[0][3]["items"][0], {"uri": "spotify:track:0"}
+        )
+        self.assertEqual(
+            client.calls[1][3]["items"][0], {"uri": "spotify:track:100"}
+        )
+
+
+def country_client(responses):
+    client = CommandClient(responses)
+    # CommandClient bypasses SpotifyClient.__init__, so supply its state.
+    client.token = {}
+    client._account_country = ""
+    return client
+
+
+class RateLimitErrorTests(unittest.TestCase):
+    def _raise(self, retry_after):
+        import io
+        import urllib.error
+
+        headers = {} if retry_after is None else {"Retry-After": retry_after}
+        error = urllib.error.HTTPError(
+            "https://api.spotify.com/v1/search",
+            429,
+            "Too Many Requests",
+            headers,
+            io.BytesIO(b'{"error": {"message": "API rate limit exceeded"}}'),
+        )
+        client = SpotifyClient.__new__(SpotifyClient)
+        request = urllib.request.Request("https://api.spotify.com/v1/search")
+        with patch(
+            "blindspot.spotify.urllib.request.urlopen",
+            side_effect=error,
+        ):
+            with self.assertRaises(SpotifyError) as caught:
+                client._open_json(request)
+        return caught.exception
+
+    def test_a_429_carries_status_and_retry_after_with_a_plain_message(self):
+        error = self._raise("31745")
+
+        self.assertEqual(error.status, 429)
+        self.assertEqual(error.retry_after, 31745)
+        self.assertIn("Try again in about 9 hours", str(error))
+        self.assertNotIn("429", str(error))
+
+    def test_a_429_without_a_usable_retry_after_still_explains_itself(self):
+        for header in (None, "soon"):
+            error = self._raise(header)
+            self.assertIsNone(error.retry_after)
+            self.assertIn("Wait a little while", str(error))
+
+    def test_wait_is_described_in_the_most_natural_unit(self):
+        from blindspot import messages
+
+        self.assertIn("30 seconds", messages.spotify_rate_limited(30))
+        self.assertIn("about a minute", messages.spotify_rate_limited(60))
+        self.assertIn("about 10 minutes", messages.spotify_rate_limited(600))
+        self.assertIn("about 2 hours", messages.spotify_rate_limited(7200))
+
+
+class AccountCountryTests(unittest.TestCase):
+    def test_country_is_read_from_the_profile_once(self):
+        client = country_client([{"country": "PL"}])
+
+        self.assertEqual(client.account_country(), "PL")
+        self.assertEqual(client.account_country(), "PL")
+        self.assertEqual(len(client.calls), 1)
+        self.assertEqual(client.calls[0][1], "/me")
+
+    def test_country_stays_out_of_the_stored_token(self):
+        client = country_client([{"country": "PL"}])
+
+        client.account_country()
+
+        self.assertNotIn("account_country", client.token)
+
+    def test_a_profile_without_a_country_yields_an_empty_string(self):
+        client = country_client([{}, {"country": "AU"}])
+
+        self.assertEqual(client.account_country(), "")
+        self.assertEqual(client.account_country(), "AU")
+
+
 class PlaylistClient(CommandClient):
     def _map_item(self, value, kind):
         return SpotifyItem(
@@ -327,6 +451,7 @@ class PlaybackCommandTests(unittest.TestCase):
     def test_liked_songs_loads_every_page_in_order(self):
         def saved_track(number):
             return {
+                "added_at": f"2026-01-{number % 28 + 1:02d}T00:00:00Z",
                 "track": {
                     "id": f"track-{number}",
                     "name": f"Track {number}",
@@ -352,6 +477,7 @@ class PlaybackCommandTests(unittest.TestCase):
         self.assertEqual(len(tracks), 52)
         self.assertEqual(tracks[50].id, "track-50")
         self.assertEqual(tracks[51].id, "track-51")
+        self.assertEqual(tracks[0].raw["added_at"], "2026-01-01T00:00:00Z")
         self.assertEqual(
             [call[2] for call in client.calls],
             [{"limit": 50}, {"limit": 50, "offset": 50}],
@@ -562,7 +688,9 @@ class PlaybackCommandTests(unittest.TestCase):
             "uri": "spotify:track:track-1",
             "type": "track",
         }
-        client = PlaylistClient([{"items": [{"item": track}]}])
+        client = PlaylistClient(
+            [{"items": [{"item": track, "added_at": "2026-09-20T00:00:00Z"}]}]
+        )
         playlist = SpotifyItem(
             "playlist-1",
             ItemKind.PLAYLIST,
@@ -570,7 +698,9 @@ class PlaybackCommandTests(unittest.TestCase):
             uri="spotify:playlist:playlist-1",
         )
 
-        self.assertEqual(client.children(playlist)[0].id, "track-1")
+        result = client.children(playlist)[0]
+        self.assertEqual(result.id, "track-1")
+        self.assertEqual(result.raw["added_at"], "2026-09-20T00:00:00Z")
 
     def test_playlist_children_accept_legacy_track_field(self):
         track = {
@@ -995,6 +1125,7 @@ class PlaybackCommandTests(unittest.TestCase):
                 {
                     "items": [
                         {
+                            "added_at": "2026-09-20T00:00:00Z",
                             "album": {
                                 "id": "album",
                                 "name": "Album",
@@ -1011,6 +1142,7 @@ class PlaybackCommandTests(unittest.TestCase):
 
         self.assertEqual(albums[0].kind, ItemKind.ALBUM)
         self.assertEqual(albums[0].name, "Album")
+        self.assertEqual(albums[0].raw["added_at"], "2026-09-20T00:00:00Z")
         self.assertEqual(
             client.calls[0][0:3],
             ("GET", "/me/albums", {"limit": 50}),
@@ -1456,7 +1588,7 @@ class SearchBatchTests(unittest.TestCase):
             [call[2]["offset"] for call in client.calls],
             [0, 10, 20, 30, 40, 50, 60, 70, 80, 90],
         )
-        self.assertEqual(first_page[-1].name, "Show next 50 podcasts")
+        self.assertEqual(first_page[-1].name, "Show more podcasts")
         self.assertEqual(first_page[-1].raw["next_offset"], 50)
         self.assertEqual(
             [item.id for item in second_page],

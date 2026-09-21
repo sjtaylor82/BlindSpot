@@ -22,7 +22,7 @@
     <ul>
       <li>Ctrl+1 through Ctrl+9: Search, Liked Songs, Queue, Playlists,
         Recently Played, Bookmarks, Audiobooks, Podcasts, and Saved Albums
-        respectively. Ctrl+0 selects New Music.</li>
+        respectively. Ctrl+0 selects Discover.</li>
       <li>Ctrl+Tab and Ctrl+Shift+Tab: cycle through the main tabs.</li>
       <li>Ctrl+F: focus the search box.</li>
       <li>Ctrl+Comma: open Preferences.</li>
@@ -44,7 +44,8 @@
       <li>Ctrl+Q: queue selected track or tracks.</li>
       <li>Ctrl+L: like or unlike selected track.</li>
       <li>Ctrl+Shift+L: like or unlike the currently loaded track.</li>
-      <li>Ctrl+Shift+A: add selected track to a playlist.</li>
+      <li>Ctrl+Shift+A: copy the selected track or marked tracks to an editable
+        playlist, preserving their displayed order.</li>
       <li>Ctrl+Shift+N: create playlist.</li>
       <li>Ctrl+Shift+B: bookmark current playback position.</li>
       <li>Ctrl+Shift+D: choose a Spotify Connect playback device.</li>
@@ -66,10 +67,66 @@
             <li>Backspace or Alt+Left: return to the previous remembered view.</li>
       <li>Shift+F10 or the Applications key: open item actions.</li>
     </ul>
+    <p>Library and playlist views provide a <strong>Filter this list</strong>
+      edit box immediately before Now Playing in the Tab order. It searches the
+      complete loaded list using the title, artist or publisher, and album or
+      show name. Matching ignores case and common diacritics. Clear the edit box
+      to restore every item. In an open playlist, F4 plays the visible filtered
+      sequence beginning with the focused track.</p>
+    <p>The View, Sort by submenu can temporarily order supported collection
+      views by Original order, Title, Artist, Album, Duration, or Date added
+      when Spotify provides that field. Choose Descending in the View menu to
+      reverse the selected sort. This changes only the displayed view and never
+      rewrites the saved playlist. Queue and Recently Played are not sortable
+      because their sequence has meaning.</p>
     <h2>Search results</h2>
+    <p>Choose Related albums from an album's context menu, or while browsing
+      its tracks, to open a deduplicated list of related albums. Enter opens a
+      result, F4 plays it, and Backspace returns to the originating album or
+      collection.</p>
     <p>A category search initially displays up to 20 results. When Spotify has
       more matches, choose Load more results at the end of the list to append
-      the next page.</p>
+      the next page. The separate editable Genre field browses
+      community-tagged Songs, Albums, or Artists. Choose a supplied tag or type
+      another; the ordinary Search query can optionally narrow those results.
+      BlindSpot labels their Last.fm origin and resolves each result to Spotify
+      before offering playback or library actions.</p>
+    <p>You do not need to know a tag's name. Open the context menu on a
+      song or artist and choose Browse genres (Last.fm). BlindSpot lists
+      that item's strongest community tags, each with Last.fm's own weight
+      out of 100, and opens the one you choose as an ordinary Genre search
+      for songs or artists respectively. Tags that merely repeat the
+      artist or title, name a year, or describe opinion rather than genre,
+      such as seen live, are omitted. These are community tags, not an
+      official genre classification, and a track with few listeners may
+      have none.</p>
+    <h2>Finding covers</h2>
+    <p>Open the context menu on a song and choose Find covers (MusicBrainz)
+      to list other artists' recordings of the same song. MusicBrainz is a
+      free, open music database. It links all recordings of a song together
+      and marks which ones are covers, which Spotify does not provide.</p>
+    <p>The list opens in the Search tab, and Backspace returns to where you
+      were. Live, video and karaoke recordings, and the artist of the song
+      you started from, are left out. Recordings MusicBrainz marks as covers
+      come first, in alphabetical order by artist, and their row ends with
+      cover. Next come other recordings of the same song, then recordings
+      with the same title that MusicBrainz has not yet linked to the song,
+      which is common for recent releases; those are checked against the
+      length of your track. If you start from a cover, the original
+      artist's recording appears too. Novelty versions such as 8-bit
+      arrangements are listed last. MusicBrainz has no popularity ranking,
+      so the order does not reflect how well known a version is.</p>
+    <p>A lookup takes up to about 20 seconds, because MusicBrainz asks
+      programs to make no more than one request a second. For a very
+      popular song BlindSpot reads only the first 300 of its recordings and
+      the status line says how many were checked. If MusicBrainz does not
+      know the song, or has no song entry for it, BlindSpot tells you
+      instead of showing an empty list.</p>
+    <p>Rows show the artist, title and year. A version is looked up on
+      Spotify only when you play, queue, like or open the menu for it, as in
+      Discover charts. MusicBrainz lists many recordings that are not on
+      Spotify, so you may be told a version was not found.</p>
+
     <h2>Playlists</h2>
     <p>Followed playlists that cannot be edited are announced as read only.
       Enter opens a focused playlist. F4 plays the focused playlist, or starts
@@ -78,8 +135,13 @@
       Linux, or Command+A on macOS, to select every track in the list. Select all is also available from the Edit
       menu and the list context menu. Ctrl+Q adds all marked songs to the queue.
       Delete removes the focused song from
-      an editable playlist. In the list of playlists, Delete removes the
+      an editable playlist after confirmation. In the list of playlists, Delete removes the
       focused playlist from your library after confirmation.</p>
+    <p>Ctrl+C on Windows and Linux, or Command+C on macOS, copies the marked
+      tracks to BlindSpot's playlist clipboard. Ctrl+X or Command+X cuts marked
+      tracks from an editable playlist. Open the destination playlist and use
+      Ctrl+V or Command+V to paste. Cut tracks remain in the source until the
+      destination addition succeeds.</p>
     <p>A track's context menu can open or start a similar-track mix provided by Last.fm, or append it after the
       current queue. Opening the mix displays up to 50 candidates in pages of 20 without changing playback;
       starting it plays the first matched page while the remaining candidates are prepared and appended in the
@@ -96,12 +158,34 @@
       bottom, or to a numbered position. Focus follows the moved track and
       BlindSpot announces its new position. Reordering is not offered for
       playlists owned by someone else.</p>
+    <p>Type two or more letters quickly in any item list to jump to an item
+      beginning with that prefix. The prefix resets after a short pause.</p>
+    <p>A playlist track's context menu provides Copy to playlist. Editable
+      source playlists also provide Move to another playlist. These commands
+      apply to marked tracks, or the focused track when nothing is marked. A
+      move removes source tracks only after they are added to the destination.</p>
     <p>The same owned-playlist track menu provides Find alternate versions.
       BlindSpot searches for other recordings by the primary artist while
       suppressing duplicate releases of the same recording. In the results,
       Enter reviews the replacement. Tab to Replace, or use Replace playlist
       track from the candidate's context menu, to substitute it at the
       original playlist position.</p>
+
+    <h2>Exporting a list</h2>
+    <p>Choose File, Export list to save the list you are viewing as a
+      readable file. You are asked where to save it and whether it should be
+      plain text or CSV. Each entry has its position, title, artist, album,
+      duration and a Spotify link. CSV opens in a spreadsheet, including
+      accented and Polish characters. Only this information is exported;
+      no audio is downloaded.</p>
+    <p>The export contains exactly what is displayed, in that order, so a
+      Filter this list or Sort by choice applies. In a list of playlists or
+      albums, such as the Playlists tab, Export list exports the tracks of
+      the selected one instead. If the list still ends with a row that loads
+      more results, BlindSpot tells you the file is a partial list; load the
+      rest and export again for everything. A chart from Discover exports
+      too, without durations or links for songs not yet looked up on
+      Spotify.</p>
 
     <h2>Albums</h2>
     <p>Press Ctrl+9 to browse albums saved in your Spotify library. Enter
@@ -111,19 +195,62 @@
       artist. Multi-disc releases also include the disc number. Press Enter to play only the selected album track. Press F4 to play
       the album from the focused track.</p>
 
-    <h2>New Music</h2>
-    <p>Press Ctrl+0 to open New Music. Choose Albums, Singles and EPs, or
+    <h2>Discover</h2>
+    <p>Press Ctrl+0 to open Discover. The Discover radio buttons choose
+      between New releases, Top songs, Top albums and Experimental US Hot 100.
+      Only the control that applies to
+      the chosen source stays enabled, and neither source replaces the
+      current list until Search is activated again.</p>
+    <p>With New releases selected, choose Albums, Singles and EPs, or
       Compilations under Release type, then activate Search. Spotify search
       identifies releases within about the last two weeks. Results
       are sorted by their supplied release date. Enter opens a release, F4
       plays it, and Ctrl+L saves or removes it from your library. Choose Load
       more results at the end of the list to retrieve the next 20 matching
-      releases. Changing the release type does not replace the current list
-      until Search is activated again.</p>
+      releases.</p>
+    <p>Top songs lists the most played songs in the country chosen
+      under Chart country. The chart comes from Apple Music's public feed,
+      so it reflects real listening across Apple Music's whole user base
+      rather than a sample. Apple provides up to a hundred entries and all
+      of them are listed at once. Every row announces its chart position,
+      title, artist and year.</p>
+    <p>Top albums uses Apple Music's matching album chart for the chosen
+      country. Enter resolves the album on Spotify and opens its tracks; F4
+      resolves and plays it.</p>
+    <p>Experimental US Hot 100 accepts a date written as year-month-day,
+      with or without hyphens, and
+      loads the latest weekly chart on or before that date. BlindSpot reads
+      the JSON live from the community-maintained
+      mhollingshead/billboard-hot-100 project on GitHub. The source is
+      unofficial, is not included with BlindSpot, and may change or disappear.</p>
+    <p>BlindSpot does not search Spotify for chart entries when the chart
+      appears. Each song or album is looked up only when you play it with Enter or
+      F4, queue it, like it, add it to a playlist, open its album or menu,
+      or start a similar-music mix from it. That takes a moment the first
+      time and is announced. It keeps BlindSpot well inside Spotify's
+      request limits. Until a song has been looked up the row cannot show
+      Spotify details such as its duration or album, and BlindSpot cannot
+      tell you in advance whether Spotify has it. If Spotify does not, you
+      are told when you try to play or queue it. If Spotify refuses a
+      lookup because of its request limit, BlindSpot says how long to wait.</p>
+    <p>Chart country starts on your Spotify account's country when Apple
+      publishes a chart for it, and otherwise on Australia. Choosing a
+      country yourself always takes precedence. The status line states the
+      source and country, when BlindSpot loaded the chart, that Apple
+      publishes rank only rather than play counts, a reporting period or a
+      measurement time, and that songs are looked up on Spotify on demand.
+      Apple's own updated stamp is not shown because it reflects when the
+      chart was requested, not when it was measured.</p>
+    <p>A real chart mixes new releases with long-standing favourites,
+      because listeners keep playing them. A song from decades ago appearing
+      partway down the list is a genuine chart position, not a fault.</p>
+    <p>The Filter this list edit box and the View, Sort by submenu apply to
+      whichever Discover results are loaded. Filtering never hides the row
+      that loads the next page.</p>
 
     <h2>Concerts</h2>
     <p>Press Ctrl+Shift+G to open the Concerts tab and search Ticketmaster for
-      upcoming live events. Ctrl+0 continues to open New Music.
+      upcoming live events. Ctrl+0 continues to open Discover.
       Choose a country and From and Until dates, then enter an optional keyword,
       state code or city, optionally choose a Ticketmaster category and genre,
       and activate Search concerts. Genres update to match the chosen category;
@@ -216,15 +343,20 @@
       context menu for the description, or press Enter to browse episodes.
       Choose Show saved podcasts to return to followed shows and saved episodes.</p>
     <p>Search offers Podcasts for matching whole shows and Podcast episodes
-      for matching individual episodes. These searches display up to 50 results
-      at a time; choose Show next 50 podcasts or Show next 50 episodes to append
-      another page. Opening a podcast lists its first 50 episodes. Choose Show
-      next 50 episodes at the end of the list to continue browsing. BlindSpot
+      for matching individual episodes. These searches fetch results in batches;
+      choose Show more podcasts or Show more episodes to append another batch.
+      Opening a podcast lists its first 50 episodes. Choose Show more episodes
+      at the end of the list to continue browsing. BlindSpot
       retains the existing entries, moves focus to the first newly added episode,
       and announces how many were loaded.</p>
     <p>Followed podcasts and saved episodes appear together when the saved view
       is selected. Episodes use their Spotify resume positions when available.
-Choose Download episode from a podcast episode's context menu to save its public RSS media file.
+      Podcast views also provide language and listening-status filters. Language
+      uses the metadata declared by Spotify. Listening status can be All, Not
+      started, In progress, Completed, or Unknown; missing playback information
+      remains Unknown. If more Spotify pages are available, filtered counts are
+      labelled as covering loaded items.</p>
+    <p>Choose Download episode from a podcast episode's context menu to save its public RSS media file.
       BlindSpot locates the publisher's public feed independently of Spotify,
       so downloads may be unavailable for private or Spotify-exclusive
       episodes.</p>
@@ -268,6 +400,25 @@ Choose Download episode from a podcast episode's context menu to save its public
       keymap.json and application settings. Brief conflict and global-risk
       warnings are shown only once.</p>
     <p>Logging is off by default. It can be enabled when diagnostic information is needed.</p>
+
+    <h2>Reporting a problem</h2>
+    <p>When something goes wrong, the error message has a Copy error details
+      button. Help, Copy last error details does the same at any time. The
+      copied text says what BlindSpot was doing, the error type and message,
+      any Spotify status and wait time, and the technical traceback. Tokens,
+      API keys, e-mail addresses and your Windows user name are removed, and
+      file locations are shortened.</p>
+    <p>For a developer report, choose Help, Capture log for developer. A
+      window shows the whole report, which you can read before choosing
+      Copy to clipboard or Save to file. It contains BlindSpot, Python and
+      operating system versions, non-secret settings, whether each
+      credential is set but never its value, and the last error.</p>
+    <p>Include recent log lines adds the end of the log. Song, artist and
+      playlist names, device names and search terms are hidden there unless
+      you also tick the box to include them. Logging is off by default: in
+      Preferences set the logging level to Debug, repeat the problem, then
+      create the report. Read the report before sharing it, since a log can
+      still reveal what you were listening to when names are included.</p>
 
     <h2>Portable data</h2>
     <p>On Windows, settings, authentication, and logs are stored in the data

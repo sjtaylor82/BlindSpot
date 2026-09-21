@@ -50,8 +50,12 @@ class SpotifyItem:
         }
 
     def accessible_label(self) -> str:
-        parts = [self.name]
-        if self.artist:
+        bookmark_name = str(self.raw.get("bookmark_name") or "").strip()
+        parts = [bookmark_name, self.name] if bookmark_name else [self.name]
+        if self.artist and self.raw.get("artist_first"):
+            # Lists of versions of one song are scanned by who performs each.
+            parts.insert(0, self.artist)
+        elif self.artist:
             parts.append(self.artist)
         if self.album and self.album != self.name:
             parts.append(self.album)
@@ -76,6 +80,8 @@ class SpotifyItem:
             parts.append(str(self.raw["played_at_label"]))
         if self.raw.get("bookmark_position_label"):
             parts.append(str(self.raw["bookmark_position_label"]))
+        if self.raw.get("list_note"):
+            parts.append(str(self.raw["list_note"]))
         if self.raw.get("resume_position_label"):
             parts.append(str(self.raw["resume_position_label"]))
         return " — ".join(parts)
@@ -93,3 +99,6 @@ class ViewState:
     parent_item: SpotifyItem | None = None
     parent_artist_names: tuple[str, ...] = ()
     parent_artist_ids: tuple[str, ...] = ()
+    tag: str = ""
+    sort_key: str = "original"
+    sort_descending: bool = False

@@ -7,24 +7,37 @@ import sys
 import tempfile
 import threading
 import time
+import unicodedata
 import urllib.request
 import uuid
 import webbrowser
 from collections.abc import Callable
 from datetime import date, timedelta
 from pathlib import Path
+from typing import NamedTuple
 
 import wx
 import wx.dataview as dv
 from accessible_output2.outputs.auto import Auto
 
 from . import __version__
+from . import diagnostics
+from . import export as exporting
 from . import messages as msg
+from .applemusic import (
+    CHART_COUNTRIES,
+    DEFAULT_COUNTRY as DEFAULT_CHART_COUNTRY,
+    AppleMusicClient,
+    country_name,
+    loaded_label,
+)
 from .auth_callback import CallbackServer
 from .logging_setup import LOG_LEVELS, configure_logging
 from .lyrics import LRCLibClient, Lyrics, LyricsUnavailable
 from .lastfm import DEFAULT_API_KEY as DEFAULT_LASTFM_API_KEY, LastfmClient
-from .lastfm import SimilarTrack
+from .lastfm import GenreTag, SimilarTrack, TaggedItem
+from .historical_charts import HistoricalHot100Client, PROJECT_URL
+from .musicbrainz import CoversUnavailable, CoverResults, MusicBrainzClient
 from .keymap import (
     ACTIONS_BY_ID,
     CONTEXTS,
@@ -39,12 +52,19 @@ from .navigation import NavigationHistory
 from .network import TLS_CONTEXT
 from .portable import PortableStore, resource_directory
 from .podcasts import PodcastDownload, download_episode, find_episode_download
+from .playlist_operations import (
+    PlaylistClipboard,
+    PlaylistOperations,
+    PlaylistSelection,
+    locate_playlist_selections,
+)
 from .spotify import (
     REDIRECT_URI,
     PlaylistContentsUnavailable,
     RecentlyPlayedPermissionRequired,
     SpotifyClient,
     SpotifyError,
+    _base_track_title as base_track_title,
 )
 from .ticketmaster import (
     ConcertEvent,
@@ -233,7 +253,27 @@ SEARCH_TYPES = [
     "audiobook",
     "all",
 ]
-
+LASTFM_TAG_CHOICES = (
+    "Alternative",
+    "Ambient",
+    "Blues",
+    "Classical",
+    "Country",
+    "Electronic",
+    "Folk",
+    "Hip hop",
+    "Indie",
+    "Jazz",
+    "Metal",
+    "Pop",
+    "Punk",
+    "R&B",
+    "Reggae",
+    "Rock",
+    "Soul",
+    "Soundtrack",
+    "World",
+)
 PODCAST_BROWSE_CATEGORIES = (
     ("General discovery", "podcast"),
     ("Arts", "arts podcast"),
@@ -252,6 +292,78 @@ PODCAST_BROWSE_CATEGORIES = (
     ("Technology", "technology podcast"),
     ("True crime", "true crime podcast"),
 )
+POLISH_PODCAST_BROWSE_QUERIES = {
+    "General discovery": "podcast po polsku",
+    "Arts": "sztuka kultura podcast po polsku",
+    "Business": "biznes podcast po polsku",
+    "Comedy": "komedia humor podcast po polsku",
+    "Education": "edukacja podcast po polsku",
+    "Fiction": "fikcja słuchowisko podcast po polsku",
+    "Health": "zdrowie podcast po polsku",
+    "History": "historia podcast po polsku",
+    "Kids and family": "dzieci rodzina podcast po polsku",
+    "Music": "muzyka podcast po polsku",
+    "News": "wiadomości podcast po polsku",
+    "Science": "nauka podcast po polsku",
+    "Society and culture": "społeczeństwo kultura podcast po polsku",
+    "Sports": "sport podcast po polsku",
+    "Technology": "technologia podcast po polsku",
+    "True crime": "kryminał true crime podcast po polsku",
+}
+PODCAST_LISTENING_STATUSES = (
+    ("All listening statuses", "all"),
+    ("Not started", "not_started"),
+    ("In progress", "in_progress"),
+    ("Completed", "completed"),
+    ("Unknown", "unknown"),
+)
+PODCAST_LANGUAGE_NAMES = {
+    "ar": "Arabic",
+    "bg": "Bulgarian",
+    "bn": "Bengali",
+    "ca": "Catalan",
+    "cs": "Czech",
+    "da": "Danish",
+    "de": "German",
+    "el": "Greek",
+    "en": "English",
+    "es": "Spanish",
+    "et": "Estonian",
+    "fa": "Persian",
+    "fi": "Finnish",
+    "fil": "Filipino",
+    "fr": "French",
+    "he": "Hebrew",
+    "hi": "Hindi",
+    "hr": "Croatian",
+    "hu": "Hungarian",
+    "id": "Indonesian",
+    "is": "Icelandic",
+    "it": "Italian",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "lt": "Lithuanian",
+    "lv": "Latvian",
+    "ms": "Malay",
+    "nl": "Dutch",
+    "no": "Norwegian",
+    "pl": "Polish",
+    "pt": "Portuguese",
+    "ro": "Romanian",
+    "ru": "Russian",
+    "sk": "Slovak",
+    "sl": "Slovenian",
+    "sr": "Serbian",
+    "sv": "Swedish",
+    "sw": "Swahili",
+    "ta": "Tamil",
+    "th": "Thai",
+    "tr": "Turkish",
+    "uk": "Ukrainian",
+    "ur": "Urdu",
+    "vi": "Vietnamese",
+    "zh": "Chinese",
+}
 BRAILLE_LYRICS_TIMER_MS = 100
 BRAILLE_LYRIC_LEAD_MS = 1_000
 PHRASE_MODE_TIMER_MS = 25
@@ -261,6 +373,139 @@ DEVELOPER_DASHBOARD_URL = "https://developer.spotify.com/dashboard"
 TICKETMASTER_DEVELOPER_URL = (
     "https://developer.ticketmaster.com/products-and-docs/apis/getting-started/"
 )
+
+
+def normalise_filter_text(value: str) -> str:
+    """Return case- and accent-insensitive text for local list filtering."""
+    folded = value.casefold().translate(
+        str.maketrans({"ł": "l", "đ": "d", "ð": "d", "þ": "th"})
+    )
+    decomposed = unicodedata.normalize("NFKD", folded)
+    return "".join(
+        character
+        for character in decomposed
+        if not unicodedata.combining(character)
+    )
+
+
+def filter_spotify_items(
+    items: list[SpotifyItem],
+    query: str,
+) -> list[SpotifyItem]:
+    words = normalise_filter_text(query).split()
+    if not words:
+        return list(items)
+    return [
+        item
+        for item in items
+        if all(
+            word in normalise_filter_text(item.accessible_label())
+            for word in words
+        )
+    ]
+
+
+SORT_LABELS = {
+    "original": "Original order",
+    "title": "Title",
+    "artist": "Artist",
+    "album": "Album",
+    "duration": "Duration",
+    "date_added": "Date added",
+}
+
+
+def sortable_item_value(item: SpotifyItem, sort_key: str) -> object | None:
+    if sort_key == "title":
+        return normalise_filter_text(item.name)
+    if sort_key == "artist":
+        return normalise_filter_text(item.artist) if item.artist else None
+    if sort_key == "album":
+        return normalise_filter_text(item.album) if item.album else None
+    if sort_key == "duration":
+        return item.duration_ms if item.duration_ms else None
+    if sort_key == "date_added":
+        value = str(item.raw.get("added_at") or "")
+        return value or None
+    return None
+
+
+def sort_spotify_items(
+    items: list[SpotifyItem],
+    sort_key: str,
+    descending: bool = False,
+) -> list[SpotifyItem]:
+    """Sort a displayed copy while retaining missing values at the end."""
+    if sort_key == "original":
+        return list(items)
+    headings = [item for item in items if item.kind == ItemKind.HEADING]
+    items = [item for item in items if item.kind != ItemKind.HEADING]
+    available = [
+        item for item in items if sortable_item_value(item, sort_key) is not None
+    ]
+    missing = [
+        item for item in items if sortable_item_value(item, sort_key) is None
+    ]
+    available.sort(
+        key=lambda item: sortable_item_value(item, sort_key),
+        reverse=descending,
+    )
+    return available + missing + headings
+
+
+def available_sort_keys(items: list[SpotifyItem]) -> set[str]:
+    if not any(item.kind != ItemKind.HEADING for item in items):
+        return set()
+    keys = {"original", "title"}
+    for sort_key in ("artist", "album", "duration", "date_added"):
+        if any(sortable_item_value(item, sort_key) is not None for item in items):
+            keys.add(sort_key)
+    return keys
+
+
+def podcast_language_codes(item: SpotifyItem) -> tuple[str, ...]:
+    languages = item.raw.get("languages") or []
+    if isinstance(languages, str):
+        languages = [languages]
+    return tuple(
+        dict.fromkeys(
+            re.split(r"[-_]", str(language).strip().casefold(), maxsplit=1)[0]
+            for language in languages
+            if str(language).strip()
+        )
+    )
+
+
+def podcast_listening_status(item: SpotifyItem) -> str:
+    if item.kind != ItemKind.EPISODE:
+        return "unknown"
+    resume = item.raw.get("resume_point")
+    if not isinstance(resume, dict):
+        return "unknown"
+    if resume.get("fully_played") is True:
+        return "completed"
+    if int(resume.get("resume_position_ms") or 0) > 0:
+        return "in_progress"
+    return "not_started"
+
+
+def podcast_browse_query(
+    category_label: str,
+    default_query: str,
+    language_code: str,
+) -> str:
+    if language_code == "pl":
+        return POLISH_PODCAST_BROWSE_QUERIES.get(
+            category_label,
+            f"{default_query} po polsku",
+        )
+    if language_code and language_code != "unknown":
+        language_name = PODCAST_LANGUAGE_NAMES.get(
+            language_code,
+            language_code,
+        )
+        return f"{default_query} {language_name}"
+    return default_query
 PAYPAL_DONATE_URL = (
     "https://www.paypal.com/donate?"
     "business=samtaylor9%40me.com&currency_code=AUD&item_name=BlindSpot"
@@ -1821,6 +2066,7 @@ ItemListBase = dv.DataViewListCtrl if ITEM_LIST_USES_DATAVIEW else wx.ListCtrl
 
 
 class ItemList(ItemListBase):
+    TYPEAHEAD_TIMEOUT_SECONDS = 1.0
     ACTIVATED_EVENT = (
         dv.EVT_DATAVIEW_ITEM_ACTIVATED
         if ITEM_LIST_USES_DATAVIEW
@@ -1842,6 +2088,8 @@ class ItemList(ItemListBase):
             self.InsertColumn(0, "")
         self.SetName("Items")
         self.items: list[SpotifyItem] = []
+        self._typeahead_text = ""
+        self._typeahead_time = 0.0
         self.Bind(wx.EVT_SIZE, self.on_size)
         self.Bind(wx.EVT_CHAR_HOOK, self.on_char_hook)
 
@@ -1849,7 +2097,9 @@ class ItemList(ItemListBase):
         panel = self.GetParent()
         get_keycode = getattr(event, "GetKeyCode", None)
         chord = None
-        if get_keycode and get_keycode() in (ord("A"), ord("a")):
+        if get_keycode and get_keycode() in tuple(
+            ord(letter) for letter in "AaCcXxVv"
+        ):
             try:
                 chord = chord_from_event(event)
             except AttributeError:
@@ -1861,6 +2111,21 @@ class ItemList(ItemListBase):
             frame = getattr(panel, "frame", None)
             if frame:
                 frame.say(f"{len(self.GetSelections())} items selected")
+            return
+        if chord in {"Control+C", "Command+C"}:
+            frame = getattr(panel, "frame", None)
+            if frame:
+                frame.copy_items_to_playlist_clipboard(self, cut=False)
+            return
+        if chord in {"Control+X", "Command+X"}:
+            frame = getattr(panel, "frame", None)
+            if frame:
+                frame.copy_items_to_playlist_clipboard(self, cut=True)
+            return
+        if chord in {"Control+V", "Command+V"}:
+            frame = getattr(panel, "frame", None)
+            if frame:
+                frame.paste_playlist_clipboard()
             return
         panel_handler = getattr(panel, "on_item_list_char_hook", None)
         if panel_handler:
@@ -1896,19 +2161,42 @@ class ItemList(ItemListBase):
         if not ord("A") <= keycode <= ord("Z"):
             return False
         letter = chr(keycode).casefold()
+        now = time.monotonic()
+        previous_text = getattr(self, "_typeahead_text", "")
+        previous_time = getattr(self, "_typeahead_time", 0.0)
+        prefix = (
+            previous_text + letter
+            if now - previous_time <= ItemList.TYPEAHEAD_TIMEOUT_SECONDS
+            else letter
+        )
+        self._typeahead_text = prefix
+        self._typeahead_time = now
         count = self.GetItemCount()
         if not count:
             return False
         current = self.GetSelection()
-        for offset in range(1, count + 1):
+        start = 0 if len(prefix) > 1 else 1
+        for offset in range(start, count + start):
             row = (current + offset) % count
             if ITEM_LIST_USES_DATAVIEW:
                 label = str(self.GetTextValue(row, 0))
             else:
                 label = str(self.GetItemText(row, 0))
-            if label.lstrip().casefold().startswith(letter):
+            if label.lstrip().casefold().startswith(prefix):
                 self.SetSelection(row)
                 return True
+        if len(prefix) > 1:
+            self._typeahead_text = letter
+            for offset in range(1, count + 1):
+                row = (current + offset) % count
+                label = (
+                    str(self.GetTextValue(row, 0))
+                    if ITEM_LIST_USES_DATAVIEW
+                    else str(self.GetItemText(row, 0))
+                )
+                if label.lstrip().casefold().startswith(letter):
+                    self.SetSelection(row)
+                    return True
         return False
 
     def on_size(self, event: wx.SizeEvent) -> None:
@@ -2043,6 +2331,14 @@ def item_list_ancestor(window: wx.Window | None) -> ItemList | None:
     return None
 
 
+def focusable_control(window: wx.Window) -> bool:
+    """Report whether Tab can land on this control."""
+    try:
+        return bool(window.IsEnabled() and window.IsShown())
+    except RuntimeError:
+        return False
+
+
 def radio_box_ancestor(window: wx.Window | None) -> wx.RadioBox | None:
     while window:
         if isinstance(window, wx.RadioBox):
@@ -2063,6 +2359,15 @@ class SearchPanel(wx.Panel):
         outer = wx.BoxSizer(wx.VERTICAL)
         query_label = wx.StaticText(self, label="Search query")
         self.query = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
+        self.query.SetName("Search query")
+        tag_label = wx.StaticText(self, label="Genre")
+        self.tag = wx.ComboBox(
+            self,
+            choices=["None", *LASTFM_TAG_CHOICES],
+            style=wx.CB_DROPDOWN | wx.TE_PROCESS_ENTER,
+        )
+        self.tag.SetValue("None")
+        self.tag.SetName("Genre")
         self.categories = wx.RadioBox(
             self,
             label="Search for",
@@ -2083,6 +2388,8 @@ class SearchPanel(wx.Panel):
 
         outer.Add(query_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
         outer.Add(self.query, 0, wx.EXPAND | wx.ALL, 10)
+        outer.Add(tag_label, 0, wx.LEFT | wx.RIGHT, 10)
+        outer.Add(self.tag, 0, wx.EXPAND | wx.ALL, 10)
         outer.Add(self.categories, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
         outer.Add(self.search_button, 0, wx.ALL, 10)
         outer.Add(self.heading, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
@@ -2097,6 +2404,7 @@ class SearchPanel(wx.Panel):
         self.SetSizer(outer)
 
         self.query.Bind(wx.EVT_TEXT_ENTER, self.on_search)
+        self.tag.Bind(wx.EVT_TEXT_ENTER, self.on_search)
         self.categories.Bind(wx.EVT_KEY_DOWN, self.on_category_key)
         self.search_button.Bind(wx.EVT_BUTTON, self.on_search)
         self.album_artwork_button.Bind(
@@ -2121,11 +2429,32 @@ class SearchPanel(wx.Panel):
 
     def on_search(self, event: wx.Event | None = None) -> None:
         query = self.query.GetValue().strip()
-        if not query:
+        tag = self.tag.GetValue().strip()
+        if tag.casefold() == "none":
+            tag = ""
+        if not query and not tag:
             self.frame.say(msg.ENTER_SEARCH_QUERY)
             self.query.SetFocus()
             return
         category = SEARCH_TYPES[self.categories.GetSelection()]
+        if tag:
+            if category not in {"track", "album", "artist"}:
+                self.frame.say(
+                    "Last.fm genre and tag browsing is available for Songs, "
+                    "Albums, and Artists."
+                )
+                self.categories.SetFocus()
+                return
+            self.frame.run_task(
+                f"Finding {tag} {category} results using Last.fm",
+                lambda: self.frame.lastfm_tag_results(
+                    tag,
+                    category,
+                    query=query,
+                ),
+                lambda items: self.show_tag_search(query, tag, category, items),
+            )
+            return
         self.frame.run_task(
             msg.SEARCHING_SPOTIFY,
             lambda: self.frame.spotify.search(query, category),
@@ -2133,7 +2462,10 @@ class SearchPanel(wx.Panel):
         )
 
     def show_search(
-        self, query: str, category: str, items: list[SpotifyItem]
+        self,
+        query: str,
+        category: str,
+        items: list[SpotifyItem],
     ) -> None:
         state = ViewState(
             f"Results for {query}",
@@ -2146,9 +2478,33 @@ class SearchPanel(wx.Panel):
         result_count = sum(
             item.kind != ItemKind.HEADING for item in items
         )
+        self.status.SetLabel(msg.result_count(result_count, query))
         if not result_count:
             self.frame.say(msg.result_count(result_count, query))
             self.query.SetFocus()
+
+    def show_tag_search(
+        self,
+        query: str,
+        tag: str,
+        category: str,
+        items: list[SpotifyItem],
+    ) -> None:
+        state = ViewState(
+            f"Last.fm tag: {tag}",
+            items,
+            query=query,
+            category=category,
+            tag=tag,
+        )
+        self.history.reset(state)
+        self.render(state, focus=True)
+        count = sum(item.kind != ItemKind.HEADING for item in items)
+        self.status.SetLabel(
+            f"{count} Spotify matches from Last.fm tag {tag}."
+        )
+        if not count:
+            self.frame.say(f"No Spotify matches found for Last.fm tag {tag}.")
 
     def on_open(self, event: wx.Event | None = None) -> None:
         item = self.results.selected_item()
@@ -2159,6 +2515,9 @@ class SearchPanel(wx.Panel):
             return
         if item.raw.get("lastfm_load_more"):
             self.frame.load_more_lastfm_mix(item)
+            return
+        if item.raw.get("lastfm_tag_load_more"):
+            self.load_more_tag_results(item)
             return
         if item.raw.get("load_more"):
             self.load_more(item)
@@ -2196,6 +2555,52 @@ class SearchPanel(wx.Panel):
                 if self.history.current is state
                 else None
             ),
+        )
+
+    def load_more_tag_results(self, marker: SpotifyItem) -> None:
+        state = self.history.current
+        page = int(marker.raw.get("page") or 1)
+        self.frame.run_task(
+            "Loading more Last.fm tag results",
+            lambda: self.frame.lastfm_tag_results(
+                state.tag,
+                state.category,
+                query=state.query,
+                page=page,
+            ),
+            lambda items: self.append_tag_results(state, items),
+        )
+
+    def append_tag_results(
+        self,
+        state: ViewState,
+        items: list[SpotifyItem],
+    ) -> None:
+        if self.history.current is not state:
+            return
+        existing = [
+            item
+            for item in state.items
+            if not item.raw.get("lastfm_tag_load_more")
+        ]
+        seen = {item.id for item in existing}
+        additions = [
+            item
+            for item in items
+            if item.raw.get("lastfm_tag_load_more") or item.id not in seen
+        ]
+        added = sum(item.kind != ItemKind.HEADING for item in additions)
+        state.items[:] = existing + additions
+        state.selected = len(existing) if added else max(0, len(existing) - 1)
+        self.render(state, focus=True)
+        self.status.SetLabel(
+            f"{sum(item.kind != ItemKind.HEADING for item in state.items)} "
+            f"Spotify matches from Last.fm tag {state.tag}."
+        )
+        self.frame.say(
+            f"Loaded {added} additional results."
+            if added
+            else msg.NO_MORE_RESULTS
         )
 
     def append_search_results(self, items: list[SpotifyItem]) -> None:
@@ -2350,11 +2755,12 @@ class SearchPanel(wx.Panel):
     def refresh(self) -> None:
         if self.history.can_go_back:
             return
-        if self.history.current.query:
+        if self.history.current.query or self.history.current.tag:
             self.query.SetValue(self.history.current.query)
             self.categories.SetSelection(
                 SEARCH_TYPES.index(self.history.current.category)
             )
+            self.tag.SetValue(self.history.current.tag or "None")
             self.on_search()
 
     def on_list_key(self, event: wx.KeyEvent) -> None:
@@ -2397,6 +2803,18 @@ class SearchPanel(wx.Panel):
                 (
                     f"Show albums by &{artist_name}",
                     lambda: self.open_artist_albums(artist_id, artist_name),
+                )
+            )
+        source_album = (
+            self.history.current.parent_item
+            if self.history.current.parent_kind == ItemKind.ALBUM
+            else None
+        )
+        if source_album:
+            artist_actions.append(
+                (
+                    "&Related albums...",
+                    lambda: self.frame.show_related_albums(source_album),
                 )
             )
         self.frame.popup_item_menu(
@@ -2466,20 +2884,38 @@ class CollectionPanel(wx.Panel):
         self.load_on_first_focus = load_on_first_focus
         self.loaded_once = False
         self.loading = False
+        self.all_items: list[SpotifyItem] = []
+        self.sort_key = "original"
+        self.sort_descending = False
         outer = wx.BoxSizer(wx.VERTICAL)
         self.heading = wx.StaticText(self, label=title)
         self.items = ItemList(self)
         self.items.SetName(title)
         self.status = wx.StaticText(self, label=msg.load_hint(title))
+        self.filter = wx.TextCtrl(self)
+        self.filter.SetName("Filter")
+        set_windows_accessible(
+            self.filter,
+            _NamedControlAccessible,
+            "Filter",
+        )
         outer.Add(self.heading, 0, wx.ALL, 10)
         outer.Add(self.items, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         outer.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        outer.Add(
+            wx.StaticText(self, label="Filter this list"),
+            0,
+            wx.LEFT | wx.RIGHT,
+            10,
+        )
+        outer.Add(self.filter, 0, wx.EXPAND | wx.ALL, 10)
         self.SetSizer(outer)
         self.items.Bind(self.items.ACTIVATED_EVENT, self.on_open)
         self.items.Bind(wx.EVT_KEY_DOWN, self.on_key)
         self.items.Bind(wx.EVT_CONTEXT_MENU, self.on_context_menu)
         self.items.Bind(wx.EVT_NAVIGATION_KEY, self.on_navigation)
         self.items.Bind(wx.EVT_SET_FOCUS, self.on_list_focus)
+        self.filter.Bind(wx.EVT_TEXT, self.on_filter)
 
     def refresh(self) -> None:
         if self.loading:
@@ -2496,8 +2932,59 @@ class CollectionPanel(wx.Panel):
         self.loading = False
         self.loaded_once = True
         self.frame.update_title_for_page(self, self.title)
-        self.items.set_items(items)
-        self.status.SetLabel(msg.item_count(len(items)))
+        self.all_items = list(items)
+        if hasattr(self, "filter"):
+            CollectionPanel.apply_filter(self)
+        else:
+            self.items.set_items(items)
+            self.status.SetLabel(msg.item_count(len(items)))
+
+    def on_filter(self, event: wx.CommandEvent | None = None) -> None:
+        self.apply_filter()
+
+    def apply_filter(self, *, preferred: SpotifyItem | None = None) -> None:
+        if preferred is None:
+            preferred = self.items.selected_item()
+        matches = filter_spotify_items(self.all_items, self.filter.GetValue())
+        matches = sort_spotify_items(
+            matches,
+            self.sort_key,
+            self.sort_descending,
+        )
+        selected = 0
+        if preferred in matches:
+            selected = matches.index(preferred)
+        self.items.set_items(matches, selected)
+        if self.filter.GetValue().strip():
+            status = f"{len(matches)} matching items in {len(self.all_items)}."
+        else:
+            status = msg.item_count(len(self.all_items))
+        if self.sort_key != "original":
+            direction = "descending" if self.sort_descending else "ascending"
+            status += f" Sorted by {SORT_LABELS[self.sort_key]} {direction}."
+        self.status.SetLabel(status)
+
+    def sort_options(self) -> set[str]:
+        return available_sort_keys(self.all_items)
+
+    def current_sort(self) -> tuple[str, bool]:
+        return self.sort_key, self.sort_descending
+
+    def set_sort(self, sort_key: str) -> None:
+        if sort_key not in self.sort_options():
+            return
+        self.sort_key = sort_key
+        if sort_key == "original":
+            self.sort_descending = False
+        self.apply_filter()
+        self.items.SetFocus()
+
+    def set_sort_descending(self, descending: bool) -> None:
+        if self.sort_key == "original":
+            return
+        self.sort_descending = descending
+        self.apply_filter()
+        self.items.SetFocus()
 
     def on_list_focus(self, event: wx.FocusEvent) -> None:
         event.Skip()
@@ -2559,8 +3046,10 @@ class CollectionPanel(wx.Panel):
         )
 
     def finish_remove(self, index: int) -> None:
-        self.items.remove_at(index)
-        self.status.SetLabel(msg.item_count(len(self.items.items)))
+        item = self.items.items[index] if 0 <= index < len(self.items.items) else None
+        if item in self.all_items:
+            self.all_items.remove(item)
+        self.apply_filter()
         self.items.SetFocus()
 
     def on_navigation(self, event: wx.NavigationKeyEvent) -> None:
@@ -2644,6 +3133,100 @@ def new_album_identity(album: SpotifyItem) -> tuple[str, str, int | None]:
 
 
 NEW_MUSIC_RELEASE_TYPES = ("album", "single", "compilation")
+DISCOVER_SOURCES = ("releases", "songs", "albums", "historical_us")
+# Apple's feed allows up to 100 entries. Rows are built from Apple's own data
+# and only looked up on Spotify when someone acts on them, because every lookup
+# is a separate Spotify search and a burst of them earns an hours-long penalty.
+CHART_SIZE = 100
+
+
+def parse_chart_date(value: str) -> date:
+    """Accept an ISO date with or without separators."""
+    text = value.strip()
+    if len(text) == 8 and text.isdigit():
+        text = f"{text[:4]}-{text[4:6]}-{text[6:]}"
+    return date.fromisoformat(text)
+
+
+class ChartResults(NamedTuple):
+    """A chart as Apple published it, before any Spotify lookup."""
+
+    items: list[SpotifyItem]
+    country: str = ""
+    loaded_at: float = 0.0
+    media_type: str = "songs"
+    chart_date: str = ""
+
+
+FIELDS_FROM_SPOTIFY = (
+    "id", "kind", "name", "artist", "album", "duration_ms", "explicit",
+    "year", "total", "uri",
+)
+
+
+def apply_resolved_row(row: SpotifyItem, real: SpotifyItem) -> None:
+    """Fill a chart row with its Spotify track, keeping the same row object.
+
+    Keeping the object means the list, its selection and any marks stay valid,
+    and nothing has to be redrawn or re-announced.
+    """
+    for name in FIELDS_FROM_SPOTIFY:
+        setattr(row, name, getattr(real, name))
+    kept = {
+        key: row.raw[key]
+        for key in ("list_note", "chart_url", "artist_first")
+        if key in row.raw
+    }
+    row.raw = {**real.raw, **kept}
+
+
+def cover_summary(source: SpotifyItem, result: CoverResults) -> str:
+    """Describe a covers list, including what it left out and why."""
+    artists = len({cover.artist for cover in result.covers})
+    noun = "version" if len(result.covers) == 1 else "versions"
+    who = "artist" if artists == 1 else "artists"
+    parts = [
+        f"{len(result.covers)} {noun} by {artists} {who}, from MusicBrainz.",
+        "Live and karaoke recordings and recordings by "
+        f"{source.artist.split(',', 1)[0].strip() or 'the original artist'} "
+        "are left out.",
+    ]
+    if result.examined < result.total_recordings:
+        parts.append(
+            f"Checked the first {result.examined} of "
+            f"{result.total_recordings} recordings."
+        )
+    parts.append(
+        "Songs are looked up on Spotify only when you play, queue or save "
+        "them, so some may be unavailable."
+    )
+    return " ".join(parts)
+
+
+def chart_provenance(result: ChartResults) -> str:
+    """Say where a chart came from and what it can and cannot tell you."""
+    if result.media_type == "historical_us":
+        return (
+            f"Experimental US Billboard Hot 100 for {result.chart_date}, "
+            f"read live from the community archive at {PROJECT_URL}. "
+            "This is an unofficial external dataset and may change or disappear. "
+            "Songs are looked up on Spotify only when you act on them."
+        )
+    noun = "albums" if result.media_type == "albums" else "songs"
+    source = (
+        f"Most played albums on Apple Music in {country_name(result.country)}"
+        if result.media_type == "albums"
+        else f"Most played on Apple Music in {country_name(result.country)}"
+    )
+    stamp = loaded_label(result.loaded_at)
+    if stamp:
+        source += f", loaded {stamp}"
+    return (
+        f"{source}. Apple publishes rank only, with no play counts, "
+        f"reporting period or measurement time. {noun.title()} are looked up on Spotify "
+        "only when you play, queue or save them, so a few may turn out to be "
+        "unavailable."
+    )
 
 
 class NewMusicPanel(CollectionPanel):
@@ -2651,9 +3234,26 @@ class NewMusicPanel(CollectionPanel):
         super().__init__(
             parent,
             frame,
-            "New Music",
+            "Discover",
             lambda: frame.spotify.new_music(self.release_type()),
             silent_load=True,
+        )
+        self.pending_marker: SpotifyItem | None = None
+        self.result_mode = "releases"
+        self.chart_note = ""
+        self.country_touched = False
+        self.country_resolved = False
+        self.discovery_source = wx.RadioBox(
+            self,
+            label="Discover",
+            choices=[
+                "New releases",
+                "Top songs",
+                "Top albums",
+                "Historical US Hot 100 (experimental)",
+            ],
+            majorDimension=1,
+            style=wx.RA_SPECIFY_ROWS,
         )
         self.release_types = wx.RadioBox(
             self,
@@ -2662,20 +3262,122 @@ class NewMusicPanel(CollectionPanel):
             majorDimension=1,
             style=wx.RA_SPECIFY_ROWS,
         )
+        self.chart_country = wx.Choice(
+            self,
+            choices=[name for _code, name in CHART_COUNTRIES],
+        )
+        self.chart_country.SetSelection(
+            next(
+                index
+                for index, (code, _name) in enumerate(CHART_COUNTRIES)
+                if code == DEFAULT_CHART_COUNTRY
+            )
+        )
+        self.chart_country.SetName("Chart country")
+        self.chart_date_label = wx.StaticText(
+            self,
+            label="Historical chart date (YYYY-MM-DD)",
+        )
+        self.chart_date = wx.TextCtrl(self, value=date.today().isoformat())
+        self.chart_date.SetName("Chart date, year-month-day")
         self.search_button = wx.Button(self, label="&Search")
         sizer = self.GetSizer()
-        sizer.Insert(1, self.release_types, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(2, self.search_button, 0, wx.ALL, 10)
+        sizer.Insert(1, self.discovery_source, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(2, self.release_types, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(3, self.chart_country, 0, wx.EXPAND | wx.ALL, 10)
+        sizer.Insert(4, self.chart_date_label, 0, wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(5, self.chart_date, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(6, self.search_button, 0, wx.ALL, 10)
+        self.discovery_source.Bind(wx.EVT_RADIOBOX, self.on_source_changed)
+        self.chart_country.Bind(wx.EVT_CHOICE, self.on_country_chosen)
         self.search_button.Bind(wx.EVT_BUTTON, self.on_search)
-        self.status.SetLabel(msg.NEW_MUSIC_SEARCH_PROMPT)
+        self.status.SetLabel(msg.DISCOVER_SEARCH_PROMPT)
+        self.update_source_controls()
+
+    def on_source_changed(self, event: wx.Event | None = None) -> None:
+        self.update_source_controls()
+        if self.source() in {"songs", "albums"}:
+            self.resolve_account_country()
+
+    def on_country_chosen(self, event: wx.Event | None = None) -> None:
+        # An explicit choice always wins over the account default.
+        self.country_touched = True
+
+    def resolve_account_country(self) -> None:
+        """Preselect the chart for the account's own country, once."""
+        if self.country_resolved or self.country_touched:
+            return
+        self.country_resolved = True
+        self.frame.run_task(
+            None,
+            self.frame.spotify.account_country,
+            self.apply_account_country,
+            failure=self.forget_country_resolution,
+        )
+
+    def forget_country_resolution(self) -> None:
+        self.country_resolved = False
+
+    def apply_account_country(self, code: str) -> None:
+        if self.country_touched or not code:
+            return
+        index = next(
+            (
+                position
+                for position, (value, _name) in enumerate(CHART_COUNTRIES)
+                if value == code.upper()
+            ),
+            None,
+        )
+        if index is not None:
+            self.chart_country.SetSelection(index)
+
+    def update_source_controls(self) -> None:
+        source = self.source()
+        self.release_types.Enable(source == "releases")
+        self.chart_country.Enable(source in {"songs", "albums"})
+        chart_date = getattr(self, "chart_date", None)
+        if chart_date:
+            chart_date.Enable(source == "historical_us")
+
+    def source(self) -> str:
+        return DISCOVER_SOURCES[self.discovery_source.GetSelection()]
 
     def release_type(self) -> str:
         return NEW_MUSIC_RELEASE_TYPES[self.release_types.GetSelection()]
+
+    def chart_country_code(self) -> str:
+        return CHART_COUNTRIES[self.chart_country.GetSelection()][0]
 
     def on_search(self, event: wx.Event | None = None) -> None:
         if self.loading:
             return
         self.loading = True
+        if self.source() in {"songs", "albums"}:
+            country = self.chart_country_code()
+            media_type = self.source()
+            self.frame.run_task(
+                msg.LOADING_MUSIC_CHART,
+                lambda: self.frame.chart_results(country, media_type),
+                self.show_chart_items,
+                failure=self.finish_load_error,
+            )
+            return
+        if self.source() == "historical_us":
+            try:
+                requested = parse_chart_date(self.chart_date.GetValue())
+            except ValueError:
+                self.loading = False
+                self.frame.say("Enter the chart date as year-month-day.")
+                self.chart_date.SetFocus()
+                return
+            self.frame.run_task(
+                "Loading experimental historical chart",
+                lambda: self.frame.historical_chart_results(requested),
+                self.show_chart_items,
+                failure=self.finish_load_error,
+            )
+            return
         release_type = self.release_type()
         self.frame.run_task(
             msg.SEARCHING_SPOTIFY,
@@ -2691,20 +3393,82 @@ class NewMusicPanel(CollectionPanel):
         self.loading = False
         self.loaded_once = True
         releases, loader = self.prepare_items(items)
-        rendered = releases + ([loader] if loader else [])
+        self.result_mode = "releases"
+        self.all_items = releases
+        self.pending_marker = loader
         self.frame.update_title_for_page(self, self.title)
+        self.render_results()
+        if self.items.items:
+            self.items.SetFocus()
+
+    def show_chart_items(self, result: ChartResults) -> None:
+        self.loading = False
+        self.loaded_once = True
+        self.result_mode = "chart"
+        self.chart_note = chart_provenance(result)
+        self.all_items = list(result.items)
+        # The whole chart arrives at once, so there is no next page.
+        self.pending_marker = None
+        self.frame.update_title_for_page(self, self.title)
+        self.render_results()
+        if self.items.items:
+            self.items.SetFocus()
+
+    def item_labels(self, items: list[SpotifyItem]) -> list[str] | None:
+        """Label releases by release date; chart rows label themselves."""
+        if self.result_mode != "releases":
+            return None
+        return [
+            item.accessible_label()
+            if item.raw.get("load_more")
+            else new_album_label(item)
+            for item in items
+        ]
+
+    def apply_filter(self, *, preferred: SpotifyItem | None = None) -> None:
+        if preferred is None:
+            preferred = self.items.selected_item()
+        self.render_results(preferred)
+
+    def render_results(self, preferred: SpotifyItem | None = None) -> None:
+        """Draw the filtered and sorted view, keeping the load-more row last."""
+        matches = sort_spotify_items(
+            filter_spotify_items(self.all_items, self.filter.GetValue()),
+            self.sort_key,
+            self.sort_descending,
+        )
+        rendered = matches + (
+            [self.pending_marker] if self.pending_marker else []
+        )
+        selected = rendered.index(preferred) if preferred in rendered else 0
         self.items.set_items(
             rendered,
-            labels=[
-                item.accessible_label()
-                if item.raw.get("load_more")
-                else new_album_label(item)
-                for item in rendered
-            ],
+            selected,
+            labels=self.item_labels(rendered),
         )
-        self.status.SetLabel(msg.item_count(len(releases)))
-        if rendered:
-            self.items.SetFocus()
+        self.status.SetLabel(self.result_status(len(matches)))
+
+    def result_status(self, shown: int) -> str:
+        total = len(self.all_items)
+        filtering = bool(self.filter.GetValue().strip())
+        if self.result_mode == "chart":
+            status = (
+                f"{shown} matching chart entries in {total}."
+                if filtering
+                else f"{total} chart entries."
+            )
+        else:
+            status = (
+                f"{shown} matching items in {total}."
+                if filtering
+                else msg.item_count(total)
+            )
+        if self.result_mode == "chart" and self.chart_note:
+            status += f" {self.chart_note}"
+        if self.sort_key != "original":
+            direction = "descending" if self.sort_descending else "ascending"
+            status += f" Sorted by {SORT_LABELS[self.sort_key]} {direction}."
+        return status
 
     def prepare_items(
         self,
@@ -2737,12 +3501,18 @@ class NewMusicPanel(CollectionPanel):
         return releases, loader
 
     def on_open(self, event: wx.Event | None = None) -> None:
-        album = self.items.selected_item()
-        if not album:
+        item = self.items.selected_item()
+        if not item:
             return
-        if album.raw.get("load_more"):
-            self.load_more(album)
+        if self.frame.resolve_then([item], lambda: self.on_open()):
             return
+        if item.raw.get("load_more"):
+            self.load_more(item)
+            return
+        if item.kind == ItemKind.TRACK:
+            self.frame.play_playable_item(item)
+            return
+        album = item
         self.frame.run_task(
             msg.opening(album.name),
             lambda: self.frame.spotify.children(album),
@@ -2761,42 +3531,20 @@ class NewMusicPanel(CollectionPanel):
         )
 
     def append_items(self, items: list[SpotifyItem]) -> None:
-        existing = [
-            item
-            for item in self.items.items
-            if not item.raw.get("load_more")
-        ]
-        existing_keys = {new_album_identity(item) for item in existing}
+        existing_keys = {new_album_identity(item) for item in self.all_items}
         page_releases, loader = self.prepare_items(items)
         new_releases = [
             item
             for item in page_releases
             if new_album_identity(item) not in existing_keys
         ]
-        releases = existing + new_releases
-        no_new_releases = not new_releases
-        if no_new_releases:
-            loader = None
-        rendered = releases + ([loader] if loader else [])
-        selected = (
-            len(existing)
-            if new_releases
-            else max(0, len(releases) - 1)
-        )
-        self.items.set_items(
-            rendered,
-            selected=selected,
-            labels=[
-                item.accessible_label()
-                if item.raw.get("load_more")
-                else new_album_label(item)
-                for item in rendered
-            ],
-        )
-        self.status.SetLabel(msg.item_count(len(releases)))
+        self.all_items = self.all_items + new_releases
+        self.pending_marker = loader if new_releases else None
+        self.render_results(new_releases[0] if new_releases else None)
         self.items.SetFocus()
-        if no_new_releases:
+        if not new_releases:
             self.frame.say(msg.NO_MORE_RESULTS)
+
 
 
 class ConcertsPanel(wx.Panel):
@@ -3107,6 +3855,25 @@ class BookmarksPanel(CollectionPanel):
         if self.items.items:
             self.items.SetFocus()
 
+    def rename_selected(self) -> None:
+        item = self.items.selected_item()
+        if not item:
+            return
+        current_name = str(item.raw.get("bookmark_name") or "")
+        dialog = wx.TextEntryDialog(
+            self,
+            "Enter a bookmark name. Leave blank to use the track or episode title.",
+            "Rename bookmark",
+            current_name,
+        )
+        try:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            self.frame.rename_bookmark(item, dialog.GetValue().strip())
+        finally:
+            dialog.Destroy()
+        self.render(self.history.current, focus=True)
+
     def on_context_menu(self, event: wx.Event | None = None) -> None:
         item = self.items.selected_item()
         if not item:
@@ -3128,6 +3895,10 @@ class BookmarksPanel(CollectionPanel):
             (
                 menu.Append(wx.ID_ANY, "&Save to library"),
                 lambda: self.frame.like_selected(item),
+            ),
+            (
+                menu.Append(wx.ID_ANY, "Re&name bookmark..."),
+                self.rename_selected,
             ),
         ]
         menu.AppendSeparator()
@@ -3168,15 +3939,30 @@ class PlaylistsPanel(wx.Panel):
         self.items = ItemList(self)
         self.items.SetName(title)
         self.status = wx.StaticText(self, label=msg.PLAYLISTS_LOAD_HINT)
+        self.filter = wx.TextCtrl(self)
+        self.filter.SetName("Filter")
+        set_windows_accessible(
+            self.filter,
+            _NamedControlAccessible,
+            "Filter",
+        )
         outer.Add(self.heading, 0, wx.ALL, 10)
         outer.Add(self.items, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         outer.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        outer.Add(
+            wx.StaticText(self, label="Filter this list"),
+            0,
+            wx.LEFT | wx.RIGHT,
+            10,
+        )
+        outer.Add(self.filter, 0, wx.EXPAND | wx.ALL, 10)
         self.SetSizer(outer)
 
         self.items.Bind(wx.EVT_SET_FOCUS, self.on_focus)
         self.items.Bind(wx.EVT_KEY_DOWN, self.on_key)
         self.items.Bind(self.items.ACTIVATED_EVENT, self.on_open)
         self.items.Bind(wx.EVT_CONTEXT_MENU, self.on_context_menu)
+        self.filter.Bind(wx.EVT_TEXT, self.on_filter)
 
     def on_focus(self, event: wx.FocusEvent) -> None:
         event.Skip()
@@ -3238,7 +4024,10 @@ class PlaylistsPanel(wx.Panel):
             else:
                 self.frame.play(item)
             return
-        self.history.remember_selection(self.items.GetSelection())
+        if item in self.history.current.items:
+            self.history.remember_selection(
+                self.history.current.items.index(item)
+            )
         self.loading = True
         self.frame.run_task(
             None,
@@ -3284,10 +4073,88 @@ class PlaylistsPanel(wx.Panel):
     def render(self, state: ViewState, *, focus: bool) -> None:
         self.heading.SetLabel(state.title)
         self.frame.update_title_for_page(self, state.title)
-        self.items.set_items(state.items, state.selected)
-        self.status.SetLabel(msg.item_count(len(state.items)))
+        preferred = (
+            state.items[state.selected]
+            if 0 <= state.selected < len(state.items)
+            else None
+        )
+        matches = self.filtered_items(state.items)
+        matches = sort_spotify_items(
+            matches,
+            state.sort_key,
+            state.sort_descending,
+        )
+        selected = matches.index(preferred) if preferred in matches else 0
+        self.items.set_items(matches, selected)
+        self.update_filter_status(len(matches), len(state.items))
         if focus:
             self.items.SetFocus()
+
+    def on_filter(self, event: wx.CommandEvent | None = None) -> None:
+        state = self.history.current
+        preferred = self.items.selected_item()
+        if preferred in state.items:
+            state.selected = state.items.index(preferred)
+        self.render(state, focus=False)
+
+    def filtered_items(
+        self,
+        items: list[SpotifyItem],
+    ) -> list[SpotifyItem]:
+        return filter_spotify_items(items, self.filter.GetValue())
+
+    def update_filter_status(self, matches: int, total: int) -> None:
+        if self.filter.GetValue().strip():
+            self.status.SetLabel(f"{matches} matching items in {total}.")
+        else:
+            self.status.SetLabel(msg.item_count(total))
+        state = self.history.current
+        if state.sort_key != "original":
+            direction = "descending" if state.sort_descending else "ascending"
+            self.status.SetLabel(
+                self.status.GetLabel()
+                + f" Sorted by {SORT_LABELS[state.sort_key]} {direction}."
+            )
+
+    def sort_options(self) -> set[str]:
+        return available_sort_keys(self.history.current.items)
+
+    def current_sort(self) -> tuple[str, bool]:
+        state = self.history.current
+        return state.sort_key, state.sort_descending
+
+    def set_sort(self, sort_key: str) -> None:
+        if sort_key not in self.sort_options():
+            return
+        state = self.history.current
+        preferred = self.items.selected_item()
+        if preferred in state.items:
+            state.selected = state.items.index(preferred)
+        state.sort_key = sort_key
+        if sort_key == "original":
+            state.sort_descending = False
+        self.render(state, focus=True)
+
+    def set_sort_descending(self, descending: bool) -> None:
+        state = self.history.current
+        if state.sort_key == "original":
+            return
+        state.sort_descending = descending
+        self.render(state, focus=True)
+
+    def filtered_playback_items(
+        self,
+        selected: SpotifyItem,
+    ) -> list[SpotifyItem]:
+        """Return the visible playback sequence beginning at selected."""
+        if not self.filter.GetValue().strip() or selected not in self.items.items:
+            return []
+        start = self.items.items.index(selected)
+        return [
+            item
+            for item in self.items.items[start:]
+            if item.playable and item.uri
+        ]
 
     def on_key(self, event: wx.KeyEvent) -> None:
         key = event.GetKeyCode()
@@ -3323,6 +4190,17 @@ class PlaylistsPanel(wx.Panel):
         if playlist.raw.get("editable") is False:
             self.frame.say(msg.READ_ONLY)
             return
+        answer = wx.MessageBox(
+            (
+                f'Remove "{item.name}" from the playlist '
+                f'"{playlist.name}"?'
+            ),
+            "Remove playlist item",
+            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+            self,
+        )
+        if answer != wx.YES:
+            return
         index = self.items.GetSelection()
         self.frame.run_task(
             None,
@@ -3331,10 +4209,12 @@ class PlaylistsPanel(wx.Panel):
         )
 
     def finish_remove(self, index: int) -> None:
-        self.items.remove_at(index)
-        self.history.current.items = list(self.items.items)
-        self.history.current.selected = self.items.GetSelection()
-        self.status.SetLabel(msg.item_count(len(self.items.items)))
+        item = self.items.items[index] if 0 <= index < len(self.items.items) else None
+        state = self.history.current
+        if item in state.items:
+            state.items.remove(item)
+        state.selected = min(index, max(0, len(state.items) - 1))
+        self.render(state, focus=False)
         self.items.SetFocus()
 
     def on_context_menu(self, event: wx.Event | None = None) -> None:
@@ -3354,17 +4234,31 @@ class PlaylistsPanel(wx.Panel):
             and self.current_playlist.raw.get("owned") is True
             else None
         )
-        playlist_actions = (
-            [
+        playlist_actions = [
+            (
+                "&Copy to playlist...",
+                lambda: self.frame.choose_playlist_for_items(
+                    self.items.marked_items() or [item]
+                ),
+            )
+        ]
+        if removable:
+            playlist_actions.append(
+                (
+                    "Move to another &playlist...",
+                    self.move_selected_to_playlist,
+                )
+            )
+        if (
+            self.current_playlist
+            and self.current_playlist.raw.get("owned") is True
+        ):
+            playlist_actions.append(
                 (
                     "Find &alternate versions...",
                     self.find_alternate_versions,
                 )
-            ]
-            if self.current_playlist
-            and self.current_playlist.raw.get("owned") is True
-            else None
-        )
+            )
         self.frame.popup_item_menu(
             self.items,
             item,
@@ -3382,10 +4276,49 @@ class PlaylistsPanel(wx.Panel):
             top_level_actions=playlist_actions,
         )
 
+    def move_selected_to_playlist(self) -> None:
+        source = self.current_playlist
+        if not source or source.raw.get("editable") is False:
+            self.frame.say(msg.READ_ONLY)
+            return
+        selected = self.items.marked_items() or [self.items.selected_item()]
+        selections = locate_playlist_selections(
+            self.history.current.items,
+            [item for item in selected if item and item.uri],
+        )
+        if not selections:
+            self.frame.say(msg.SELECT_TRACK_OR_EPISODE)
+            return
+        self.frame.choose_playlist_for_items(
+            [selection.item for selection in selections],
+            move_from=source,
+            move_selections=selections,
+            on_moved=lambda: self.finish_move_to_playlist(selections),
+        )
+
+    def finish_move_to_playlist(
+        self, moved: list[PlaylistSelection]
+    ) -> None:
+        state = self.history.current
+        for selection in sorted(
+            moved, key=lambda selection: selection.source_index, reverse=True
+        ):
+            if 0 <= selection.source_index < len(state.items):
+                del state.items[selection.source_index]
+        state.selected = min(
+            self.items.GetSelection(), max(0, len(state.items) - 1)
+        )
+        self.render(state, focus=False)
+        self.items.SetFocus()
+
     def find_alternate_versions(self) -> None:
         playlist = self.current_playlist
         original = self.items.selected_item()
-        source = self.items.GetSelection()
+        source = (
+            self.history.current.items.index(original)
+            if original in self.history.current.items
+            else -1
+        )
         if (
             not playlist
             or playlist.raw.get("owned") is not True
@@ -3440,13 +4373,11 @@ class PlaylistsPanel(wx.Panel):
             wx.CallAfter(self.restore_playlist_item_focus, source)
 
     def restore_playlist_item_focus(self, source: int) -> None:
-        if (
-            not self.history.can_go_back
-            or not 0 <= source < len(self.items.items)
-        ):
+        state = self.history.current
+        if not self.history.can_go_back or not 0 <= source < len(state.items):
             return
-        self.items.SetSelection(source)
-        self.history.current.selected = source
+        state.selected = source
+        self.render(state, focus=False)
         self.items.SetFocus()
 
     def replace_playlist_track(
@@ -3459,8 +4390,8 @@ class PlaylistsPanel(wx.Panel):
     ) -> None:
         if (
             self.current_playlist is not playlist
-            or not 0 <= source < len(self.items.items)
-            or self.items.items[source].uri != original.uri
+            or not 0 <= source < len(self.history.current.items)
+            or self.history.current.items[source].uri != original.uri
         ):
             return
         answer = wx.MessageBox(
@@ -3492,19 +4423,41 @@ class PlaylistsPanel(wx.Panel):
         replacement: SpotifyItem,
         dialog: AlternateVersionsDialog,
     ) -> None:
-        tracks = list(self.items.items)
+        tracks = list(self.history.current.items)
         tracks[source] = replacement
         self.history.current.items = tracks
         self.history.current.selected = source
-        self.items.set_items(tracks, source)
+        if hasattr(self, "render"):
+            self.render(self.history.current, focus=False)
+        else:
+            self.items.set_items(tracks, source)
         dialog.finish_replace()
         self.frame.say(msg.PLAYLIST_TRACK_REPLACED)
 
     def playlist_move_actions(
         self,
     ) -> list[tuple[str, Callable[[], None]]]:
-        source = self.items.GetSelection()
-        total = len(self.items.items)
+        history = getattr(self, "history", None)
+        state_items = (
+            history.current.items
+            if history is not None
+            else self.items.items
+        )
+        selected_item = getattr(self.items, "selected_item", None)
+        selected = selected_item() if selected_item else None
+        if selected is None:
+            visible_source = self.items.GetSelection()
+            selected = (
+                state_items[visible_source]
+                if 0 <= visible_source < len(state_items)
+                else None
+            )
+        source = (
+            state_items.index(selected)
+            if selected in state_items
+            else -1
+        )
+        total = len(state_items)
         if source < 0 or total < 2:
             return []
         actions: list[tuple[str, Callable[[], None]]] = []
@@ -3534,8 +4487,13 @@ class PlaylistsPanel(wx.Panel):
         return actions
 
     def move_selected_to_position(self) -> None:
-        source = self.items.GetSelection()
-        total = len(self.items.items)
+        selected = self.items.selected_item()
+        source = (
+            self.history.current.items.index(selected)
+            if selected in self.history.current.items
+            else -1
+        )
+        total = len(self.history.current.items)
         if source < 0 or total < 2:
             return
         dialog = wx.TextEntryDialog(
@@ -3561,8 +4519,13 @@ class PlaylistsPanel(wx.Panel):
 
     def move_selected_to(self, target: int) -> None:
         playlist = self.current_playlist
-        source = self.items.GetSelection()
-        total = len(self.items.items)
+        selected = self.items.selected_item()
+        source = (
+            self.history.current.items.index(selected)
+            if selected in self.history.current.items
+            else -1
+        )
+        total = len(self.history.current.items)
         if (
             not playlist
             or playlist.raw.get("owned") is not True
@@ -3582,12 +4545,15 @@ class PlaylistsPanel(wx.Panel):
         )
 
     def finish_move(self, source: int, target: int) -> None:
-        tracks = list(self.items.items)
+        tracks = list(self.history.current.items)
         track = tracks.pop(source)
         tracks.insert(target, track)
         self.history.current.items = tracks
         self.history.current.selected = target
-        self.items.set_items(tracks, target)
+        if hasattr(self, "render"):
+            self.render(self.history.current, focus=False)
+        else:
+            self.items.set_items(tracks, target)
         self.items.SetFocus()
         self.frame.say(msg.playlist_item_moved(target + 1, len(tracks)))
 
@@ -3750,7 +4716,10 @@ class AudiobooksPanel(PlaylistsPanel):
         if self.history.can_go_back:
             self.frame.play_audiobook_chapter(item)
             return
-        self.history.remember_selection(self.items.GetSelection())
+        if item in self.history.current.items:
+            self.history.remember_selection(
+                self.history.current.items.index(item)
+            )
         self.loading = True
         self.frame.run_task(
             None,
@@ -3827,6 +4796,15 @@ class PodcastsPanel(PlaylistsPanel):
         )
         self.browse_category.SetSelection(0)
         browse_controls.Add(self.browse_category, 1, wx.RIGHT, 6)
+        browse_controls.Add(
+            wx.StaticText(self, label="Language"),
+            0,
+            wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+            6,
+        )
+        self.language_filter = wx.Choice(self)
+        self.language_options: list[tuple[str, str]] = []
+        browse_controls.Add(self.language_filter, 1, wx.RIGHT, 6)
         self.browse_button = wx.Button(self, label="&Browse podcasts")
         browse_controls.Add(self.browse_button, 0, wx.RIGHT, 6)
         self.saved_button = wx.Button(self, label="Show &saved podcasts")
@@ -3838,18 +4816,148 @@ class PodcastsPanel(PlaylistsPanel):
             wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
             10,
         )
+        podcast_filters = wx.BoxSizer(wx.HORIZONTAL)
+        podcast_filters.Add(
+            wx.StaticText(self, label="Listening status"),
+            0,
+            wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+            6,
+        )
+        self.listening_status_filter = wx.Choice(
+            self,
+            choices=[label for label, _value in PODCAST_LISTENING_STATUSES],
+        )
+        self.listening_status_filter.SetSelection(0)
+        podcast_filters.Add(self.listening_status_filter, 1)
+        self.GetSizer().Add(
+            podcast_filters,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            10,
+        )
+        self.update_language_options([])
         self.browse_button.Bind(wx.EVT_BUTTON, self.on_browse)
         self.saved_button.Bind(wx.EVT_BUTTON, self.on_show_saved)
+        self.language_filter.Bind(wx.EVT_CHOICE, self.on_filter)
+        self.listening_status_filter.Bind(wx.EVT_CHOICE, self.on_filter)
         self.saved_button.MoveBeforeInTabOrder(self.items)
         self.browse_button.MoveBeforeInTabOrder(self.saved_button)
-        self.browse_category.MoveBeforeInTabOrder(self.browse_button)
+        self.language_filter.MoveBeforeInTabOrder(self.browse_button)
+        self.browse_category.MoveBeforeInTabOrder(self.language_filter)
         self.Layout()
+
+    def update_language_options(self, items: list[SpotifyItem]) -> None:
+        selected_code = ""
+        selection = self.language_filter.GetSelection()
+        if 0 <= selection < len(self.language_options):
+            selected_code = self.language_options[selection][1]
+        codes = sorted(
+            set(PODCAST_LANGUAGE_NAMES)
+            | {
+                code
+                for item in items
+                for code in podcast_language_codes(item)
+            },
+            key=lambda code: PODCAST_LANGUAGE_NAMES.get(code, code).casefold(),
+        )
+        options = [("All languages", "")]
+        options.extend(
+            (
+                f"{PODCAST_LANGUAGE_NAMES.get(code, code)} ({code})",
+                code,
+            )
+            for code in codes
+        )
+        options.append(("Unknown language", "unknown"))
+        self.language_options = options
+        self.language_filter.Set(
+            [label for label, _code in self.language_options]
+        )
+        selected = next(
+            (
+                index
+                for index, (_label, code) in enumerate(options)
+                if code == selected_code
+            ),
+            0,
+        )
+        self.language_filter.SetSelection(selected)
+
+    def selected_language_code(self) -> str:
+        selection = self.language_filter.GetSelection()
+        if 0 <= selection < len(self.language_options):
+            return self.language_options[selection][1]
+        return ""
+
+    def render(self, state: ViewState, *, focus: bool) -> None:
+        self.update_language_options(state.items)
+        super().render(state, focus=focus)
+
+    def filtered_items(
+        self,
+        items: list[SpotifyItem],
+    ) -> list[SpotifyItem]:
+        pagination = [item for item in items if item.kind == ItemKind.HEADING]
+        matches = super().filtered_items(
+            [item for item in items if item.kind != ItemKind.HEADING]
+        )
+        language = self.selected_language_code()
+        status_selection = self.listening_status_filter.GetSelection()
+        status = PODCAST_LISTENING_STATUSES[
+            max(0, status_selection)
+        ][1]
+        if language:
+            matches = [
+                item
+                for item in matches
+                if (
+                    not podcast_language_codes(item)
+                    if language == "unknown"
+                    else language in podcast_language_codes(item)
+                )
+            ]
+        if status != "all":
+            matches = [
+                item
+                for item in matches
+                if podcast_listening_status(item) == status
+            ]
+        return matches + pagination
+
+    def update_filter_status(self, matches: int, total: int) -> None:
+        matches = sum(
+            item.kind != ItemKind.HEADING for item in self.items.items
+        )
+        total = sum(
+            item.kind != ItemKind.HEADING
+            for item in self.history.current.items
+        )
+        filters_active = bool(self.filter.GetValue().strip())
+        filters_active = filters_active or self.language_filter.GetSelection() > 0
+        filters_active = (
+            filters_active or self.listening_status_filter.GetSelection() > 0
+        )
+        if filters_active:
+            incomplete = any(
+                item.raw.get("load_more")
+                or item.raw.get("load_more_episodes")
+                for item in self.history.current.items
+            )
+            scope = "loaded items" if incomplete else "items"
+            self.status.SetLabel(f"{matches} matching {scope} in {total}.")
+        else:
+            super().update_filter_status(matches, total)
 
     def on_browse(self, event: wx.Event | None = None) -> None:
         if self.loading:
             return
         index = self.browse_category.GetSelection()
-        label, query = PODCAST_BROWSE_CATEGORIES[max(0, index)]
+        label, default_query = PODCAST_BROWSE_CATEGORIES[max(0, index)]
+        query = podcast_browse_query(
+            label,
+            default_query,
+            self.selected_language_code(),
+        )
         self.loading = True
         self.frame.run_task(
             msg.SEARCHING_SPOTIFY,
@@ -3876,11 +4984,30 @@ class PodcastsPanel(PlaylistsPanel):
         self.current_playlist = None
         self.render(state, focus=True)
         count = sum(show.kind == ItemKind.SHOW for show in shows)
-        self.status.SetLabel(
-            f"{count} podcast search results. Not a complete Spotify catalogue."
+        rendered_items = getattr(
+            getattr(self, "items", None),
+            "items",
+            shows,
         )
-        if not count:
-            self.frame.say("No podcasts found for this category.")
+        visible_count = sum(
+            show.kind == ItemKind.SHOW for show in rendered_items
+        )
+        selected_language = (
+            self.selected_language_code()
+            if hasattr(self, "selected_language_code")
+            else ""
+        )
+        if selected_language:
+            self.update_filter_status(visible_count, count)
+        else:
+            self.status.SetLabel(
+                f"{count} podcast search results. "
+                "Not a complete Spotify catalogue."
+            )
+        if not visible_count:
+            self.frame.say(
+                "No podcasts found with the selected category and language."
+            )
 
     def on_show_saved(self, event: wx.Event | None = None) -> None:
         if self.loading:
@@ -3960,7 +5087,10 @@ class PodcastsPanel(PlaylistsPanel):
             return
         if item.kind != ItemKind.SHOW:
             return
-        self.history.remember_selection(self.items.GetSelection())
+        if item in self.history.current.items:
+            self.history.remember_selection(
+                self.history.current.items.index(item)
+            )
         self.loading = True
         self.frame.run_task(
             None,
@@ -4002,10 +5132,27 @@ class PodcastsPanel(PlaylistsPanel):
         state.items[:] = existing + additions
         state.selected = first_new if added else max(0, first_new - 1)
         self.render(state, focus=True)
-        self.status.SetLabel(
-            f"{len(existing) + added} podcast search results. "
-            "Not a complete Spotify catalogue."
+        total = sum(show.kind == ItemKind.SHOW for show in state.items)
+        rendered_items = getattr(
+            getattr(self, "items", None),
+            "items",
+            state.items,
         )
+        visible = sum(
+            show.kind == ItemKind.SHOW for show in rendered_items
+        )
+        selected_language = (
+            self.selected_language_code()
+            if hasattr(self, "selected_language_code")
+            else ""
+        )
+        if selected_language:
+            self.update_filter_status(visible, total)
+        else:
+            self.status.SetLabel(
+                f"{total} podcast search results. "
+                "Not a complete Spotify catalogue."
+            )
         self.frame.say(
             f"Loaded {added} additional podcasts."
             if added
@@ -4252,10 +5399,158 @@ class NowPlayingPanel(wx.Panel):
         self.frame.on_global_key(event)
 
 
+def copy_to_clipboard(text: str) -> bool:
+    """Put text on the system clipboard. Returns False if it was unavailable."""
+    clipboard = wx.TheClipboard
+    if not clipboard.Open():
+        return False
+    try:
+        return bool(clipboard.SetData(wx.TextDataObject(text)))
+    finally:
+        clipboard.Close()
+
+
+def default_export_dir() -> Path:
+    documents = Path.home() / "Documents"
+    return documents if documents.is_dir() else Path.home()
+
+
+class ErrorDialog(wx.Dialog):
+    """An error message with a button that copies shareable details.
+
+    Escape and Close simply dismiss it, so copying is always deliberate.
+    """
+
+    def __init__(
+        self,
+        parent: wx.Window | None,
+        message: str,
+        on_copy: Callable[[], None],
+    ) -> None:
+        super().__init__(
+            parent,
+            title="BlindSpot",
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        self.text = wx.TextCtrl(
+            self,
+            value=message,
+            style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_WORDWRAP,
+            size=(480, 120),
+        )
+        self.text.SetName("Error")
+        self.copy_button = wx.Button(self, label="&Copy error details")
+        self.close_button = wx.Button(self, wx.ID_OK, "&Close")
+        self.close_button.SetDefault()
+        self.SetAffirmativeId(wx.ID_OK)
+        self.SetEscapeId(wx.ID_OK)
+        buttons = wx.BoxSizer(wx.HORIZONTAL)
+        buttons.Add(self.copy_button, 0, wx.RIGHT, 8)
+        buttons.Add(self.close_button)
+        outer = wx.BoxSizer(wx.VERTICAL)
+        outer.Add(self.text, 1, wx.EXPAND | wx.ALL, 10)
+        outer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        self.SetSizerAndFit(outer)
+        self.copy_button.Bind(wx.EVT_BUTTON, lambda event: on_copy())
+        self.text.SetFocus()
+
+
+class DiagnosticDialog(wx.Dialog):
+    """Shows the exact developer report, and lets the user choose what goes in."""
+
+    def __init__(
+        self,
+        parent: wx.Window | None,
+        render: Callable[[bool, bool], str],
+        on_copy: Callable[[str], None],
+        on_save: Callable[[wx.Window, str], None],
+    ) -> None:
+        super().__init__(
+            parent,
+            title="Capture log for developer",
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        self.render = render
+        self.on_copy = on_copy
+        self.on_save = on_save
+        intro = wx.StaticText(
+            self,
+            label=(
+                "This report lists BlindSpot and system versions, non-secret "
+                "settings and the last error. Passwords, tokens and API keys "
+                "are always removed. Read it below before you copy or save it."
+            ),
+        )
+        intro.Wrap(560)
+        self.include_log = wx.CheckBox(self, label="Include recent &log lines")
+        self.include_names = wx.CheckBox(
+            self,
+            label=(
+                "Include song, artist and &playlist names and search terms "
+                "in the log lines"
+            ),
+        )
+        self.include_names.Disable()
+        self.report = wx.TextCtrl(
+            self,
+            style=wx.TE_MULTILINE | wx.TE_READONLY,
+            size=(640, 340),
+        )
+        self.report.SetName("Report contents")
+        self.copy_button = wx.Button(self, label="&Copy to clipboard")
+        self.save_button = wx.Button(self, label="&Save to file...")
+        self.close_button = wx.Button(self, wx.ID_CLOSE, "Close")
+        self.SetAffirmativeId(wx.ID_CLOSE)
+        self.SetEscapeId(wx.ID_CLOSE)
+        buttons = wx.BoxSizer(wx.HORIZONTAL)
+        buttons.Add(self.copy_button, 0, wx.RIGHT, 8)
+        buttons.Add(self.save_button, 0, wx.RIGHT, 8)
+        buttons.Add(self.close_button)
+        outer = wx.BoxSizer(wx.VERTICAL)
+        outer.Add(intro, 0, wx.ALL, 10)
+        outer.Add(self.include_log, 0, wx.LEFT | wx.RIGHT, 10)
+        outer.Add(self.include_names, 0, wx.ALL, 10)
+        outer.Add(self.report, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        outer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.ALL, 10)
+        self.SetSizerAndFit(outer)
+        self.include_log.Bind(wx.EVT_CHECKBOX, self.on_options_changed)
+        self.include_names.Bind(wx.EVT_CHECKBOX, self.on_options_changed)
+        self.copy_button.Bind(
+            wx.EVT_BUTTON,
+            lambda event: self.on_copy(self.report.GetValue()),
+        )
+        self.save_button.Bind(wx.EVT_BUTTON, self.on_save_clicked)
+        self.refresh()
+        self.report.SetFocus()
+
+    def on_save_clicked(self, event: wx.Event | None = None) -> None:
+        # The file dialog must be a child of this dialog, not of the main
+        # window behind it, or closing it hands focus to a disabled window.
+        self.on_save(self, self.report.GetValue())
+        self.save_button.SetFocus()
+
+    def on_options_changed(self, event: wx.Event | None = None) -> None:
+        self.include_names.Enable(self.include_log.GetValue())
+        if not self.include_log.GetValue():
+            self.include_names.SetValue(False)
+        self.refresh()
+
+    def refresh(self) -> None:
+        self.report.SetValue(
+            self.render(
+                self.include_log.GetValue(),
+                self.include_names.GetValue(),
+            )
+        )
+        self.report.SetInsertionPoint(0)
+
+
 class MainFrame(wx.Frame):
     def __init__(self, spotify: SpotifyClient, store: PortableStore) -> None:
         super().__init__(None, title="BlindSpot", size=(820, 620))
         self.spotify = spotify
+        self.playlist_operations = PlaylistOperations(spotify)
+        self.playlist_clipboard: PlaylistClipboard | None = None
         self.store = store
         settings = self.store.read("settings.json", {}) or {}
         raw_keymap = self.store.read("keymap.json", {}) or {}
@@ -4308,6 +5603,10 @@ class MainFrame(wx.Frame):
         self.lastfm = LastfmClient(
             str(settings.get("lastfm_api_key") or DEFAULT_LASTFM_API_KEY)
         )
+        self.applemusic = AppleMusicClient()
+        self.historical_charts = HistoricalHot100Client()
+        self.musicbrainz = MusicBrainzClient()
+        self.last_error: diagnostics.ErrorDetails | None = None
         self.remote_device_id: str | None = None
         self.remote_device_name = ""
         self.remote_supports_volume: bool | None = None
@@ -4378,7 +5677,7 @@ class MainFrame(wx.Frame):
             (self.audiobooks, "Audiobooks"),
             (self.podcasts, "Podcasts"),
             (self.saved_albums, "Saved Albums"),
-            (self.new_music, "New Music"),
+            (self.new_music, "Discover"),
             (self.concerts, "Concerts"),
         ):
             set_windows_accessible(panel, _NamedPageAccessible, label)
@@ -4473,13 +5772,32 @@ class MainFrame(wx.Frame):
     def _build_menu(self) -> None:
         ctrl = "RAWCTRL" if sys.platform == "darwin" else "Ctrl"
         menu_bar = wx.MenuBar()
+        file_menu = wx.Menu()
+        export_list = file_menu.Append(wx.ID_ANY, "&Export list...")
+        menu_bar.Append(file_menu, "&File")
         edit = wx.Menu()
         select_all_label = (
             "Select &all (Command+A)"
             if sys.platform == "darwin"
             else "Select &all (Ctrl+A)"
         )
+        clipboard_key = "Command" if sys.platform == "darwin" else "Ctrl"
+        cut_items = edit.Append(
+            wx.ID_CUT, f"Cu&t playlist items ({clipboard_key}+X)"
+        )
+        copy_items = edit.Append(
+            wx.ID_COPY, f"&Copy playlist items ({clipboard_key}+C)"
+        )
+        paste_items = edit.Append(
+            wx.ID_PASTE, f"&Paste playlist items ({clipboard_key}+V)"
+        )
+        edit.AppendSeparator()
         select_all = edit.Append(wx.ID_SELECTALL, select_all_label)
+        self.edit_menu = edit
+        self.select_all_item = select_all
+        self.cut_items_menu_item = cut_items
+        self.copy_items_menu_item = copy_items
+        self.paste_items_menu_item = paste_items
         menu_bar.Append(edit, "&Edit")
         go = wx.Menu()
         play_selected = go.Append(
@@ -4704,7 +6022,7 @@ class MainFrame(wx.Frame):
         )
         open_new_music = go.Append(
             wx.ID_ANY,
-            f"Open New &Music{menu_function_shortcut(f'{ctrl}+0')}",
+            f"Open &Discover{menu_function_shortcut(f'{ctrl}+0')}",
         )
         open_concerts = go.Append(
             wx.ID_ANY,
@@ -4714,6 +6032,42 @@ class MainFrame(wx.Frame):
             ),
         )
         menu_bar.Append(go, "&Go")
+
+        view = wx.Menu()
+        sort_menu = wx.Menu()
+        self.sort_menu_items: dict[str, wx.MenuItem] = {}
+        for sort_key in (
+            "original",
+            "title",
+            "artist",
+            "album",
+            "duration",
+            "date_added",
+        ):
+            menu_item = sort_menu.AppendRadioItem(
+                wx.ID_ANY,
+                SORT_LABELS[sort_key],
+            )
+            self.sort_menu_items[sort_key] = menu_item
+            self.Bind(
+                wx.EVT_MENU,
+                lambda event, key=sort_key: self.sort_current_view(key),
+                menu_item,
+            )
+        self.sort_submenu_item = view.AppendSubMenu(sort_menu, "&Sort by")
+        self.sort_descending_item = view.AppendCheckItem(
+            wx.ID_ANY,
+            "&Descending",
+        )
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.set_current_sort_descending(
+                self.sort_descending_item.IsChecked()
+            ),
+            self.sort_descending_item,
+        )
+        self.view_menu = view
+        menu_bar.Append(view, "&View")
 
         options = wx.Menu()
         preferences = options.Append(
@@ -4746,13 +6100,32 @@ class MainFrame(wx.Frame):
         )
         donate = help_menu.Append(wx.ID_ANY, "&Donate to Project")
         help_menu.AppendSeparator()
+        copy_error = help_menu.Append(wx.ID_ANY, "Copy last &error details")
+        capture_log = help_menu.Append(wx.ID_ANY, "Capture &log for developer...")
+        help_menu.AppendSeparator()
         about = help_menu.Append(wx.ID_ABOUT, "&About BlindSpot...")
         menu_bar.Append(help_menu, "&Help")
         self.SetMenuBar(menu_bar)
+        self.Bind(wx.EVT_MENU_OPEN, self.on_menu_open)
         self.Bind(
             wx.EVT_MENU,
             lambda event: self.select_all_in_current_list(),
             select_all,
+        )
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.copy_selected_items(cut=True),
+            cut_items,
+        )
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.copy_selected_items(cut=False),
+            copy_items,
+        )
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.paste_playlist_clipboard(),
+            paste_items,
         )
         self.Bind(wx.EVT_MENU, lambda event: self.play_selected(), play_selected)
         self.Bind(
@@ -4948,6 +6321,21 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_sign_out, sign_out)
         self.Bind(wx.EVT_MENU, lambda event: self.Close(), close)
         self.Bind(wx.EVT_MENU, self.on_manual, manual)
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.export_list_command(),
+            export_list,
+        )
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.copy_error_details(),
+            copy_error,
+        )
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.open_diagnostic_report(),
+            capture_log,
+        )
         self.Bind(wx.EVT_MENU, self.on_check_updates, check_updates)
         self.Bind(
             wx.EVT_MENU,
@@ -4989,6 +6377,68 @@ class MainFrame(wx.Frame):
 
     def set_view_title(self, title: str) -> None:
         self.SetTitle(f"{title} - BlindSpot")
+
+    def current_sort_panel(self) -> CollectionPanel | PlaylistsPanel | None:
+        panel_names = {
+            1: "liked",
+            3: "playlists",
+            5: "bookmarks",
+            6: "audiobooks",
+            7: "podcasts",
+            8: "saved_albums",
+            9: "new_music",
+        }
+        name = panel_names.get(self.notebook.GetSelection())
+        return getattr(self, name, None) if name else None
+
+    def on_menu_open(self, event: wx.MenuEvent) -> None:
+        event.Skip()
+        if event.GetMenu() is self.edit_menu:
+            page = self.notebook.GetSelection()
+            self.select_all_item.Enable(
+                page != 9 or self.new_music.result_mode == "chart"
+            )
+            current_list = self.current_item_list()
+            self.copy_items_menu_item.Enable(current_list is not None)
+            playlist = self.playlists.current_playlist
+            editable_playlist = bool(
+                page == 3
+                and self.playlists.history.can_go_back
+                and playlist
+                and playlist.raw.get("editable") is not False
+            )
+            self.cut_items_menu_item.Enable(
+                bool(current_list) and editable_playlist
+            )
+            self.paste_items_menu_item.Enable(
+                bool(self.playlist_clipboard) and editable_playlist
+            )
+            return
+        if event.GetMenu() is not self.view_menu:
+            return
+        panel = self.current_sort_panel()
+        options = panel.sort_options() if panel else set()
+        sort_key, descending = (
+            panel.current_sort() if panel else ("original", False)
+        )
+        self.sort_submenu_item.Enable(bool(options))
+        for key, menu_item in self.sort_menu_items.items():
+            menu_item.Enable(key in options)
+            menu_item.Check(key == sort_key)
+        self.sort_descending_item.Enable(
+            panel is not None and sort_key != "original"
+        )
+        self.sort_descending_item.Check(descending)
+
+    def sort_current_view(self, sort_key: str) -> None:
+        panel = self.current_sort_panel()
+        if panel:
+            panel.set_sort(sort_key)
+
+    def set_current_sort_descending(self, descending: bool) -> None:
+        panel = self.current_sort_panel()
+        if panel:
+            panel.set_sort_descending(descending)
 
     def update_title_for_page(self, page: wx.Window, title: str) -> None:
         if self.notebook.GetCurrentPage() is page:
@@ -5033,6 +6483,7 @@ class MainFrame(wx.Frame):
                 expected_unavailable = (
                     PlaylistContentsUnavailable,
                     LyricsUnavailable,
+                    CoversUnavailable,
                 )
                 if isinstance(error, expected_unavailable):
                     logger.info(
@@ -5044,6 +6495,11 @@ class MainFrame(wx.Frame):
                     logger.exception(
                         "Background task failed: %s",
                         message or "unnamed task",
+                    )
+                    self.last_error = diagnostics.capture_error(
+                        error,
+                        str(error),
+                        message or "",
                     )
                 error_message = str(error)
 
@@ -5060,6 +6516,7 @@ class MainFrame(wx.Frame):
                         (
                             PlaylistContentsUnavailable,
                             LyricsUnavailable,
+                            CoversUnavailable,
                         ),
                     ):
                         self.say(caught_message)
@@ -5091,9 +6548,193 @@ class MainFrame(wx.Frame):
             self.recently_played.loaded_once = True
             self.say(msg.RECENT_NOT_AUTHORIZED)
 
-    def show_error(self, message: str) -> None:
+    def show_error(
+        self,
+        message: str,
+        parent: wx.Window | None = None,
+    ) -> None:
         self.say(message)
-        wx.MessageBox(message, "BlindSpot", wx.OK | wx.ICON_ERROR, self)
+        # Failures from background tasks were recorded with their traceback;
+        # anything else is recorded here with just its message.
+        if not self.last_error or self.last_error.message != message:
+            self.last_error = diagnostics.capture_error(None, message)
+        dialog = ErrorDialog(parent or self, message, self.copy_error_details)
+        dialog.ShowModal()
+        dialog.Destroy()
+
+    def known_secrets(self) -> list[str]:
+        """Every credential BlindSpot holds, so reports can strip them."""
+        settings = self.store.read("settings.json", {}) or {}
+        token = getattr(self.spotify, "token", None) or {}
+        values = [
+            token.get("access_token"),
+            token.get("refresh_token"),
+            token.get("client_id"),
+            settings.get("ticketmaster_api_key"),
+            settings.get("lastfm_api_key"),
+        ]
+        return [str(value) for value in values if value]
+
+    def copy_text(self, text: str, done: str) -> None:
+        if copy_to_clipboard(text):
+            self.say(done)
+        else:
+            self.say(msg.CLIPBOARD_UNAVAILABLE)
+
+    def copy_error_details(self) -> None:
+        if not self.last_error:
+            self.say(msg.NO_ERROR_TO_COPY)
+            return
+        self.copy_text(
+            diagnostics.error_report(self.last_error, self.known_secrets()),
+            msg.ERROR_DETAILS_COPIED,
+        )
+
+    def diagnostic_text(self, include_log: bool, include_names: bool) -> str:
+        settings = self.store.read("settings.json", {}) or {}
+        level = str(settings.get("logging_level") or "Off")
+        token = getattr(self.spotify, "token", None) or {}
+        log_lines = (
+            diagnostics.tail_lines(self.store.root / "blindspot.log")
+            if include_log
+            else None
+        )
+        return diagnostics.diagnostic_report(
+            settings,
+            secrets_configured={
+                "Spotify client ID": "set" if token.get("client_id") else "not set",
+                "Ticketmaster key": (
+                    "set" if settings.get("ticketmaster_api_key") else "not set"
+                ),
+                "Last.fm key": (
+                    "custom" if settings.get("lastfm_api_key") else "built-in default"
+                ),
+            },
+            connected=bool(self.spotify.connected),
+            last_error=self.last_error,
+            log_lines=log_lines,
+            logging_level=level,
+            include_names=include_names,
+            secrets=self.known_secrets(),
+        )
+
+    def open_diagnostic_report(self) -> None:
+        dialog = DiagnosticDialog(
+            self,
+            self.diagnostic_text,
+            lambda text: self.copy_text(text, msg.REPORT_COPIED),
+            lambda parent, text: self.save_text_report(
+                text,
+                "BlindSpot diagnostic report",
+                parent,
+            ),
+        )
+        dialog.ShowModal()
+        dialog.Destroy()
+
+    def save_text_report(
+        self,
+        text: str,
+        default_name: str,
+        parent: wx.Window | None = None,
+    ) -> None:
+        """Save a report; `parent` is the dialog that asked, so focus returns to it."""
+        dialog = wx.FileDialog(
+            parent or self,
+            "Save report",
+            defaultDir=str(default_export_dir()),
+            defaultFile=default_name,
+            wildcard="Text file (*.txt)|*.txt",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        )
+        if dialog.ShowModal() != wx.ID_OK:
+            dialog.Destroy()
+            return
+        path = Path(dialog.GetPath())
+        dialog.Destroy()
+        if not path.suffix:
+            path = path.with_suffix(".txt")
+        try:
+            path.write_text(text, encoding="utf-8")
+        except OSError as error:
+            self.show_error(
+                msg.file_save_failed(error.strerror or error),
+                parent=parent,
+            )
+            return
+        self.say(f"Report saved to {path.name}.")
+
+    def current_view_name(self) -> str:
+        page = self.notebook.GetSelection()
+        if page == 0:
+            return self.search.history.current.title
+        return self.notebook.GetPageText(page)
+
+    def export_list_command(self) -> None:
+        """Export the list in view, or the playlist or album selected in it."""
+        item_list = self.current_item_list()
+        if item_list is None:
+            self.say(msg.NOTHING_TO_EXPORT)
+            return
+        items = list(item_list.items)
+        if any(exporting.is_exportable(item) for item in items):
+            self.export_items(self.current_view_name(), items)
+            return
+        selected = item_list.selected_item()
+        if selected and selected.kind in {
+            ItemKind.PLAYLIST,
+            ItemKind.ALBUM,
+            ItemKind.SHOW,
+        }:
+            self.run_task(
+                f"Loading {selected.name} to export",
+                lambda: self.spotify.children(selected),
+                lambda tracks: self.export_items(selected.name, tracks),
+            )
+            return
+        self.say(msg.NOTHING_TO_EXPORT)
+
+    def export_items(self, name: str, items: list[SpotifyItem]) -> None:
+        if not exporting.export_rows(items):
+            self.say(msg.NOTHING_TO_EXPORT)
+            return
+        partial = exporting.is_partial(items)
+        dialog = wx.FileDialog(
+            self,
+            "Export list",
+            defaultDir=str(default_export_dir()),
+            defaultFile=exporting.safe_filename(name),
+            wildcard=(
+                "Plain text (*.txt)|*.txt|CSV spreadsheet (*.csv)|*.csv"
+            ),
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        )
+        if dialog.ShowModal() != wx.ID_OK:
+            dialog.Destroy()
+            return
+        path = dialog.GetPath()
+        fmt = exporting.format_for_path(path, dialog.GetFilterIndex())
+        dialog.Destroy()
+        if not Path(path).suffix:
+            path += f".{fmt}"
+        try:
+            count = exporting.write_export(
+                path,
+                fmt,
+                name,
+                items,
+                partial=partial,
+            )
+        except OSError as error:
+            self.show_error(msg.file_save_failed(error.strerror or error))
+            return
+        logger.info(
+            "Exported %d items format=%s partial=%s",
+            count,
+            fmt,
+            partial,
+        )
+        self.say(msg.exported_items(count, Path(path).name, partial))
 
     def on_connect(self, event: wx.Event | None) -> None:
         dialog = SetupDialog(self, self.spotify.client_id)
@@ -5549,14 +7190,25 @@ class MainFrame(wx.Frame):
             if page == 0:
                 self.search.focus_query()
             elif page == 9:
-                self.new_music.release_types.SetFocus()
+                self.new_music.discovery_source.SetFocus()
             elif page == 10:
                 self.concerts.keyword.SetFocus()
             return True
         if not focused_list:
             return False
         if action == "select_all":
-            focused_list.select_all_items()
+            notebook = getattr(self, "notebook", None)
+            new_music = getattr(self, "new_music", None)
+            discover_allows_selection = (
+                new_music is not None
+                and getattr(new_music, "result_mode", "releases") == "chart"
+            )
+            if (
+                notebook is None
+                or notebook.GetSelection() != 9
+                or discover_allows_selection
+            ):
+                focused_list.select_all_items()
         elif action == "open_similar_focused":
             self.open_similar_mix(focused_list.selected_item())
         elif action == "start_similar_focused":
@@ -5815,7 +7467,7 @@ class MainFrame(wx.Frame):
             if page == 0:
                 self.search.focus_query()
             elif page == 9:
-                self.new_music.release_types.SetFocus()
+                self.new_music.discovery_source.SetFocus()
         elif event.AltDown() and key == wx.WXK_LEFT:
             if self.notebook.GetSelection() == 0 and self.search.go_back():
                 return
@@ -5903,6 +7555,7 @@ class MainFrame(wx.Frame):
             controls: list[wx.Window] = [
                 self.notebook,
                 self.search.query,
+                getattr(self.search, "tag", None),
                 self.search.categories,
                 self.search.search_button,
                 self.search.results,
@@ -5915,33 +7568,68 @@ class MainFrame(wx.Frame):
             if artwork_button and artwork_button.IsShown():
                 controls.insert(-1, artwork_button)
         elif page == 1:
-            controls = [self.notebook, self.liked.items]
+            controls = [
+                self.notebook,
+                self.liked.items,
+                getattr(self.liked, "filter", None),
+            ]
         elif page == 2:
-            controls = [self.notebook, self.queue.items]
+            controls = [
+                self.notebook,
+                self.queue.items,
+                getattr(self.queue, "filter", None),
+            ]
         elif page == 3:
-            controls = [self.notebook, self.playlists.items]
+            controls = [
+                self.notebook,
+                self.playlists.items,
+                getattr(self.playlists, "filter", None),
+            ]
         elif page == 4:
-            controls = [self.notebook, self.recently_played.items]
+            controls = [
+                self.notebook,
+                self.recently_played.items,
+                getattr(self.recently_played, "filter", None),
+            ]
         elif page == 5:
-            controls = [self.notebook, self.bookmarks.items]
+            controls = [
+                self.notebook,
+                self.bookmarks.items,
+                getattr(self.bookmarks, "filter", None),
+            ]
         elif page == 6:
-            controls = [self.notebook, self.audiobooks.items]
+            controls = [
+                self.notebook,
+                self.audiobooks.items,
+                getattr(self.audiobooks, "filter", None),
+            ]
         elif page == 7:
             controls = [
                 self.notebook,
                 self.podcasts.browse_category,
+                getattr(self.podcasts, "language_filter", None),
                 self.podcasts.browse_button,
                 self.podcasts.saved_button,
                 self.podcasts.items,
+                getattr(self.podcasts, "filter", None),
+                getattr(self.podcasts, "listening_status_filter", None),
             ]
         elif page == 8:
-            controls = [self.notebook, self.saved_albums.items]
+            controls = [
+                self.notebook,
+                self.saved_albums.items,
+                getattr(self.saved_albums, "filter", None),
+            ]
         elif page == 9:
             controls = [
                 self.notebook,
+                self.new_music.discovery_source,
                 self.new_music.release_types,
+                self.new_music.chart_country,
+                getattr(self.new_music, "chart_date", None),
                 self.new_music.search_button,
                 self.new_music.items,
+                getattr(self.new_music, "filter", None),
             ]
         else:
             controls = [
@@ -5960,6 +7648,13 @@ class MainFrame(wx.Frame):
         now_playing = getattr(self, "now_playing", None)
         if now_playing:
             controls.append(now_playing.items)
+        # A disabled control silently swallows SetFocus, which would strand
+        # Tab on the control before it, so skip anything unfocusable.
+        controls = [
+            control
+            for control in controls
+            if control is not None and focusable_control(control)
+        ]
 
         focused = wx.Window.FindFocus()
         focused_list = item_list_ancestor(focused)
@@ -5982,7 +7677,7 @@ class MainFrame(wx.Frame):
             type(target).__name__,
         )
         target.SetFocus()
-        if isinstance(target, wx.TextCtrl):
+        if isinstance(target, (wx.TextCtrl, wx.ComboBox)):
             target.SelectAll()
 
     def using_local_player(self) -> bool:
@@ -6541,6 +8236,8 @@ class MainFrame(wx.Frame):
         self.play_from_lyric(item, position_ms)
 
     def play_playable_item(self, item: SpotifyItem) -> None:
+        if self.resolve_then([item], lambda: self.play_playable_item(item)):
+            return
         if item.kind in {ItemKind.EPISODE, ItemKind.CHAPTER}:
             position_ms = int(item.raw.get("resume_position_ms") or 0)
             if item.raw.get("resume_point", {}).get("fully_played"):
@@ -6639,6 +8336,14 @@ class MainFrame(wx.Frame):
         self,
         item_list: ItemList | None = None,
     ) -> None:
+        notebook = getattr(self, "notebook", None)
+        new_music = getattr(self, "new_music", None)
+        if (
+            notebook is not None
+            and notebook.GetSelection() == 9
+            and getattr(new_music, "result_mode", "releases") != "chart"
+        ):
+            return
         target = item_list or self.current_item_list()
         if not target:
             return
@@ -6652,6 +8357,10 @@ class MainFrame(wx.Frame):
             return
         if item.kind == ItemKind.HEADING:
             self.say(msg.SELECT_PLAYABLE_ITEM)
+            return
+        current_list = getattr(self, "current_item_list", lambda: None)()
+        chosen = (current_list.marked_items() if current_list else []) or [item]
+        if self.resolve_then(chosen, lambda: self.play_selected()):
             return
         page = self.notebook.GetSelection()
         item_list = getattr(self, "current_item_list", lambda: None)()
@@ -6710,6 +8419,10 @@ class MainFrame(wx.Frame):
             page == 3
             and self.playlists.current_playlist
         ):
+            filtered_items = self.playlists.filtered_playback_items(item)
+            if filtered_items:
+                self.play_items(filtered_items)
+                return
             self.play_in_context(self.playlists.current_playlist, item)
             return
         self.play_playable_item(item)
@@ -7090,6 +8803,7 @@ class MainFrame(wx.Frame):
         raw["bookmark_position_ms"] = position_ms
         raw["bookmark_context_uri"] = str(record.get("context_uri") or "")
         raw["bookmark_position_label"] = self.bookmark_position_label(position_ms)
+        raw["bookmark_name"] = str(record.get("bookmark_name") or "")
         return SpotifyItem(
             id=str(record["track_id"]),
             kind=ItemKind.TRACK,
@@ -7231,6 +8945,27 @@ class MainFrame(wx.Frame):
             )
         self.say(msg.BOOKMARK_DELETED)
 
+    def rename_bookmark(self, item: SpotifyItem, name: str) -> None:
+        bookmark_id = str(item.raw.get("bookmark_id") or "")
+        records = self.store.read("bookmarks.json", []) or []
+        if not isinstance(records, list):
+            return
+        for record in records:
+            if (
+                isinstance(record, dict)
+                and str(record.get("bookmark_id") or "") == bookmark_id
+            ):
+                if name:
+                    record["bookmark_name"] = name
+                else:
+                    record.pop("bookmark_name", None)
+                break
+        else:
+            return
+        self.store.write("bookmarks.json", records)
+        item.raw["bookmark_name"] = name
+        self.say("Bookmark renamed." if name else "Bookmark name cleared.")
+
     def resume_bookmark(self, item: SpotifyItem) -> None:
         device_id = self.player_device_id()
         if not device_id:
@@ -7268,6 +9003,19 @@ class MainFrame(wx.Frame):
         self.send_next_track(device_id)
 
     def send_next_track(self, device_id: str) -> None:
+        current = self.current_player_item
+        state = getattr(self, "current_player_state", {}) or {}
+        if current:
+            logger.info(
+                "Skipping to next track current_id=%s current_name=%r "
+                "context=%s repeat=%s shuffle=%s",
+                current.id,
+                current.name,
+                state.get("context_uri", ""),
+                getattr(self, "repeat_state", None) or "unknown",
+                getattr(self, "shuffle_enabled", None),
+            )
+
         self.run_task(
             None,
             lambda: self.spotify.next_track(device_id),
@@ -7326,7 +9074,7 @@ class MainFrame(wx.Frame):
 
     def open_new_music_tab(self) -> None:
         self.notebook.SetSelection(9)
-        self.new_music.release_types.SetFocus()
+        self.new_music.discovery_source.SetFocus()
 
     def open_concerts_tab(self) -> None:
         self.notebook.SetSelection(10)
@@ -7358,6 +9106,11 @@ class MainFrame(wx.Frame):
             panels[page].on_context_menu()
 
     def open_selected_track_album(self, item: SpotifyItem | None) -> None:
+        if item and self.resolve_then(
+            [item],
+            lambda: self.open_selected_track_album(item),
+        ):
+            return
         if item and item.kind == ItemKind.TRACK:
             self.open_album_for_track(item)
 
@@ -7382,6 +9135,11 @@ class MainFrame(wx.Frame):
         self.toggle_like_item(item)
 
     def toggle_like_item(self, item: SpotifyItem | None) -> None:
+        if item and self.resolve_then(
+            [item],
+            lambda: self.toggle_like_item(item),
+        ):
+            return
         if not item or not item.uri:
             self.say(msg.NO_ITEM_SELECTED)
             return
@@ -7397,23 +9155,170 @@ class MainFrame(wx.Frame):
         self.say(msg.LIKED if saved else msg.UNLIKED)
 
     def choose_playlist_for_selected(self) -> None:
-        item = self.current_selected_item()
-        self.choose_playlist_for_item(item)
+        focused_list = item_list_ancestor(wx.Window.FindFocus())
+        items = focused_list.marked_items() if focused_list else []
+        if not items:
+            focused = (
+                focused_list.selected_item()
+                if focused_list
+                else self.current_selected_item()
+            )
+            items = [focused] if focused else []
+        self.choose_playlist_for_items(items)
+
+    def copy_items_to_playlist_clipboard(
+        self, item_list: ItemList, *, cut: bool
+    ) -> None:
+        selected = item_list.marked_items() or [item_list.selected_item()]
+        selected = [
+            item
+            for item in selected
+            if item
+            and item.kind in {ItemKind.TRACK, ItemKind.EPISODE}
+            and item.uri
+        ]
+        if not selected:
+            self.say(msg.SELECT_TRACK_OR_EPISODE)
+            return
+        source = None
+        source_items: list[SpotifyItem] = []
+        if cut:
+            playlists = self.playlists
+            if (
+                item_list is not playlists.items
+                or not playlists.history.can_go_back
+                or not playlists.current_playlist
+                or playlists.current_playlist.raw.get("editable") is False
+            ):
+                self.say(
+                    "Cut is available only inside an editable playlist."
+                )
+                return
+            source = playlists.current_playlist
+            source_items = list(playlists.history.current.items)
+            selections = locate_playlist_selections(source_items, selected)
+        else:
+            selections = [
+                PlaylistSelection(item, -1) for item in selected
+            ]
+        if not selections:
+            self.say(msg.SELECT_TRACK_OR_EPISODE)
+            return
+        self.playlist_clipboard = PlaylistClipboard(
+            tuple(selections),
+            cut=cut,
+            source=source,
+        )
+        count = len(selections)
+        action = "Cut" if cut else "Copied"
+        noun = "item" if count == 1 else "items"
+        self.say(f"{action} {count} {noun}. Open a playlist and paste.")
+
+    def copy_selected_items(self, *, cut: bool) -> None:
+        item_list = self.current_item_list()
+        if not item_list:
+            self.say(msg.NO_ITEM_SELECTED)
+            return
+        self.copy_items_to_playlist_clipboard(item_list, cut=cut)
+
+    def paste_playlist_clipboard(self) -> None:
+        clipboard = self.playlist_clipboard
+        playlists = self.playlists
+        destination = playlists.current_playlist
+        if not clipboard:
+            self.say("The playlist clipboard is empty.")
+            return
+        if (
+            not playlists.history.can_go_back
+            or not destination
+            or destination.raw.get("editable") is False
+        ):
+            self.say("Open an editable playlist before pasting.")
+            return
+        if (
+            clipboard.cut
+            and clipboard.source
+            and clipboard.source.id == destination.id
+        ):
+            self.say("The cut items are already in this playlist.")
+            return
+        items = [selection.item for selection in clipboard.selections]
+
+        def task() -> None:
+            if clipboard.cut and clipboard.source:
+                self.playlist_operations.move(
+                    clipboard.source,
+                    destination,
+                    list(clipboard.selections),
+                )
+            else:
+                self.playlist_operations.copy(
+                    destination, list(clipboard.selections)
+                )
+
+        self.run_task(
+            None,
+            task,
+            lambda result: self.finish_playlist_paste(
+                destination, items, clipboard
+            ),
+        )
+
+    def finish_playlist_paste(
+        self,
+        destination: SpotifyItem,
+        items: list[SpotifyItem],
+        clipboard: PlaylistClipboard,
+    ) -> None:
+        self.finish_add_to_playlist(
+            destination, items, moved=clipboard.cut
+        )
+        if clipboard.cut and self.playlist_clipboard is clipboard:
+            self.playlist_clipboard = None
 
     def choose_playlist_for_item(self, item: SpotifyItem | None) -> None:
-        if not item or item.kind not in {ItemKind.TRACK, ItemKind.EPISODE}:
+        self.choose_playlist_for_items([item] if item else [])
+
+    def choose_playlist_for_items(
+        self,
+        items: list[SpotifyItem],
+        *,
+        move_from: SpotifyItem | None = None,
+        move_selections: list[PlaylistSelection] | None = None,
+        on_moved: Callable[[], None] | None = None,
+    ) -> None:
+        if self.resolve_then(
+            items,
+            lambda: self.choose_playlist_for_items(
+                items,
+                move_from=move_from,
+                move_selections=move_selections,
+                on_moved=on_moved,
+            ),
+        ):
+            return
+        items = [
+            item
+            for item in items
+            if item.kind in {ItemKind.TRACK, ItemKind.EPISODE} and item.uri
+        ]
+        if not items:
             self.say(msg.SELECT_TRACK_OR_EPISODE)
             return
         self.run_task(
             None,
             self.spotify.user_playlists,
             lambda playlists: self.show_playlist_picker(
-                item,
+                items,
                 [
                     playlist
                     for playlist in playlists
                     if playlist.raw.get("editable") is not False
+                    and (not move_from or playlist.id != move_from.id)
                 ],
+                move_from=move_from,
+                move_selections=move_selections,
+                on_moved=on_moved,
             ),
         )
 
@@ -7441,8 +9346,12 @@ class MainFrame(wx.Frame):
 
     def show_playlist_picker(
         self,
-        item: SpotifyItem,
+        items: list[SpotifyItem],
         playlists: list[SpotifyItem],
+        *,
+        move_from: SpotifyItem | None = None,
+        move_selections: list[PlaylistSelection] | None = None,
+        on_moved: Callable[[], None] | None = None,
     ) -> None:
         if not playlists:
             self.say(msg.NO_PLAYLISTS)
@@ -7450,7 +9359,7 @@ class MainFrame(wx.Frame):
         dialog = wx.SingleChoiceDialog(
             self,
             msg.CHOOSE_PLAYLIST,
-            "Add to playlist",
+            "Move to playlist" if move_from else "Copy to playlist",
             [playlist.accessible_label() for playlist in playlists],
         )
         if dialog.ShowModal() != wx.ID_OK:
@@ -7458,22 +9367,58 @@ class MainFrame(wx.Frame):
             return
         playlist = playlists[dialog.GetSelection()]
         dialog.Destroy()
+
+        def task() -> None:
+            if move_from:
+                self.playlist_operations.move(
+                    move_from,
+                    playlist,
+                    move_selections
+                    or [
+                        PlaylistSelection(item, index)
+                        for index, item in enumerate(items)
+                    ],
+                )
+            else:
+                self.playlist_operations.copy(
+                    playlist,
+                    [PlaylistSelection(item, -1) for item in items],
+                )
+
         self.run_task(
             None,
-            lambda: self.spotify.add_to_playlist(playlist, item),
-            lambda result: self.finish_add_to_playlist(playlist, item),
+            task,
+            lambda result: self.finish_add_to_playlist(
+                playlist, items, moved=bool(move_from), on_moved=on_moved
+            ),
         )
 
     def finish_add_to_playlist(
         self,
         playlist: SpotifyItem,
-        item: SpotifyItem,
+        items: SpotifyItem | list[SpotifyItem],
+        *,
+        moved: bool = False,
+        on_moved: Callable[[], None] | None = None,
     ) -> None:
-        self.say(msg.ADDED)
+        if isinstance(items, SpotifyItem):
+            items = [items]
+        count = len(items)
+        self.say(
+            ("Moved 1 item to the playlist." if moved else "Added 1 item to the playlist.")
+            if count == 1
+            else (
+                f"Moved {count} items to the playlist."
+                if moved
+                else f"Added {count} items to the playlist."
+            )
+        )
+        if moved and on_moved:
+            on_moved()
         current = self.playlists.current_playlist
         if not current or current.id != playlist.id:
             return
-        self.playlists.history.current.items.append(item)
+        self.playlists.history.current.items.extend(items)
         self.playlists.render(
             self.playlists.history.current,
             focus=False,
@@ -7724,6 +9669,11 @@ class MainFrame(wx.Frame):
         event.Skip()
 
     def queue_selected(self, item: SpotifyItem | None) -> None:
+        if item and self.resolve_then(
+            [item],
+            lambda: self.queue_selected(item),
+        ):
+            return
         if not item or not item.uri or not item.playable:
             return
         if self.queue_should_be_deferred():
@@ -7749,6 +9699,11 @@ class MainFrame(wx.Frame):
             self.queue_selected(self.current_selected_item())
 
     def queue_from_list(self, item_list: ItemList) -> None:
+        chosen = item_list.marked_items() or (
+            [item_list.selected_item()] if item_list.selected_item() else []
+        )
+        if self.resolve_then(chosen, lambda: self.queue_from_list(item_list)):
+            return
         marked = [
             item
             for item in item_list.marked_items()
@@ -7982,6 +9937,22 @@ class MainFrame(wx.Frame):
         ] | None = None,
         include_select_all: bool = True,
     ) -> None:
+        if self.resolve_then(
+            [item],
+            lambda: self.popup_item_menu(
+                owner,
+                item,
+                open_callback=open_callback,
+                play_callback=play_callback,
+                remove_callback=remove_callback,
+                remove_label=remove_label,
+                include_album_action=include_album_action,
+                additional_actions=additional_actions,
+                top_level_actions=top_level_actions,
+                include_select_all=include_select_all,
+            ),
+        ):
+            return
         menu = wx.Menu()
         actions: list[tuple[wx.MenuItem, Callable[[], None]]] = []
         if open_callback:
@@ -7998,6 +9969,12 @@ class MainFrame(wx.Frame):
                 )
             )
         if item.kind == ItemKind.ALBUM:
+            actions.append(
+                (
+                    menu.Append(wx.ID_ANY, "&Related albums..."),
+                    lambda: self.show_related_albums(item),
+                )
+            )
             actions.append(
                 (
                     menu.Append(wx.ID_ANY, "Display album &artwork..."),
@@ -8104,6 +10081,20 @@ class MainFrame(wx.Frame):
                     lambda: self.find_similar_artists(item),
                 )
             )
+        if item.kind in (ItemKind.TRACK, ItemKind.ARTIST):
+            actions.append(
+                (
+                    menu.Append(wx.ID_ANY, "Browse &genres (Last.fm)..."),
+                    lambda: self.browse_genres_for(item),
+                )
+            )
+        if item.kind == ItemKind.TRACK:
+            actions.append(
+                (
+                    menu.Append(wx.ID_ANY, "Find &covers (MusicBrainz)"),
+                    lambda: self.find_covers_for(item),
+                )
+            )
         if item.raw.get("lastfm_url"):
             actions.append(
                 (
@@ -8182,8 +10173,110 @@ class MainFrame(wx.Frame):
         self.play_playable_item(item)
 
     def show_artist_albums(self, artist_id: str, artist_name: str) -> None:
+        origin_page = self.notebook.GetSelection()
+        artist = SpotifyItem(artist_id, ItemKind.ARTIST, artist_name)
+        self.run_task(
+            msg.opening(artist_name),
+            lambda: self.spotify.children(artist),
+            lambda albums: self.finish_show_artist_albums(
+                origin_page,
+                artist,
+                albums,
+            ),
+        )
+
+    def finish_show_artist_albums(
+        self,
+        origin_page: int,
+        artist: SpotifyItem,
+        albums: list[SpotifyItem],
+    ) -> None:
         self.notebook.SetSelection(0)
-        self.search.open_artist_albums(artist_id, artist_name)
+        self.search.open_children(artist, albums)
+        if origin_page != 0:
+            self.open_album_return_page = origin_page
+            self.open_album_return_state = self.search.history.current
+        wx.CallAfter(self.focus_open_album)
+
+    def show_related_albums(self, album: SpotifyItem) -> None:
+        origin_page = self.notebook.GetSelection()
+        self.run_task(
+            f"Finding albums related to {album.name}",
+            lambda: self.related_albums_for(album),
+            lambda albums: self.finish_show_related_albums(
+                origin_page,
+                album,
+                albums,
+            ),
+        )
+
+    def related_albums_for(self, source_album: SpotifyItem) -> list[SpotifyItem]:
+        tracks = [
+            item
+            for item in self.spotify.children(source_album)
+            if item.kind == ItemKind.TRACK and item.artist
+        ]
+        if not tracks:
+            return []
+        seed_indexes = sorted({0, len(tracks) // 2, len(tracks) - 1})
+        candidates: list[SimilarTrack] = []
+        seen_candidates: set[tuple[str, str]] = set()
+        for index in seed_indexes:
+            seed = tracks[index]
+            artist = seed.artist.split(",", 1)[0].strip()
+            for candidate in self.lastfm.similar_tracks(
+                seed.name,
+                artist,
+                limit=12,
+            ):
+                identity = (
+                    normalise_filter_text(candidate.name),
+                    normalise_filter_text(candidate.artist),
+                )
+                if identity in seen_candidates:
+                    continue
+                seen_candidates.add(identity)
+                candidates.append(candidate)
+
+        source_identity = new_album_identity(source_album)
+        albums: dict[tuple[str, str, int | None], SpotifyItem] = {}
+        scores: dict[tuple[str, str, int | None], int] = {}
+        seen_tracks: set[str] = set()
+        for candidate in candidates:
+            track = self.spotify.find_track(candidate.name, candidate.artist)
+            if not track or track.id in seen_tracks:
+                continue
+            seen_tracks.add(track.id)
+            album = self.spotify.album_for_track(track)
+            identity = new_album_identity(album)
+            if album.id == source_album.id or identity == source_identity:
+                continue
+            albums.setdefault(identity, album)
+            scores[identity] = scores.get(identity, 0) + 1
+        return sorted(
+            albums.values(),
+            key=lambda album: (
+                -scores[new_album_identity(album)],
+                normalise_filter_text(album.artist),
+                normalise_filter_text(album.name),
+            ),
+        )[:20]
+
+    def finish_show_related_albums(
+        self,
+        origin_page: int,
+        source_album: SpotifyItem,
+        albums: list[SpotifyItem],
+    ) -> None:
+        state = ViewState(f"Related albums to {source_album.name}", albums)
+        self.notebook.SetSelection(0)
+        self.search.history.push(state)
+        self.search.render(state, focus=True)
+        if origin_page != 0:
+            self.open_album_return_page = origin_page
+            self.open_album_return_state = state
+        if not albums:
+            self.say(f"No related albums found for {source_album.name}.")
         wx.CallAfter(self.focus_open_album)
 
     def lastfm_tracks_for(self, item: SpotifyItem) -> list[SpotifyItem]:
@@ -8204,6 +10297,205 @@ class MainFrame(wx.Frame):
                 seen.add(track.id)
                 matched.append(track)
         return matched
+
+    def lastfm_tag_results(
+        self,
+        tag: str,
+        category: str,
+        *,
+        query: str = "",
+        page: int = 1,
+    ) -> list[SpotifyItem]:
+        tag_page = self.lastfm.top_tag_items(
+            tag,
+            category,
+            page=page,
+            limit=20,
+        )
+        words = normalise_filter_text(query).split()
+        candidates = [
+            candidate
+            for candidate in tag_page.items
+            if not words
+            or all(
+                word
+                in normalise_filter_text(
+                    f"{candidate.name} {candidate.artist}"
+                )
+                for word in words
+            )
+        ]
+        matched: list[SpotifyItem] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            item = self.match_lastfm_tag_item(candidate, category)
+            if not item or item.id in seen:
+                continue
+            item.raw["lastfm_url"] = candidate.url
+            item.raw["lastfm_tag"] = tag
+            seen.add(item.id)
+            matched.append(item)
+        if tag_page.page < tag_page.total_pages:
+            matched.append(
+                SpotifyItem(
+                    "__lastfm_tag_load_more__",
+                    ItemKind.HEADING,
+                    "Show more Last.fm tag results",
+                    raw={
+                        "lastfm_tag_load_more": True,
+                        "page": tag_page.page + 1,
+                    },
+                )
+            )
+        return matched
+
+    def chart_results(
+        self,
+        country: str,
+        media_type: str = "songs",
+    ) -> ChartResults:
+        """Return an Apple Music chart as rows, with no Spotify lookups."""
+        album_chart = media_type == "albums"
+        feed = (
+            self.applemusic.top_albums(country, limit=CHART_SIZE)
+            if album_chart
+            else self.applemusic.top_songs(country, limit=CHART_SIZE)
+        )
+        items = [
+            SpotifyItem(
+                f"apple:{entry.apple_id or rank}",
+                ItemKind.ALBUM if album_chart else ItemKind.TRACK,
+                entry.name,
+                artist=entry.artist,
+                year=entry.release_date[:4],
+                raw={
+                    "unresolved": True,
+                    "list_note": f"chart rank {rank}",
+                    "chart_url": entry.url,
+                },
+            )
+            for rank, entry in enumerate(feed.entries, start=1)
+        ]
+        logger.info(
+            "Apple Music chart country=%s entries=%d (no Spotify lookups)",
+            feed.country,
+            len(items),
+        )
+        return ChartResults(items, feed.country, feed.fetched_at, media_type)
+
+    def historical_chart_results(self, requested: date) -> ChartResults:
+        chart = self.historical_charts.chart_for_date(requested)
+        items = [
+            SpotifyItem(
+                f"hot100:{chart.chart_date}:{entry.rank}",
+                ItemKind.TRACK,
+                entry.name,
+                artist=entry.artist,
+                raw={
+                    "unresolved": True,
+                    "list_note": f"chart rank {entry.rank}",
+                    "chart_url": PROJECT_URL,
+                },
+            )
+            for entry in chart.entries
+        ]
+        return ChartResults(
+            items,
+            "US",
+            0.0,
+            "historical_us",
+            chart.chart_date.isoformat(),
+        )
+
+    def resolve_track_row(self, row: SpotifyItem) -> SpotifyItem | None:
+        if row.kind == ItemKind.ALBUM:
+            return self.spotify.find_album(row.name, row.artist)
+        return self.spotify.find_track(row.name, row.artist)
+
+    def resolve_then(
+        self,
+        items: list[SpotifyItem],
+        retry: Callable[[], None],
+    ) -> bool:
+        """Look chart rows up on Spotify, then run `retry`.
+
+        Returns True when the caller should stop because the lookup, or an
+        announcement that a song is unavailable, has taken over. Rows that are
+        already on Spotify pass straight through without a request.
+        """
+        pending = [item for item in items if item.raw.get("unresolved")]
+        if not pending:
+            return False
+        todo = [item for item in pending if not item.raw.get("spotify_missing")]
+        if not todo:
+            if len(pending) == len(items):
+                first = pending[0]
+                self.say(f"{first.name} by {first.artist} was not found on Spotify.")
+                return True
+            # Others are ready; the unavailable ones simply drop out of the action.
+            return False
+        noun = (
+            "albums"
+            if all(row.kind == ItemKind.ALBUM for row in todo)
+            else "songs"
+            if all(row.kind == ItemKind.TRACK for row in todo)
+            else "items"
+        )
+        label = (
+            f"Finding {todo[0].name} on Spotify"
+            if len(todo) == 1
+            else f"Finding {len(todo)} {noun} on Spotify"
+        )
+        self.run_task(
+            label,
+            lambda: [self.resolve_track_row(row) for row in todo],
+            lambda results: self.finish_resolve(todo, results, retry),
+        )
+        return True
+
+    def finish_resolve(
+        self,
+        rows: list[SpotifyItem],
+        results: list[SpotifyItem | None],
+        retry: Callable[[], None],
+    ) -> None:
+        resolved = 0
+        missing: list[SpotifyItem] = []
+        for row, real in zip(rows, results):
+            if real is None:
+                row.raw["spotify_missing"] = True
+                missing.append(row)
+            else:
+                apply_resolved_row(row, real)
+                resolved += 1
+        if len(missing) == 1:
+            self.say(
+                f"{missing[0].name} by {missing[0].artist} was not found on Spotify."
+            )
+        elif missing:
+            noun = (
+                "albums"
+                if all(row.kind == ItemKind.ALBUM for row in missing)
+                else "songs"
+                if all(row.kind == ItemKind.TRACK for row in missing)
+                else "items"
+            )
+            self.say(f"{len(missing)} {noun} were not found on Spotify.")
+        if resolved:
+            retry()
+
+    def match_lastfm_tag_item(
+        self,
+        candidate: TaggedItem,
+        category: str,
+    ) -> SpotifyItem | None:
+        if category == "track":
+            return self.spotify.find_track(candidate.name, candidate.artist)
+        if category == "album":
+            return self.spotify.find_album(candidate.name, candidate.artist)
+        if category == "artist":
+            return self.spotify.find_artist(candidate.name)
+        return None
 
     def first_lastfm_mix_page(
         self,
@@ -8312,6 +10604,11 @@ class MainFrame(wx.Frame):
         )
 
     def start_similar_mix(self, item: SpotifyItem | None) -> None:
+        if item and self.resolve_then(
+            [item],
+            lambda: self.start_similar_mix(item),
+        ):
+            return
         if not item or item.kind != ItemKind.TRACK:
             self.say(msg.NO_ITEM_SELECTED)
             return
@@ -8596,6 +10893,97 @@ class MainFrame(wx.Frame):
         item = self.current_track_for_similar_mix()
         if item:
             self.queue_similar_mix(item)
+
+    def find_covers_for(self, item: SpotifyItem) -> None:
+        """List other artists' versions of a track, using MusicBrainz."""
+        title = base_track_title(item.name)
+        artist = item.artist.split(",", 1)[0].strip()
+        self.run_task(
+            f"Finding covers of {item.name} using MusicBrainz. "
+            "This can take up to 20 seconds.",
+            lambda: self.musicbrainz.find_covers(title, artist, item.duration_ms),
+            lambda result: self.show_covers(item, result),
+        )
+
+    def show_covers(self, source: SpotifyItem, result: CoverResults) -> None:
+        if not result.covers:
+            self.say(
+                f"MusicBrainz lists no other studio versions of {source.name}."
+            )
+            return
+        rows = [
+            SpotifyItem(
+                f"musicbrainz:{cover.recording_id}",
+                ItemKind.TRACK,
+                cover.title,
+                artist=cover.artist,
+                year=cover.year,
+                raw={
+                    "unresolved": True,
+                    "artist_first": True,
+                    **({"list_note": "cover"} if cover.marked_cover else {}),
+                },
+            )
+            for cover in result.covers
+        ]
+        self.show_lastfm_results(
+            f"Covers of {base_track_title(source.name)}, provided by MusicBrainz",
+            rows,
+        )
+        self.search.status.SetLabel(cover_summary(source, result))
+
+    def browse_genres_for(self, item: SpotifyItem) -> None:
+        """Offer the item's Last.fm genre tags, then browse the one chosen."""
+        kind = "track" if item.kind == ItemKind.TRACK else "artist"
+        artist = item.artist.split(",", 1)[0].strip() if kind == "track" else ""
+        self.run_task(
+            f"Finding genres for {item.name} using Last.fm",
+            lambda: self.lastfm.top_genre_tags(kind, item.name, artist),
+            lambda tags: self.choose_genre(item, kind, tags),
+        )
+
+    def choose_genre(
+        self,
+        item: SpotifyItem,
+        category: str,
+        tags: list[GenreTag],
+    ) -> None:
+        if not tags:
+            self.say(f"Last.fm has no genre tags for {item.name}.")
+            return
+        noun = "songs" if category == "track" else "artists"
+        dialog = wx.SingleChoiceDialog(
+            self,
+            f"Last.fm community tags for {item.name}. Choose one to "
+            f"browse more {noun} with that tag.",
+            "Browse genres",
+            [f"{tag.name} ({tag.weight} out of 100)" for tag in tags],
+        )
+        dialog.SetSelection(0)
+        if dialog.ShowModal() != wx.ID_OK:
+            dialog.Destroy()
+            return
+        tag = tags[dialog.GetSelection()].name
+        dialog.Destroy()
+        self.run_task(
+            f"Finding {tag} {noun} results using Last.fm",
+            lambda: self.lastfm_tag_results(tag, category),
+            lambda items: self.finish_browse_genre(tag, category, items),
+        )
+
+    def finish_browse_genre(
+        self,
+        tag: str,
+        category: str,
+        items: list[SpotifyItem],
+    ) -> None:
+        # Show the result as the Search tab's own Genre search, so its
+        # controls, Load more and Backspace all behave as they do there.
+        self.notebook.SetSelection(0)
+        self.search.query.SetValue("")
+        self.search.tag.SetValue(tag)
+        self.search.categories.SetSelection(SEARCH_TYPES.index(category))
+        self.search.show_tag_search("", tag, category, items)
 
     def find_similar_artists(self, item: SpotifyItem) -> None:
         def load() -> list[SpotifyItem]:

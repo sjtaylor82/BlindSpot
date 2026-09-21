@@ -140,7 +140,33 @@ KEYMAP_GLOBAL_WARNING = (
 GETTING_LYRICS = "Getting lyrics."
 GETTING_DEVICES = "Getting available devices."
 DEVICE_SELECTION_PROMPT = "Select the Spotify Connect device for playback."
-NEW_MUSIC_SEARCH_PROMPT = "Choose a release type and activate Search."
+DISCOVER_SEARCH_PROMPT = (
+    "Choose New releases or Top songs, then activate Search."
+)
+LOADING_MUSIC_CHART = "Loading chart"
+ERROR_DETAILS_COPIED = "Error details copied to the clipboard."
+NO_ERROR_TO_COPY = "No error has occurred in this session."
+CLIPBOARD_UNAVAILABLE = "The clipboard could not be opened."
+REPORT_COPIED = "Report copied to the clipboard."
+NOTHING_TO_EXPORT = (
+    "There are no songs to export here. Open a playlist or album, "
+    "or select one."
+)
+
+
+def exported_items(count: int, filename: str, partial: bool) -> str:
+    noun = "item" if count == 1 else "items"
+    message = f"Exported {count} {noun} to {filename}."
+    if partial:
+        message += (
+            " This was a partial list. Choose the Show more row and "
+            "export again to include everything."
+        )
+    return message
+
+
+def file_save_failed(detail: object) -> str:
+    return f"The file could not be saved: {detail}"
 JUMP_TIME_PROMPT = (
     "Enter seconds, minutes and seconds, or hours, minutes and seconds."
 )
@@ -171,7 +197,8 @@ PLAYLIST_TRACK_REPLACED = "Playlist track replaced."
 LOGS_FOLDER_OPEN_FAILED = "The BlindSpot logs folder could not be opened."
 
 PLAYLIST_ITEMS_UNAVAILABLE = (
-    "Individual tracks can't be browsed. Press F4 to play the playlist."
+    "Unable to browse. You don't own or collaborate on this playlist. "
+    "Press F4 to play."
 )
 ALBUM_NOT_PROVIDED = "Spotify did not provide an album for this track."
 LOADING_ALBUM_ARTWORK = "Loading album artwork."
@@ -378,6 +405,24 @@ def playlist_information(
 
 def spotify_error(status: int, detail: str) -> str:
     return f"Spotify returned {status}: {detail}"
+
+
+def spotify_rate_limited(retry_after: int | None) -> str:
+    """Explain a 429 in terms of how long to wait, when Spotify says."""
+    if not retry_after:
+        return (
+            "Spotify is limiting BlindSpot's requests. Wait a little "
+            "while and try again."
+        )
+    if retry_after < 90:
+        wait = "about a minute" if retry_after > 45 else f"{retry_after} seconds"
+    elif retry_after < 5400:
+        wait = f"about {round(retry_after / 60)} minutes"
+    else:
+        wait = f"about {round(retry_after / 3600)} hours"
+    return (
+        f"Spotify is limiting BlindSpot's requests. Try again in {wait}."
+    )
 
 
 def spotify_contact_failed(detail: object) -> str:

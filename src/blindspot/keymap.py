@@ -73,7 +73,7 @@ KEY_ACTIONS = (
         ("Control+9",),
         ("Control+9",),
     ),
-    KeyAction("open_new_music", "Open New Music tab", "Main", ("Control+0",), ("Control+0",)),
+    KeyAction("open_new_music", "Open Discover tab", "Main", ("Control+0",), ("Control+0",)),
     KeyAction(
         "open_concerts",
         "Open Concerts tab",

@@ -13,13 +13,213 @@ from blindspot.ui import (
     SearchPanel,
     SetupDialog,
     album_track_label,
+    filter_spotify_items,
     menu_function_shortcut,
     native_text_positions,
     playback_state_for_resume,
+    podcast_language_codes,
+    podcast_browse_query,
+    podcast_listening_status,
     radio_box_ancestor,
     resume_mode_from_settings,
+    sort_spotify_items,
     volume_percent_from_settings,
 )
+
+
+class LocalListFilterTests(unittest.TestCase):
+    def test_filter_matches_title_artist_and_album(self):
+        track = ui.SpotifyItem(
+            "track",
+            ui.ItemKind.TRACK,
+            "Song title",
+            artist="An Artist",
+            album="An Album",
+        )
+
+        self.assertEqual(filter_spotify_items([track], "song artist album"), [track])
+
+    def test_filter_is_case_and_diacritic_insensitive(self):
+        track = ui.SpotifyItem(
+            "track",
+            ui.ItemKind.TRACK,
+            "Zażółć gęślą",
+            artist="Beyoncé",
+        )
+
+        self.assertEqual(
+            filter_spotify_items([track], "ZAZOLC GESLA BEYONCE"),
+            [track],
+        )
+
+
+class LocalListSortTests(unittest.TestCase):
+    def test_title_sort_does_not_mutate_original_order(self):
+        original = [
+            ui.SpotifyItem("2", ui.ItemKind.TRACK, "Zulu"),
+            ui.SpotifyItem("1", ui.ItemKind.TRACK, "Alpha"),
+        ]
+
+        result = sort_spotify_items(original, "title")
+
+        self.assertEqual([item.name for item in result], ["Alpha", "Zulu"])
+        self.assertEqual([item.name for item in original], ["Zulu", "Alpha"])
+
+    def test_missing_sort_values_and_pagination_stay_at_end(self):
+        missing = ui.SpotifyItem("1", ui.ItemKind.TRACK, "Missing")
+        older = ui.SpotifyItem(
+            "2",
+            ui.ItemKind.TRACK,
+            "Older",
+            raw={"added_at": "2025-01-01"},
+        )
+        newer = ui.SpotifyItem(
+            "3",
+            ui.ItemKind.TRACK,
+            "Newer",
+            raw={"added_at": "2026-01-01"},
+        )
+        loader = ui.SpotifyItem("more", ui.ItemKind.HEADING, "Show more")
+
+        result = sort_spotify_items(
+            [missing, older, loader, newer],
+            "date_added",
+            descending=True,
+        )
+
+        self.assertEqual(result, [newer, older, missing, loader])
+
+    def test_filtered_playlist_playback_starts_at_focused_match(self):
+        tracks = [
+            ui.SpotifyItem(
+                str(number),
+                ui.ItemKind.TRACK,
+                f"ABBA {number}",
+                uri=f"spotify:track:{number}",
+            )
+            for number in (1, 2, 3)
+        ]
+        panel = type(
+            "Panel",
+            (),
+            {
+                "filter": type(
+                    "Filter", (), {"GetValue": lambda self: "abba"}
+                )(),
+                "items": type("Items", (), {"items": tracks})(),
+            },
+        )()
+
+        self.assertEqual(
+            PlaylistsPanel.filtered_playback_items(panel, tracks[1]),
+            tracks[1:],
+        )
+
+    def test_f4_uses_filtered_playlist_sequence_instead_of_context(self):
+        tracks = [
+            ui.SpotifyItem(
+                str(number),
+                ui.ItemKind.TRACK,
+                f"ABBA {number}",
+                uri=f"spotify:track:{number}",
+            )
+            for number in (1, 2, 3)
+        ]
+        item_list = type(
+            "Items",
+            (),
+            {"marked_items": lambda self: [], "items": tracks},
+        )()
+        played_sequences = []
+        played_contexts = []
+        playlists = type(
+            "Playlists",
+            (),
+            {
+                "current_playlist": ui.SpotifyItem(
+                    "playlist",
+                    ui.ItemKind.PLAYLIST,
+                    "Playlist",
+                ),
+                "items": item_list,
+                "filtered_playback_items": lambda self, item: tracks[1:],
+            },
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "resolve_then": lambda self, items, retry: False,
+                "notebook": type(
+                    "Notebook", (), {"GetSelection": lambda self: 3}
+                )(),
+                "playlists": playlists,
+                "current_selected_item": lambda self: tracks[1],
+                "current_item_list": lambda self: item_list,
+                "play_items": lambda self, values: played_sequences.append(values),
+                "play_in_context": lambda self, context, item: played_contexts.append(
+                    (context, item)
+                ),
+            },
+        )()
+
+        MainFrame.play_selected(frame)
+
+        self.assertEqual(played_sequences, [tracks[1:]])
+        self.assertEqual(played_contexts, [])
+
+
+class PodcastFilterMetadataTests(unittest.TestCase):
+    def test_polish_browse_uses_polish_category_terms(self):
+        self.assertEqual(
+            podcast_browse_query(
+                "Technology",
+                "technology podcast",
+                "pl",
+            ),
+            "technologia podcast po polsku",
+        )
+
+    def test_language_codes_are_normalised(self):
+        episode = ui.SpotifyItem(
+            "episode",
+            ui.ItemKind.EPISODE,
+            "Episode",
+            raw={"languages": ["PL-pl", "en-AU", "en-US", "PL"]},
+        )
+
+        self.assertEqual(podcast_language_codes(episode), ("pl", "en"))
+
+    def test_listening_status_preserves_unknown(self):
+        unknown = ui.SpotifyItem("unknown", ui.ItemKind.EPISODE, "Unknown")
+        new = ui.SpotifyItem(
+            "new",
+            ui.ItemKind.EPISODE,
+            "New",
+            raw={"resume_point": {"fully_played": False, "resume_position_ms": 0}},
+        )
+        progress = ui.SpotifyItem(
+            "progress",
+            ui.ItemKind.EPISODE,
+            "Progress",
+            raw={
+                "resume_point": {
+                    "fully_played": False,
+                    "resume_position_ms": 1,
+                }
+            },
+        )
+        completed = ui.SpotifyItem(
+            "completed",
+            ui.ItemKind.EPISODE,
+            "Completed",
+            raw={"resume_point": {"fully_played": True}},
+        )
+
+        self.assertEqual(podcast_listening_status(unknown), "unknown")
+        self.assertEqual(podcast_listening_status(new), "not_started")
+        self.assertEqual(podcast_listening_status(progress), "in_progress")
+        self.assertEqual(podcast_listening_status(completed), "completed")
 
 
 class FirstRunSetupTests(unittest.TestCase):
@@ -165,11 +365,19 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
         focused_targets = []
 
         class Control:
+            enabled = True
+
             def SetFocus(self):
                 focused_targets.append(self)
 
             def GetParent(self):
                 return None
+
+            def IsEnabled(self):
+                return self.enabled
+
+            def IsShown(self):
+                return True
 
         class RadioBox(Control):
             pass
@@ -220,11 +428,19 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
         focused_targets = []
 
         class Control:
+            enabled = True
+
             def SetFocus(self):
                 focused_targets.append(self)
 
             def GetParent(self):
                 return None
+
+            def IsEnabled(self):
+                return self.enabled
+
+            def IsShown(self):
+                return True
 
         notebook = Control()
         notebook.GetSelection = lambda: 8
@@ -263,11 +479,19 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
         focused_targets = []
 
         class Control:
+            enabled = True
+
             def SetFocus(self):
                 focused_targets.append(self)
 
             def GetParent(self):
                 return None
+
+            def IsEnabled(self):
+                return self.enabled
+
+            def IsShown(self):
+                return True
 
         notebook = Control()
         notebook.GetSelection = lambda: 7
@@ -303,15 +527,126 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
 
         self.assertEqual(focused_targets, [controls[0]])
 
-    def test_tab_from_concerts_tab_bar_focuses_concert_keyword(self):
+    def test_tab_skips_a_disabled_control(self):
         focused_targets = []
 
         class Control:
+            enabled = True
+
             def SetFocus(self):
                 focused_targets.append(self)
 
             def GetParent(self):
                 return None
+
+            def IsEnabled(self):
+                return self.enabled
+
+            def IsShown(self):
+                return True
+
+        notebook = Control()
+        notebook.GetSelection = lambda: 9
+        names = (
+            "discovery_source",
+            "release_types",
+            "chart_country",
+            "search_button",
+            "items",
+            "filter",
+        )
+        controls = {name: Control() for name in names}
+        # New releases is selected, so the chart country picker is greyed out.
+        controls["chart_country"].enabled = False
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": notebook,
+                "new_music": type("NewMusic", (), controls)(),
+            },
+        )()
+
+        with (
+            patch(
+                "blindspot.ui.wx.Window.FindFocus",
+                return_value=controls["release_types"],
+            ),
+            patch("blindspot.ui.item_list_ancestor", return_value=None),
+            patch("blindspot.ui.radio_box_ancestor", return_value=None),
+        ):
+            MainFrame.move_focus(frame, backward=False)
+
+        self.assertEqual(focused_targets, [controls["search_button"]])
+
+    def test_shift_tab_also_skips_a_disabled_control(self):
+        focused_targets = []
+
+        class Control:
+            enabled = True
+
+            def SetFocus(self):
+                focused_targets.append(self)
+
+            def GetParent(self):
+                return None
+
+            def IsEnabled(self):
+                return self.enabled
+
+            def IsShown(self):
+                return True
+
+        notebook = Control()
+        notebook.GetSelection = lambda: 9
+        names = (
+            "discovery_source",
+            "release_types",
+            "chart_country",
+            "search_button",
+            "items",
+            "filter",
+        )
+        controls = {name: Control() for name in names}
+        controls["chart_country"].enabled = False
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": notebook,
+                "new_music": type("NewMusic", (), controls)(),
+            },
+        )()
+
+        with (
+            patch(
+                "blindspot.ui.wx.Window.FindFocus",
+                return_value=controls["search_button"],
+            ),
+            patch("blindspot.ui.item_list_ancestor", return_value=None),
+            patch("blindspot.ui.radio_box_ancestor", return_value=None),
+        ):
+            MainFrame.move_focus(frame, backward=True)
+
+        self.assertEqual(focused_targets, [controls["release_types"]])
+
+    def test_tab_from_concerts_tab_bar_focuses_concert_keyword(self):
+        focused_targets = []
+
+        class Control:
+            enabled = True
+
+            def SetFocus(self):
+                focused_targets.append(self)
+
+            def GetParent(self):
+                return None
+
+            def IsEnabled(self):
+                return self.enabled
+
+            def IsShown(self):
+                return True
 
         notebook = Control()
         notebook.GetSelection = lambda: 10
@@ -526,7 +861,7 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
 
         self.assertEqual(opened, [True])
 
-    def test_control_zero_focuses_new_music_release_types(self):
+    def test_control_zero_focuses_discover_source(self):
         selections = []
         focused = []
         notebook = type(
@@ -534,8 +869,8 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
             (),
             {"SetSelection": lambda self, page: selections.append(page)},
         )()
-        release_types = type(
-            "ReleaseTypes",
+        discovery_source = type(
+            "DiscoverySource",
             (),
             {"SetFocus": lambda self: focused.append(True)},
         )()
@@ -547,7 +882,7 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
                 "new_music": type(
                     "NewMusic",
                     (),
-                    {"release_types": release_types},
+                    {"discovery_source": discovery_source},
                 )(),
             },
         )()
@@ -1356,6 +1691,7 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
             "Frame",
             (),
             {
+                "resolve_then": lambda self, items, retry: False,
                 "spotify": spotify,
                 "run_task": (
                     lambda self, message, worker, success: success(worker())
@@ -1730,6 +2066,7 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
             "Frame",
             (),
             {
+                "resolve_then": lambda self, items, retry: False,
                 "open_album_for_track": (
                     lambda self, item: opened.append(item)
                 )
@@ -1891,6 +2228,123 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
 
         self.assertEqual(selected, [2])
         self.assertEqual(forwarded, [])
+
+    def test_item_list_rapid_letters_refine_the_current_match(self):
+        selected = []
+        labels = ["Charlie", "Chocolate", "Delta"]
+        item_list = type(
+            "List",
+            (),
+            {
+                "_typeahead_text": "",
+                "_typeahead_time": 0.0,
+                "GetItemCount": lambda self: len(labels),
+                "GetSelection": lambda self: selected[-1] if selected else 2,
+                "GetItemText": lambda self, row, column: labels[row],
+                "SetSelection": lambda self, row: selected.append(row),
+            },
+        )()
+
+        def event(letter):
+            return type(
+                "Event",
+                (),
+                {
+                    "GetModifiers": lambda self: 0,
+                    "MetaDown": lambda self: False,
+                    "GetKeyCode": lambda self: ord(letter),
+                },
+            )()
+
+        with (
+            patch("blindspot.ui.ITEM_LIST_USES_DATAVIEW", False),
+            patch("blindspot.ui.time.monotonic", side_effect=[10.0, 10.2]),
+        ):
+            ui.ItemList.select_by_typed_letter(item_list, event("C"))
+            ui.ItemList.select_by_typed_letter(item_list, event("H"))
+
+        self.assertEqual(selected, [0, 0])
+        self.assertEqual(item_list._typeahead_text, "ch")
+
+    def test_item_list_routes_standard_playlist_clipboard_shortcuts(self):
+        calls = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "copy_items_to_playlist_clipboard": (
+                    lambda self, owner, cut: calls.append(("copy", cut))
+                ),
+                "paste_playlist_clipboard": (
+                    lambda self: calls.append(("paste", None))
+                ),
+            },
+        )()
+        panel = type("Panel", (), {"frame": frame})()
+        item_list = type(
+            "List", (), {"GetParent": lambda self: panel}
+        )()
+
+        def event(letter):
+            return type(
+                "Event",
+                (),
+                {
+                    "GetKeyCode": lambda self: ord(letter),
+                    "GetModifiers": lambda self: ui.wx.MOD_CONTROL,
+                    "ControlDown": lambda self: True,
+                    "RawControlDown": lambda self: False,
+                    "AltDown": lambda self: False,
+                    "ShiftDown": lambda self: False,
+                    "MetaDown": lambda self: False,
+                },
+            )()
+
+        ui.ItemList.on_char_hook(item_list, event("C"))
+        ui.ItemList.on_char_hook(item_list, event("X"))
+        ui.ItemList.on_char_hook(item_list, event("V"))
+
+        self.assertEqual(
+            calls, [("copy", False), ("copy", True), ("paste", None)]
+        )
+
+    def test_cut_requires_an_open_editable_playlist(self):
+        spoken = []
+        item = ui.SpotifyItem(
+            "track", ui.ItemKind.TRACK, "Track", uri="spotify:track:track"
+        )
+        item_list = type(
+            "Items",
+            (),
+            {
+                "marked_items": lambda self: [item],
+                "selected_item": lambda self: item,
+            },
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "playlists": type(
+                    "Playlists",
+                    (),
+                    {
+                        "items": object(),
+                        "history": type(
+                            "History", (), {"can_go_back": False}
+                        )(),
+                        "current_playlist": None,
+                    },
+                )(),
+                "say": lambda self, message: spoken.append(message),
+            },
+        )()
+
+        MainFrame.copy_items_to_playlist_clipboard(frame, item_list, cut=True)
+
+        self.assertEqual(
+            spoken, ["Cut is available only inside an editable playlist."]
+        )
 
     def test_mac_item_list_control_letter_remains_a_shortcut(self):
         forwarded = []
@@ -2069,7 +2523,10 @@ class SearchContextMenuTests(unittest.TestCase):
         frame = type(
             "Frame",
             (),
-            {"current_player_item": None},
+            {
+                "current_player_item": None,
+                "resolve_then": lambda self, items, retry: False,
+            },
         )()
 
         with patch("blindspot.ui.wx.Menu", side_effect=lambda: Menu()):
@@ -2124,6 +2581,124 @@ class SearchContextMenuTests(unittest.TestCase):
 
         self.assertIs(rendered[0].parent_item, album)
         self.assertEqual(selections, [0])
+
+    def test_artist_albums_from_new_music_remember_return_page(self):
+        artist = ui.SpotifyItem("artist", ui.ItemKind.ARTIST, "Artist")
+        albums = [ui.SpotifyItem("album", ui.ItemKind.ALBUM, "Album")]
+        history = ui.NavigationHistory(ui.ViewState("Search", []))
+        selections = []
+
+        def open_children(search, parent, children):
+            history.push(
+                ui.ViewState(
+                    parent.name,
+                    children,
+                    parent_id=parent.id,
+                    parent_kind=parent.kind,
+                    parent_item=parent,
+                )
+            )
+
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": type(
+                    "Notebook",
+                    (),
+                    {"SetSelection": lambda self, page: selections.append(page)},
+                )(),
+                "search": type(
+                    "Search",
+                    (),
+                    {"history": history, "open_children": open_children},
+                )(),
+                "open_album_return_page": None,
+                "open_album_return_state": None,
+                "focus_open_album": lambda self: None,
+            },
+        )()
+
+        with patch("blindspot.ui.wx.CallAfter"):
+            MainFrame.finish_show_artist_albums(frame, 9, artist, albums)
+
+        self.assertEqual(selections, [0])
+        self.assertEqual(frame.open_album_return_page, 9)
+        self.assertIs(frame.open_album_return_state, history.current)
+        self.assertIs(history.current.parent_item, artist)
+
+    def test_related_albums_are_grouped_ranked_and_exclude_source(self):
+        source = ui.SpotifyItem(
+            "source",
+            ui.ItemKind.ALBUM,
+            "Source Album",
+            artist="Source Artist",
+            total=3,
+        )
+        seeds = [
+            ui.SpotifyItem(
+                str(number),
+                ui.ItemKind.TRACK,
+                f"Seed {number}",
+                artist="Source Artist",
+            )
+            for number in range(3)
+        ]
+        album_a = ui.SpotifyItem(
+            "album-a",
+            ui.ItemKind.ALBUM,
+            "Related A",
+            artist="Artist A",
+            total=10,
+        )
+        album_b = ui.SpotifyItem(
+            "album-b",
+            ui.ItemKind.ALBUM,
+            "Related B",
+            artist="Artist B",
+            total=8,
+        )
+        candidates = [
+            ui.SimilarTrack("A one", "Artist A"),
+            ui.SimilarTrack("B one", "Artist B"),
+            ui.SimilarTrack("A two", "Artist A"),
+            ui.SimilarTrack("Source song", "Source Artist"),
+        ]
+        tracks = {
+            "A one": ui.SpotifyItem("a1", ui.ItemKind.TRACK, "A one"),
+            "A two": ui.SpotifyItem("a2", ui.ItemKind.TRACK, "A two"),
+            "B one": ui.SpotifyItem("b1", ui.ItemKind.TRACK, "B one"),
+            "Source song": ui.SpotifyItem(
+                "source-track", ui.ItemKind.TRACK, "Source song"
+            ),
+        }
+        album_for_track = {
+            "a1": album_a,
+            "a2": album_a,
+            "b1": album_b,
+            "source-track": source,
+        }
+        spotify = type(
+            "Spotify",
+            (),
+            {
+                "children": lambda self, album: seeds,
+                "find_track": lambda self, name, artist: tracks.get(name),
+                "album_for_track": (
+                    lambda self, track: album_for_track[track.id]
+                ),
+            },
+        )()
+        lastfm = type(
+            "Lastfm",
+            (),
+            {"similar_tracks": lambda self, *args, **kwargs: candidates},
+        )()
+        frame = type("Frame", (), {"spotify": spotify, "lastfm": lastfm})()
+
+        result = MainFrame.related_albums_for(frame, source)
+
+        self.assertEqual(result, [album_a, album_b])
 
     def test_album_artwork_button_uses_open_album_not_selected_track(self):
         album = ui.SpotifyItem(
@@ -2380,6 +2955,7 @@ class SearchContextMenuTests(unittest.TestCase):
             "Frame",
             (),
             {
+                "resolve_then": lambda self, items, retry: False,
                 "notebook": notebook,
                 "search": search,
                 "current_selected_item": lambda self: track,
@@ -2416,6 +2992,7 @@ class SearchContextMenuTests(unittest.TestCase):
             "Frame",
             (),
             {
+                "resolve_then": lambda self, items, retry: False,
                 "notebook": type(
                     "Notebook", (), {"GetSelection": lambda self: 1}
                 )(),
@@ -2725,45 +3302,82 @@ class SearchPaginationTests(unittest.TestCase):
         self.assertTrue(rendered[0][1])
 
 
-class NewMusicTests(unittest.TestCase):
-    def test_successful_new_music_search_focuses_results(self):
-        focused = []
-        panel = type(
-            "Panel",
+class DiscoverPanelStub:
+    """Drive NewMusicPanel rendering without constructing wx widgets."""
+
+    apply_filter = ui.NewMusicPanel.apply_filter
+    append_items = ui.NewMusicPanel.append_items
+    item_labels = ui.NewMusicPanel.item_labels
+    prepare_items = ui.NewMusicPanel.prepare_items
+    render_results = ui.NewMusicPanel.render_results
+    result_status = ui.NewMusicPanel.result_status
+    show_chart_items = ui.NewMusicPanel.show_chart_items
+    show_items = ui.NewMusicPanel.show_items
+
+    def __init__(
+        self,
+        all_items: list | None = None,
+        result_mode: str = "releases",
+        pending_marker=None,
+        filter_text: str = "",
+    ) -> None:
+        panel = self
+        self.loading = True
+        self.loaded_once = False
+        self.title = "Discover"
+        self.result_mode = result_mode
+        self.chart_note = ""
+        self.all_items = list(all_items or [])
+        self.pending_marker = pending_marker
+        self.sort_key = "original"
+        self.sort_descending = False
+        self.rendered: list = []
+        self.selections: list[int] = []
+        self.labels: list = []
+        self.statuses: list[str] = []
+        self.spoken: list[str] = []
+        self.focused: list[bool] = []
+        self.filter = type(
+            "Filter",
+            (),
+            {"GetValue": lambda self: filter_text},
+        )()
+        self.items = type(
+            "Items",
             (),
             {
-                "loading": True,
-                "loaded_once": False,
-                "title": "New Music",
-                "items": type(
-                    "Items",
-                    (),
-                    {
-                        "set_items": lambda self, items, **kwargs: None,
-                        "SetFocus": lambda self: focused.append(True),
-                    },
-                )(),
-                "status": type(
-                    "Status",
-                    (),
-                    {"SetLabel": lambda self, label: None},
-                )(),
-                "frame": type(
-                    "Frame",
-                    (),
-                    {
-                        "update_title_for_page": (
-                            lambda self, page, title: None
-                        ),
-                    },
-                )(),
-                "prepare_items": (
-                    lambda self, items: ui.NewMusicPanel.prepare_items(
-                        self, items
-                    )
+                "items": list(self.all_items),
+                "selected_item": lambda self: None,
+                "set_items": lambda self, items, selected=0, labels=None: (
+                    setattr(self, "items", list(items)),
+                    panel.rendered.append(list(items)),
+                    panel.selections.append(selected),
+                    panel.labels.append(labels),
                 ),
+                "SetFocus": lambda self: panel.focused.append(True),
             },
         )()
+        self.status = type(
+            "Status",
+            (),
+            {"SetLabel": lambda self, label: panel.statuses.append(label)},
+        )()
+        self.frame = type(
+            "Frame",
+            (),
+            {
+                "update_title_for_page": lambda self, page, title: None,
+                "say": lambda self, message: panel.spoken.append(message),
+            },
+        )()
+
+    def last_rendered_ids(self) -> list[str]:
+        return [item.id for item in self.rendered[-1]]
+
+
+class NewMusicTests(unittest.TestCase):
+    def test_successful_new_music_search_focuses_results(self):
+        panel = DiscoverPanelStub()
         album = ui.SpotifyItem(
             "album",
             ui.ItemKind.ALBUM,
@@ -2772,9 +3386,704 @@ class NewMusicTests(unittest.TestCase):
             raw={"release_date": "2026-07-25"},
         )
 
-        ui.NewMusicPanel.show_items(panel, [album])
+        panel.show_items([album])
 
-        self.assertEqual(focused, [True])
+        self.assertEqual(panel.focused, [True])
+        self.assertEqual(panel.last_rendered_ids(), ["album"])
+        self.assertEqual(panel.all_items, [album])
+
+    def test_new_music_removes_loader_when_page_adds_nothing_new(self):
+        existing = ui.SpotifyItem(
+            "existing",
+            ui.ItemKind.ALBUM,
+            "Same Release",
+            artist="Artist",
+            total=1,
+            raw={"release_date": "2026-07-25"},
+        )
+        duplicate = ui.SpotifyItem(
+            "different-id",
+            ui.ItemKind.ALBUM,
+            "same release",
+            artist="Artist, Guest",
+            total=1,
+            raw={"release_date": "2026-07-25"},
+        )
+        next_loader = ui.SpotifyItem(
+            "__load_more__",
+            ui.ItemKind.HEADING,
+            "Load more results",
+            raw={"load_more": True, "next_offset": 40},
+        )
+        panel = DiscoverPanelStub(all_items=[existing])
+
+        panel.append_items([duplicate, next_loader])
+
+        self.assertEqual(panel.last_rendered_ids(), ["existing"])
+        self.assertIsNone(panel.pending_marker)
+        self.assertEqual(panel.spoken, [ui.msg.NO_MORE_RESULTS])
+
+    def test_paginated_new_music_appends_new_rows_without_reordering(self):
+        first = ui.SpotifyItem(
+            "first",
+            ui.ItemKind.ALBUM,
+            "First",
+            artist="Artist",
+            total=1,
+            raw={"release_date": "2026-07-20"},
+        )
+        later_but_newer = ui.SpotifyItem(
+            "newer",
+            ui.ItemKind.ALBUM,
+            "Newer",
+            artist="Artist",
+            total=1,
+            raw={"release_date": "2026-07-25"},
+        )
+        panel = DiscoverPanelStub(all_items=[first])
+
+        panel.append_items([later_but_newer])
+
+        self.assertEqual(panel.last_rendered_ids(), ["first", "newer"])
+        self.assertEqual(panel.selections[-1], 1)
+
+    def test_chart_rows_are_built_from_apple_data_with_no_spotify_lookup(self):
+        from blindspot.applemusic import ChartEntry, ChartFeed
+
+        feed = ChartFeed(
+            [
+                ChartEntry(
+                    "First",
+                    "Artist One",
+                    apple_id="111",
+                    url="https://music.apple.com/1",
+                    release_date="2025-10-17",
+                ),
+                ChartEntry("Second", "Artist Two"),
+            ],
+            "au",
+            fetched_at=1_790_000_000.0,
+        )
+        requests = []
+        spotify_calls = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "applemusic": type(
+                    "AppleMusic",
+                    (),
+                    {
+                        "top_songs": lambda self, country, **kwargs: (
+                            requests.append((country, kwargs)),
+                            feed,
+                        )[1],
+                    },
+                )(),
+                "spotify": type(
+                    "Spotify",
+                    (),
+                    {
+                        "find_track": lambda self, *a: spotify_calls.append(a),
+                    },
+                )(),
+            },
+        )()
+
+        result = MainFrame.chart_results(frame, "AU")
+
+        self.assertEqual(requests, [("AU", {"limit": ui.CHART_SIZE})])
+        self.assertEqual(ui.CHART_SIZE, 100)
+        self.assertEqual(spotify_calls, [])
+        self.assertEqual(result.country, "au")
+        self.assertEqual(result.loaded_at, 1_790_000_000.0)
+        first, second = result.items
+        self.assertEqual((first.name, first.artist), ("First", "Artist One"))
+        self.assertEqual(first.year, "2025")
+        self.assertEqual(first.uri, "")
+        self.assertTrue(first.raw["unresolved"])
+        self.assertEqual(first.raw["list_note"], "chart rank 1")
+        self.assertEqual(second.raw["list_note"], "chart rank 2")
+        self.assertEqual(first.raw["chart_url"], "https://music.apple.com/1")
+        self.assertNotEqual(first.id, second.id)
+        self.assertIn("chart rank 1", first.accessible_label())
+
+    def _chart_row(self, name="Song", artist="Artist", rank=1):
+        return ui.SpotifyItem(
+            f"apple:{rank}",
+            ui.ItemKind.TRACK,
+            name,
+            artist=artist,
+            raw={
+                "unresolved": True,
+                "list_note": f"chart rank {rank}",
+                "chart_url": "https://music.apple.com/x",
+            },
+        )
+
+    def _resolver_frame(self, results):
+        """A frame whose run_task runs the worker inline, like a finished task."""
+        said = []
+        looked_up = []
+        labels = []
+
+        def find_track(self, name, artist):
+            looked_up.append((name, artist))
+            return results.get(name)
+
+        def run_task(self, message, worker, success, **kwargs):
+            labels.append(message)
+            success(worker())
+
+        frame = type(
+            "Frame",
+            (),
+            {
+                "spotify": type("Spotify", (), {"find_track": find_track})(),
+                "run_task": run_task,
+                "say": lambda self, message: said.append(message),
+                "resolve_track_row": lambda self, row: MainFrame.resolve_track_row(
+                    self, row
+                ),
+                "finish_resolve": lambda self, *args: MainFrame.finish_resolve(
+                    self, *args
+                ),
+            },
+        )()
+        return frame, said, looked_up, labels
+
+    def test_ordinary_items_pass_straight_through_without_a_lookup(self):
+        frame, said, looked_up, _labels = self._resolver_frame({})
+        real = ui.SpotifyItem("t", ui.ItemKind.TRACK, "T", uri="spotify:track:t")
+        retried = []
+
+        stopped = MainFrame.resolve_then(frame, [real], lambda: retried.append(1))
+
+        self.assertFalse(stopped)
+        self.assertEqual((looked_up, retried, said), ([], [], []))
+
+    def test_acting_on_a_chart_row_looks_it_up_fills_it_in_place_and_retries(self):
+        real = ui.SpotifyItem(
+            "spotify-id",
+            ui.ItemKind.TRACK,
+            "Song",
+            artist="Artist",
+            album="Album",
+            duration_ms=200_000,
+            year="2025",
+            uri="spotify:track:spotify-id",
+            raw={"images": ["x"]},
+        )
+        frame, said, looked_up, labels = self._resolver_frame({"Song": real})
+        row = self._chart_row()
+        retried = []
+
+        stopped = MainFrame.resolve_then(
+            frame, [row], lambda: retried.append(row.uri)
+        )
+
+        self.assertTrue(stopped)
+        self.assertEqual(looked_up, [("Song", "Artist")])
+        self.assertEqual(labels, ["Finding Song on Spotify"])
+        # The very same object now carries the Spotify details.
+        self.assertEqual(row.uri, "spotify:track:spotify-id")
+        self.assertEqual(row.duration_ms, 200_000)
+        self.assertEqual(row.album, "Album")
+        self.assertNotIn("unresolved", row.raw)
+        self.assertEqual(row.raw["list_note"], "chart rank 1")
+        self.assertEqual(row.raw["images"], ["x"])
+        self.assertEqual(retried, ["spotify:track:spotify-id"])
+        self.assertEqual(said, [])
+        # A second action needs no further lookup.
+        self.assertFalse(MainFrame.resolve_then(frame, [row], lambda: None))
+        self.assertEqual(len(looked_up), 1)
+
+    def test_a_resolved_row_keeps_its_artist_first_wording(self):
+        row = ui.SpotifyItem(
+            "musicbrainz:1",
+            ui.ItemKind.TRACK,
+            "Song",
+            artist="Cover Artist",
+            raw={"unresolved": True, "artist_first": True, "list_note": "cover"},
+        )
+        real = ui.SpotifyItem(
+            "r",
+            ui.ItemKind.TRACK,
+            "Song",
+            artist="Cover Artist",
+            duration_ms=200_000,
+            uri="spotify:track:r",
+        )
+
+        ui.apply_resolved_row(row, real)
+
+        self.assertTrue(row.raw["artist_first"])
+        self.assertTrue(row.accessible_label().startswith("Cover Artist — Song"))
+
+    def test_a_song_spotify_lacks_is_announced_once_and_not_retried(self):
+        frame, said, looked_up, _labels = self._resolver_frame({})
+        row = self._chart_row("Ghost", "Nobody")
+        retried = []
+
+        first = MainFrame.resolve_then(frame, [row], lambda: retried.append(1))
+        second = MainFrame.resolve_then(frame, [row], lambda: retried.append(1))
+
+        self.assertTrue(first)
+        self.assertTrue(second)
+        self.assertEqual(retried, [])
+        self.assertEqual(looked_up, [("Ghost", "Nobody")])
+        self.assertEqual(
+            said,
+            ["Ghost by Nobody was not found on Spotify."] * 2,
+        )
+        self.assertTrue(row.raw["spotify_missing"])
+
+    def test_a_multi_selection_resolves_each_row_and_reports_the_missing_ones(self):
+        good = ui.SpotifyItem("g", ui.ItemKind.TRACK, "Good", uri="spotify:track:g")
+        frame, said, looked_up, labels = self._resolver_frame({"Good": good})
+        rows = [self._chart_row("Good", rank=1), self._chart_row("Gone", rank=2)]
+        retried = []
+
+        MainFrame.resolve_then(frame, rows, lambda: retried.append(1))
+
+        self.assertEqual(labels, ["Finding 2 songs on Spotify"])
+        self.assertEqual([name for name, _artist in looked_up], ["Good", "Gone"])
+        self.assertEqual(rows[0].uri, "spotify:track:g")
+        self.assertEqual(rows[1].uri, "")
+        self.assertEqual(said, ["Gone by Artist was not found on Spotify."])
+        self.assertEqual(retried, [1])
+
+    def test_a_lookup_failure_propagates_so_a_rate_limit_is_shown_not_hidden(self):
+        from blindspot.spotify import SpotifyError
+
+        def find_track(self, name, artist):
+            raise SpotifyError("limited", status=429, retry_after=600)
+
+        frame = type(
+            "Frame",
+            (),
+            {"spotify": type("Spotify", (), {"find_track": find_track})()},
+        )()
+
+        with self.assertRaises(SpotifyError):
+            MainFrame.resolve_track_row(frame, self._chart_row())
+
+    def _acting_frame(self, real):
+        looked_up = []
+        acted = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "resolve_then": lambda self, items, retry: MainFrame.resolve_then(
+                    self, items, retry
+                ),
+                "spotify": type(
+                    "Spotify",
+                    (),
+                    {"find_track": lambda self, n, a: looked_up.append(n) or real},
+                )(),
+                "run_task": lambda self, message, worker, success, **kw: success(
+                    worker()
+                ),
+                "say": lambda self, message: None,
+                "resolve_track_row": lambda self, row: MainFrame.resolve_track_row(
+                    self, row
+                ),
+                "finish_resolve": lambda self, *args: MainFrame.finish_resolve(
+                    self, *args
+                ),
+                "toggle_like_item": lambda self, item: MainFrame.toggle_like_item(
+                    self, item
+                ),
+                "queue_selected": lambda self, item: MainFrame.queue_selected(
+                    self, item
+                ),
+                "queue_should_be_deferred": lambda self: True,
+                "deferred_queue_items": acted,
+                "finish_queue": lambda self, item: None,
+            },
+        )()
+        return frame, looked_up, acted
+
+    def test_queueing_a_chart_row_resolves_it_then_queues_the_spotify_track(self):
+        real = ui.SpotifyItem(
+            "r", ui.ItemKind.TRACK, "Song", uri="spotify:track:r"
+        )
+        frame, looked_up, acted = self._acting_frame(real)
+        row = self._chart_row()
+
+        MainFrame.queue_selected(frame, row)
+
+        self.assertEqual(looked_up, ["Song"])
+        self.assertEqual(acted, [row])
+        self.assertEqual(row.uri, "spotify:track:r")
+
+    def test_liking_a_chart_row_resolves_it_first(self):
+        real = ui.SpotifyItem("r", ui.ItemKind.TRACK, "Song", uri="spotify:track:r")
+        frame, looked_up, _acted = self._acting_frame(real)
+        saved = []
+        frame.spotify.toggle_saved = lambda item: saved.append(item.uri) or True
+        frame.finish_toggle_like = lambda item, state: None
+        row = self._chart_row()
+
+        MainFrame.toggle_like_item(frame, row)
+
+        self.assertEqual(looked_up, ["Song"])
+        self.assertEqual(saved, ["spotify:track:r"])
+
+    def test_opening_a_chart_row_from_the_list_resolves_before_playing(self):
+        row = self._chart_row()
+        seen = []
+        panel = type(
+            "Panel",
+            (),
+            {
+                "on_open": lambda self: None,
+                "items": type(
+                    "Items", (), {"selected_item": lambda self: row}
+                )(),
+                "frame": type(
+                    "Frame",
+                    (),
+                    {
+                        "resolve_then": lambda self, items, retry: (
+                            seen.append(items),
+                            True,
+                        )[1],
+                    },
+                )(),
+            },
+        )()
+
+        ui.NewMusicPanel.on_open(panel)
+
+        self.assertEqual(seen, [[row]])
+
+    def test_chart_view_reports_entries_and_uses_default_labels(self):
+        panel = DiscoverPanelStub()
+        track = ui.SpotifyItem(
+            "track",
+            ui.ItemKind.TRACK,
+            "Track",
+            artist="Artist",
+            raw={"list_note": "chart rank 1"},
+        )
+
+        panel.show_chart_items(ui.ChartResults([track], "au", 0.0))
+
+        self.assertEqual(panel.result_mode, "chart")
+        self.assertIsNone(panel.pending_marker)
+        self.assertIsNone(panel.labels[-1])
+        self.assertTrue(panel.statuses[-1].startswith("1 chart entries."))
+        self.assertIn("Australia", panel.statuses[-1])
+
+    def test_new_releases_search_replaces_previous_chart_results(self):
+        panel = DiscoverPanelStub(
+            all_items=[ui.SpotifyItem("track", ui.ItemKind.TRACK, "Track")],
+            result_mode="chart",
+        )
+        album = ui.SpotifyItem(
+            "album",
+            ui.ItemKind.ALBUM,
+            "Album",
+            uri="spotify:album:album",
+            raw={"release_date": "2026-07-25"},
+        )
+
+        panel.show_items([album])
+
+        self.assertEqual(panel.result_mode, "releases")
+        self.assertEqual(panel.all_items, [album])
+        self.assertEqual(panel.last_rendered_ids(), ["album"])
+
+    def test_chart_provenance_names_source_country_and_limits(self):
+        note = ui.chart_provenance(
+            ui.ChartResults([], "pl", 1_790_000_000.0)
+        )
+
+        self.assertIn("Most played on Apple Music in Poland", note)
+        self.assertIn(", loaded ", note)
+        self.assertIn("2026", note)
+        self.assertIn("rank only", note)
+        self.assertIn(
+            "no play counts, reporting period or measurement time",
+            note,
+        )
+        # Apple's own timestamp must never be presented as data freshness.
+        self.assertNotIn("updated", note)
+        self.assertIn("only when you play, queue or save them", note)
+
+    def test_chart_status_carries_provenance_but_releases_do_not(self):
+        track = ui.SpotifyItem("t", ui.ItemKind.TRACK, "T")
+        panel = DiscoverPanelStub()
+
+        panel.show_chart_items(ui.ChartResults([track], "au", 0.0))
+        chart_status = panel.statuses[-1]
+        album = ui.SpotifyItem(
+            "a",
+            ui.ItemKind.ALBUM,
+            "A",
+            uri="spotify:album:a",
+            raw={"release_date": "2026-07-25"},
+        )
+        panel.show_items([album])
+
+        self.assertIn("Apple Music", chart_status)
+        self.assertNotIn("Apple Music", panel.statuses[-1])
+
+    def _country_panel(self, *, touched=False, resolved=False, connected=True):
+        chosen = []
+        tasks = []
+        panel = type(
+            "Panel",
+            (),
+            {
+                "country_touched": touched,
+                "country_resolved": resolved,
+                "chart_country": type(
+                    "Country",
+                    (),
+                    {"SetSelection": lambda self, index: chosen.append(index)},
+                )(),
+                "frame": type(
+                    "Frame",
+                    (),
+                    {
+                        "spotify": type(
+                            "Spotify",
+                            (),
+                            {"account_country": lambda self: "PL"},
+                        )(),
+                        "run_task": lambda self, message, worker, success, **kw: (
+                            tasks.append((message, worker, success, kw))
+                        ),
+                    },
+                )(),
+            },
+        )()
+        panel.apply_account_country = (
+            lambda code: ui.NewMusicPanel.apply_account_country(panel, code)
+        )
+        panel.forget_country_resolution = (
+            lambda: ui.NewMusicPanel.forget_country_resolution(panel)
+        )
+        return panel, chosen, tasks
+
+    def test_account_country_preselects_the_matching_storefront(self):
+        panel, chosen, _tasks = self._country_panel()
+
+        ui.NewMusicPanel.apply_account_country(panel, "pl")
+
+        self.assertEqual(
+            ui.CHART_COUNTRIES[chosen[0]][0],
+            "PL",
+        )
+
+    def test_account_country_never_overrides_an_explicit_choice(self):
+        panel, chosen, _tasks = self._country_panel(touched=True)
+
+        ui.NewMusicPanel.apply_account_country(panel, "PL")
+
+        self.assertEqual(chosen, [])
+
+    def test_unsupported_account_country_leaves_the_default_alone(self):
+        panel, chosen, _tasks = self._country_panel()
+
+        ui.NewMusicPanel.apply_account_country(panel, "EE")
+        ui.NewMusicPanel.apply_account_country(panel, "")
+
+        self.assertEqual(chosen, [])
+
+    def test_account_country_is_looked_up_once_and_silently(self):
+        panel, _chosen, tasks = self._country_panel()
+
+        ui.NewMusicPanel.resolve_account_country(panel)
+        ui.NewMusicPanel.resolve_account_country(panel)
+
+        self.assertEqual(len(tasks), 1)
+        self.assertIsNone(tasks[0][0])
+
+    def test_account_country_lookup_is_retried_after_a_failure(self):
+        panel, _chosen, tasks = self._country_panel()
+
+        ui.NewMusicPanel.resolve_account_country(panel)
+        tasks[0][3]["failure"]()
+        ui.NewMusicPanel.resolve_account_country(panel)
+
+        self.assertEqual(len(tasks), 2)
+
+    def test_choosing_a_country_marks_it_as_an_explicit_choice(self):
+        panel = type("Panel", (), {"country_touched": False})()
+
+        ui.NewMusicPanel.on_country_chosen(panel)
+
+        self.assertTrue(panel.country_touched)
+
+    def _genre_frame(self):
+        calls = {"tasks": [], "said": [], "tag_search": []}
+        selections = []
+        values = {}
+        frame = type(
+            "Frame",
+            (),
+            {
+                "lastfm": type(
+                    "Lastfm",
+                    (),
+                    {
+                        "top_genre_tags": lambda self, kind, name, artist="": (
+                            calls.setdefault("tag_call", (kind, name, artist))
+                        ),
+                    },
+                )(),
+                "run_task": lambda self, message, worker, success, **kw: (
+                    calls["tasks"].append((message, worker, success))
+                ),
+                "say": lambda self, message: calls["said"].append(message),
+                "notebook": type(
+                    "Notebook",
+                    (),
+                    {"SetSelection": lambda self, page: selections.append(page)},
+                )(),
+                "search": type(
+                    "Search",
+                    (),
+                    {
+                        "query": type(
+                            "Query",
+                            (),
+                            {"SetValue": lambda self, v: values.update(query=v)},
+                        )(),
+                        "tag": type(
+                            "Tag",
+                            (),
+                            {"SetValue": lambda self, v: values.update(tag=v)},
+                        )(),
+                        "categories": type(
+                            "Categories",
+                            (),
+                            {
+                                "SetSelection": lambda self, i: values.update(
+                                    category=i
+                                )
+                            },
+                        )(),
+                        "show_tag_search": lambda self, *args: (
+                            calls["tag_search"].append(args)
+                        ),
+                    },
+                )(),
+            },
+        )()
+        return frame, calls, selections, values
+
+    def test_browse_genres_asks_for_the_primary_artist_of_a_track(self):
+        frame, calls, _selections, _values = self._genre_frame()
+        track = ui.SpotifyItem(
+            "t", ui.ItemKind.TRACK, "Creep", artist="Radiohead, Guest"
+        )
+
+        MainFrame.browse_genres_for(frame, track)
+        message, worker, _success = calls["tasks"][0]
+        worker()
+
+        self.assertIn("Creep", message)
+        self.assertEqual(calls["tag_call"], ("track", "Creep", "Radiohead"))
+
+    def test_browse_genres_for_an_artist_sends_no_track_artist(self):
+        frame, calls, _selections, _values = self._genre_frame()
+        artist = ui.SpotifyItem("a", ui.ItemKind.ARTIST, "Olivia Dean")
+
+        MainFrame.browse_genres_for(frame, artist)
+        calls["tasks"][0][1]()
+
+        self.assertEqual(calls["tag_call"], ("artist", "Olivia Dean", ""))
+
+    def test_no_genre_tags_is_announced_rather_than_showing_an_empty_dialog(self):
+        frame, calls, _selections, _values = self._genre_frame()
+        track = ui.SpotifyItem("t", ui.ItemKind.TRACK, "Obscure")
+
+        MainFrame.choose_genre(frame, track, "track", [])
+
+        self.assertEqual(calls["said"], ["Last.fm has no genre tags for Obscure."])
+        self.assertEqual(calls["tasks"], [])
+
+    def test_chosen_genre_opens_as_the_search_tabs_own_genre_view(self):
+        frame, calls, selections, values = self._genre_frame()
+        items = [ui.SpotifyItem("x", ui.ItemKind.ARTIST, "X")]
+
+        MainFrame.finish_browse_genre(frame, "polish jazz", "artist", items)
+
+        self.assertEqual(selections, [0])
+        self.assertEqual(values["tag"], "polish jazz")
+        self.assertEqual(values["query"], "")
+        self.assertEqual(values["category"], ui.SEARCH_TYPES.index("artist"))
+        self.assertEqual(
+            calls["tag_search"],
+            [("", "polish jazz", "artist", items)],
+        )
+
+    def test_discover_source_enables_only_the_relevant_control(self):
+        enabled = {"release_types": [], "chart_country": [], "chart_date": []}
+
+        def control(name):
+            return type(
+                "Control",
+                (),
+                {"Enable": lambda self, value: enabled[name].append(value)},
+            )()
+
+        panel = type(
+            "Panel",
+            (),
+            {
+                "discovery_source": type(
+                    "Source",
+                    (),
+                    {"GetSelection": lambda self: self.selection},
+                )(),
+                "release_types": control("release_types"),
+                "chart_country": control("chart_country"),
+                "chart_date": control("chart_date"),
+                "source": lambda self: ui.NewMusicPanel.source(self),
+            },
+        )()
+
+        for selection in range(4):
+            panel.discovery_source.selection = selection
+            ui.NewMusicPanel.update_source_controls(panel)
+
+        self.assertEqual(enabled["release_types"], [True, False, False, False])
+        self.assertEqual(enabled["chart_country"], [False, True, True, False])
+        self.assertEqual(enabled["chart_date"], [False, False, False, True])
+
+    def test_chart_country_choice_maps_back_to_a_storefront_code(self):
+        panel = type(
+            "Panel",
+            (),
+            {
+                "chart_country": type(
+                    "Country",
+                    (),
+                    {
+                        "GetSelection": lambda self: next(
+                            index
+                            for index, (code, _name) in enumerate(
+                                ui.CHART_COUNTRIES
+                            )
+                            if code == "GB"
+                        )
+                    },
+                )(),
+            },
+        )()
+
+        self.assertEqual(ui.NewMusicPanel.chart_country_code(panel), "GB")
+
+    def test_historical_chart_date_accepts_compact_and_iso_formats(self):
+        self.assertEqual(ui.parse_chart_date("19800105"), ui.date(1980, 1, 5))
+        self.assertEqual(ui.parse_chart_date("1980-01-05"), ui.date(1980, 1, 5))
 
     def test_new_music_is_sorted_by_full_release_date_and_deduplicated(self):
         older = ui.SpotifyItem(
@@ -2872,138 +4181,6 @@ class NewMusicTests(unittest.TestCase):
 
         self.assertEqual([album.id for album in albums], ["original"])
 
-    def test_new_music_removes_loader_when_page_adds_nothing_new(self):
-        existing = ui.SpotifyItem(
-            "existing",
-            ui.ItemKind.ALBUM,
-            "Same Release",
-            artist="Artist",
-            total=1,
-            raw={"release_date": "2026-07-25"},
-        )
-        old_loader = ui.SpotifyItem(
-            "__load_more__",
-            ui.ItemKind.HEADING,
-            "Load more results",
-            raw={"load_more": True, "next_offset": 20},
-        )
-        duplicate = ui.SpotifyItem(
-            "different-id",
-            ui.ItemKind.ALBUM,
-            "same release",
-            artist="Artist, Guest",
-            total=1,
-            raw={"release_date": "2026-07-25"},
-        )
-        next_loader = ui.SpotifyItem(
-            "__load_more__",
-            ui.ItemKind.HEADING,
-            "Load more results",
-            raw={"load_more": True, "next_offset": 40},
-        )
-        rendered = []
-        spoken = []
-        panel = type(
-            "Panel",
-            (),
-            {
-                "items": type(
-                    "Items",
-                    (),
-                    {
-                        "items": [existing, old_loader],
-                        "set_items": (
-                            lambda self, items, **kwargs: rendered.extend(items)
-                        ),
-                        "SetFocus": lambda self: None,
-                    },
-                )(),
-                "status": type(
-                    "Status",
-                    (),
-                    {"SetLabel": lambda self, label: None},
-                )(),
-                "frame": type(
-                    "Frame",
-                    (),
-                    {"say": lambda self, message: spoken.append(message)},
-                )(),
-                "prepare_items": (
-                    lambda self, items: ui.NewMusicPanel.prepare_items(
-                        self, items
-                    )
-                ),
-            },
-        )()
-
-        ui.NewMusicPanel.append_items(panel, [duplicate, next_loader])
-
-        self.assertEqual([item.id for item in rendered], ["existing"])
-        self.assertEqual(spoken, [ui.msg.NO_MORE_RESULTS])
-
-    def test_paginated_new_music_appends_new_rows_without_reordering(self):
-        first = ui.SpotifyItem(
-            "first",
-            ui.ItemKind.ALBUM,
-            "First",
-            artist="Artist",
-            total=1,
-            raw={"release_date": "2026-07-20"},
-        )
-        later_but_newer = ui.SpotifyItem(
-            "newer",
-            ui.ItemKind.ALBUM,
-            "Newer",
-            artist="Artist",
-            total=1,
-            raw={"release_date": "2026-07-25"},
-        )
-        rendered = []
-        selections = []
-        panel = type(
-            "Panel",
-            (),
-            {
-                "items": type(
-                    "Items",
-                    (),
-                    {
-                        "items": [first],
-                        "set_items": (
-                            lambda self, items, **kwargs: (
-                                rendered.extend(items),
-                                selections.append(kwargs["selected"]),
-                            )
-                        ),
-                        "SetFocus": lambda self: None,
-                    },
-                )(),
-                "status": type(
-                    "Status",
-                    (),
-                    {"SetLabel": lambda self, label: None},
-                )(),
-                "frame": type(
-                    "Frame",
-                    (),
-                    {"say": lambda self, message: None},
-                )(),
-                "prepare_items": (
-                    lambda self, items: ui.NewMusicPanel.prepare_items(
-                        self, items
-                    )
-                ),
-            },
-        )()
-
-        ui.NewMusicPanel.append_items(panel, [later_but_newer])
-
-        self.assertEqual(
-            [item.id for item in rendered],
-            ["first", "newer"],
-        )
-        self.assertEqual(selections, [1])
-
     def test_release_type_radio_choices_map_to_spotify_album_types(self):
         panel = type(
             "Panel",
@@ -3077,6 +4254,738 @@ class NewMusicTests(unittest.TestCase):
             self.assertIn("in BlindSpot", items[0].accessible_label())
 
 
+class ExportAndDiagnosticsWiringTests(unittest.TestCase):
+    def _frame(self, **attributes):
+        said = []
+        errors = []
+        base = {
+            "say": lambda self, message: said.append(message),
+            "show_error": lambda self, message: errors.append(message),
+        }
+        base.update(attributes)
+        frame = type("Frame", (), base)()
+        return frame, said, errors
+
+    def _track(self, number=1):
+        return ui.SpotifyItem(
+            f"t{number}",
+            ui.ItemKind.TRACK,
+            f"Song {number}",
+            artist="Artist",
+            uri=f"spotify:track:t{number}",
+        )
+
+    def _item_list(self, items, selected=None):
+        return type(
+            "ItemList",
+            (),
+            {
+                "items": items,
+                "selected_item": lambda self: selected,
+            },
+        )()
+
+    # ---------------------------------------------------------- export command
+    def test_export_command_exports_the_tracks_in_the_current_list(self):
+        exported = []
+        tracks = [self._track(1), self._track(2)]
+        frame, _said, _errors = self._frame(
+            current_item_list=lambda self: self._list,
+            current_view_name=lambda self: "Liked Songs",
+            export_items=lambda self, name, items: exported.append((name, items)),
+        )
+        frame._list = self._item_list(tracks)
+
+        MainFrame.export_list_command(frame)
+
+        self.assertEqual(exported, [("Liked Songs", tracks)])
+
+    def test_export_command_loads_a_selected_playlist_when_the_list_has_no_tracks(self):
+        playlist = ui.SpotifyItem("p", ui.ItemKind.PLAYLIST, "Road trip", uri="spotify:playlist:p")
+        exported = []
+        loaded = []
+        tasks = []
+        frame, _said, _errors = self._frame(
+            current_item_list=lambda self: self._list,
+            current_view_name=lambda self: "Playlists",
+            export_items=lambda self, name, items: exported.append((name, items)),
+            spotify=type(
+                "Spotify",
+                (),
+                {"children": lambda self, item: loaded.append(item) or [self._t]},
+            )(),
+            run_task=lambda self, message, worker, success, **kw: (
+                tasks.append(message),
+                success(worker()),
+            ),
+        )
+        frame._list = self._item_list([playlist], selected=playlist)
+        frame.spotify._t = self._track()
+
+        MainFrame.export_list_command(frame)
+
+        self.assertEqual(loaded, [playlist])
+        self.assertEqual(tasks, ["Loading Road trip to export"])
+        self.assertEqual(exported[0][0], "Road trip")
+
+    def test_export_command_explains_when_there_is_nothing_to_export(self):
+        artist = ui.SpotifyItem("a", ui.ItemKind.ARTIST, "Someone")
+        frame, said, _errors = self._frame(
+            current_item_list=lambda self: self._list,
+            current_view_name=lambda self: "Search",
+        )
+        frame._list = self._item_list([artist], selected=artist)
+
+        MainFrame.export_list_command(frame)
+
+        self.assertEqual(said, [ui.msg.NOTHING_TO_EXPORT])
+
+    def test_export_command_without_a_list_says_so(self):
+        frame, said, _errors = self._frame(current_item_list=lambda self: None)
+
+        MainFrame.export_list_command(frame)
+
+        self.assertEqual(said, [ui.msg.NOTHING_TO_EXPORT])
+
+    # ------------------------------------------------------------ export_items
+    def _dialog(self, path, result=None, filter_index=0):
+        result = ui.wx.ID_OK if result is None else result
+
+        class FakeDialog:
+            def __init__(self, *args, **kwargs):
+                self.kwargs = kwargs
+
+            def ShowModal(self):
+                return result
+
+            def GetPath(self):
+                return str(path)
+
+            def GetFilterIndex(self):
+                return filter_index
+
+            def Destroy(self):
+                pass
+
+        return FakeDialog
+
+    def test_export_items_writes_the_chosen_file_and_announces_the_count(self):
+        import tempfile
+        from pathlib import Path
+
+        frame, said, errors = self._frame()
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "out.csv"
+            with patch("blindspot.ui.wx.FileDialog", self._dialog(target)):
+                MainFrame.export_items(frame, "My list", [self._track(1), self._track(2)])
+
+            self.assertTrue(target.exists())
+            self.assertIn("Song 2", target.read_text(encoding="utf-8-sig"))
+
+        self.assertEqual(errors, [])
+        self.assertEqual(said, ["Exported 2 items to out.csv."])
+
+    def test_export_items_adds_the_extension_from_the_chosen_filter(self):
+        import tempfile
+        from pathlib import Path
+
+        frame, said, _errors = self._frame()
+        with tempfile.TemporaryDirectory() as folder:
+            bare = Path(folder) / "bare"
+            with patch("blindspot.ui.wx.FileDialog", self._dialog(bare, filter_index=1)):
+                MainFrame.export_items(frame, "L", [self._track(1)])
+
+            self.assertTrue((Path(folder) / "bare.csv").exists())
+
+        self.assertIn("bare.csv", said[0])
+
+    def test_export_items_warns_when_the_list_was_only_partly_loaded(self):
+        import tempfile
+        from pathlib import Path
+
+        more = ui.SpotifyItem("m", ui.ItemKind.HEADING, "Load more", raw={"load_more": True})
+        frame, said, _errors = self._frame()
+        with tempfile.TemporaryDirectory() as folder:
+            with patch(
+                "blindspot.ui.wx.FileDialog",
+                self._dialog(Path(folder) / "p.txt"),
+            ):
+                MainFrame.export_items(frame, "L", [self._track(1), more])
+
+        self.assertIn("partial list", said[0])
+
+    def test_cancelling_the_file_dialog_writes_nothing(self):
+        import tempfile
+        from pathlib import Path
+
+        frame, said, errors = self._frame()
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "never.txt"
+            with patch(
+                "blindspot.ui.wx.FileDialog",
+                self._dialog(target, result=ui.wx.ID_CANCEL),
+            ):
+                MainFrame.export_items(frame, "L", [self._track(1)])
+
+            self.assertFalse(target.exists())
+
+        self.assertEqual((said, errors), ([], []))
+
+    def test_a_write_failure_is_reported_as_an_error(self):
+        frame, said, errors = self._frame()
+        with patch(
+            "blindspot.ui.wx.FileDialog",
+            self._dialog("/no/such/folder/x.txt"),
+        ):
+            MainFrame.export_items(frame, "L", [self._track(1)])
+
+        self.assertEqual(said, [])
+        self.assertTrue(errors[0].startswith("The file could not be saved"))
+
+    def test_nothing_exportable_never_opens_a_file_dialog(self):
+        frame, said, _errors = self._frame()
+        artist = ui.SpotifyItem("a", ui.ItemKind.ARTIST, "Someone")
+
+        with patch("blindspot.ui.wx.FileDialog") as dialog:
+            MainFrame.export_items(frame, "L", [artist])
+
+        dialog.assert_not_called()
+        self.assertEqual(said, [ui.msg.NOTHING_TO_EXPORT])
+
+    # ----------------------------------------------------------- error details
+    def test_show_error_records_a_message_only_error_and_offers_copying(self):
+        shown = []
+
+        class FakeErrorDialog:
+            def __init__(self, parent, message, on_copy):
+                shown.append((message, on_copy))
+
+            def ShowModal(self):
+                pass
+
+            def Destroy(self):
+                pass
+
+        frame, said, _errors = self._frame(
+            last_error=None,
+            copy_error_details=lambda self: None,
+        )
+        with patch("blindspot.ui.ErrorDialog", FakeErrorDialog):
+            MainFrame.show_error(frame, "Something went wrong")
+
+        self.assertEqual(said, ["Something went wrong"])
+        self.assertEqual(frame.last_error.message, "Something went wrong")
+        self.assertEqual(shown[0][0], "Something went wrong")
+
+    def test_show_error_keeps_the_richer_record_when_the_message_matches(self):
+        from blindspot.diagnostics import ErrorDetails
+
+        richer = ErrorDetails("Same", error_type="x.Error", traceback="Traceback...")
+
+        class FakeErrorDialog:
+            def __init__(self, *args):
+                pass
+
+            def ShowModal(self):
+                pass
+
+            def Destroy(self):
+                pass
+
+        frame, _said, _errors = self._frame(
+            last_error=richer,
+            copy_error_details=lambda self: None,
+        )
+        with patch("blindspot.ui.ErrorDialog", FakeErrorDialog):
+            MainFrame.show_error(frame, "Same")
+
+        self.assertIs(frame.last_error, richer)
+
+    def test_copy_error_details_with_no_error_says_so(self):
+        frame, said, _errors = self._frame(last_error=None)
+
+        MainFrame.copy_error_details(frame)
+
+        self.assertEqual(said, [ui.msg.NO_ERROR_TO_COPY])
+
+    def test_copy_error_details_copies_a_redacted_report(self):
+        from blindspot.diagnostics import ErrorDetails
+
+        secret = "TOPSECRETKEY123456"
+        frame, said, _errors = self._frame(
+            last_error=ErrorDetails(f"failed using {secret}", task="Loading chart"),
+            known_secrets=lambda self: [secret],
+            copy_text=lambda self, text, done: (
+                copied.append(text),
+                said.append(done),
+            ),
+        )
+        copied = []
+
+        MainFrame.copy_error_details(frame)
+
+        self.assertIn("Loading chart", copied[0])
+        self.assertNotIn(secret, copied[0])
+        self.assertEqual(said, [ui.msg.ERROR_DETAILS_COPIED])
+
+    def test_copy_text_reports_an_unavailable_clipboard(self):
+        frame, said, _errors = self._frame()
+
+        with patch("blindspot.ui.copy_to_clipboard", return_value=False):
+            MainFrame.copy_text(frame, "text", "done")
+        with patch("blindspot.ui.copy_to_clipboard", return_value=True):
+            MainFrame.copy_text(frame, "text", "done")
+
+        self.assertEqual(said, [ui.msg.CLIPBOARD_UNAVAILABLE, "done"])
+
+    def test_known_secrets_gathers_every_credential(self):
+        store = type(
+            "Store",
+            (),
+            {
+                "read": lambda self, name, default=None: {
+                    "ticketmaster_api_key": "TM-KEY-1",
+                    "lastfm_api_key": "LFM-KEY-2",
+                }
+            },
+        )()
+        spotify = type(
+            "Spotify",
+            (),
+            {
+                "token": {
+                    "access_token": "ACCESS-3",
+                    "refresh_token": "REFRESH-4",
+                    "client_id": "CLIENT-5",
+                }
+            },
+        )()
+        frame, _said, _errors = self._frame(store=store, spotify=spotify)
+
+        secrets = MainFrame.known_secrets(frame)
+
+        self.assertEqual(
+            sorted(secrets),
+            ["ACCESS-3", "CLIENT-5", "LFM-KEY-2", "REFRESH-4", "TM-KEY-1"],
+        )
+
+    # ------------------------------------------------------ diagnostic report
+    def _diagnostic_frame(self, folder, settings, token=None, connected=True):
+        from pathlib import Path
+
+        store = type(
+            "Store",
+            (),
+            {
+                "root": Path(folder),
+                "read": lambda self, name, default=None: settings,
+            },
+        )()
+        spotify = type(
+            "Spotify",
+            (),
+            {"token": token or {}, "connected": connected},
+        )()
+        frame, _said, _errors = self._frame(
+            store=store,
+            spotify=spotify,
+            last_error=None,
+            known_secrets=lambda self: MainFrame.known_secrets(self),
+        )
+        return frame
+
+    def test_diagnostic_text_leaves_the_log_out_by_default(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / "blindspot.log").write_text(
+                "Opening kind=album id=abc name='Private Album'\n",
+                encoding="utf-8",
+            )
+            frame = self._diagnostic_frame(folder, {"logging_level": "Debug"})
+
+            report = MainFrame.diagnostic_text(frame, False, False)
+
+        self.assertIn("Log: not included.", report)
+        self.assertNotIn("Private Album", report)
+
+    def test_diagnostic_text_includes_the_log_with_names_hidden_on_request(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / "blindspot.log").write_text(
+                "Opening kind=album id=abc name='Private Album'\n",
+                encoding="utf-8",
+            )
+            frame = self._diagnostic_frame(folder, {"logging_level": "Debug"})
+
+            hidden = MainFrame.diagnostic_text(frame, True, False)
+            shown = MainFrame.diagnostic_text(frame, True, True)
+
+        self.assertIn("id=abc", hidden)
+        self.assertNotIn("Private Album", hidden)
+        self.assertIn("Private Album", shown)
+
+    def test_diagnostic_text_never_contains_a_stored_credential(self):
+        import tempfile
+        from pathlib import Path
+
+        settings = {
+            "logging_level": "Debug",
+            "ticketmaster_api_key": "TM-KEY-VALUE-123",
+            "lastfm_api_key": "LFM-KEY-VALUE-456",
+        }
+        token = {
+            "access_token": "ACCESS-VALUE-789",
+            "refresh_token": "REFRESH-VALUE-000",
+            "client_id": "CLIENT-VALUE-111",
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / "blindspot.log").write_text(
+                "\n".join(f"used {value}" for value in [*settings.values(), *token.values()]),
+                encoding="utf-8",
+            )
+            frame = self._diagnostic_frame(folder, settings, token)
+
+            report = MainFrame.diagnostic_text(frame, True, True)
+
+        for secret in ("TM-KEY-VALUE-123", "LFM-KEY-VALUE-456", "ACCESS-VALUE-789",
+                       "REFRESH-VALUE-000", "CLIENT-VALUE-111"):
+            self.assertNotIn(secret, report)
+        self.assertIn("Ticketmaster key: set", report)
+        self.assertIn("Last.fm key: custom", report)
+        self.assertIn("Spotify client ID: set", report)
+
+    def test_diagnostic_text_explains_logging_that_is_switched_off(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as folder:
+            frame = self._diagnostic_frame(folder, {}, connected=False)
+
+            report = MainFrame.diagnostic_text(frame, True, False)
+
+        self.assertIn("logging is switched off", report)
+        self.assertIn("Spotify connected: no", report)
+        self.assertIn("Last.fm key: built-in default", report)
+
+    # ------------------------------------------------------------------ covers
+    def _cover_results(self, count=2, examined=300, total=300):
+        from blindspot.musicbrainz import Cover, CoverResults
+
+        covers = [
+            Cover(f"Hallelujah", f"Artist {n}", "2010", n % 2 == 0, f"id{n}")
+            for n in range(count)
+        ]
+        return CoverResults(covers, "Hallelujah", total, examined)
+
+    def test_find_covers_searches_with_a_clean_title_and_the_primary_artist(self):
+        tasks = []
+        searched = []
+        frame, _said, _errors = self._frame(
+            musicbrainz=type(
+                "MusicBrainz",
+                (),
+                {
+                    "find_covers": lambda self, t, a, d=0: searched.append(
+                        (t, a, d)
+                    )
+                },
+            )(),
+            run_task=lambda self, message, worker, success, **kw: tasks.append(
+                (message, worker)
+            ),
+        )
+        track = ui.SpotifyItem(
+            "t",
+            ui.ItemKind.TRACK,
+            "Hurt - Remastered 2011",
+            artist="Nine Inch Nails, Guest",
+            duration_ms=134_000,
+        )
+
+        MainFrame.find_covers_for(frame, track)
+        tasks[0][1]()
+
+        # The track's own length rides along to sanity-check same-title matches.
+        self.assertEqual(searched, [("Hurt", "Nine Inch Nails", 134_000)])
+        self.assertIn("MusicBrainz", tasks[0][0])
+        self.assertIn("20 seconds", tasks[0][0])
+
+    def test_covers_appear_as_unresolved_rows_with_a_note_and_a_summary(self):
+        shown = []
+        statuses = []
+        frame, said, _errors = self._frame(
+            show_lastfm_results=lambda self, title, rows: shown.append((title, rows)),
+            search=type(
+                "Search",
+                (),
+                {
+                    "status": type(
+                        "Status",
+                        (),
+                        {"SetLabel": lambda self, text: statuses.append(text)},
+                    )()
+                },
+            )(),
+        )
+        source = ui.SpotifyItem(
+            "t", ui.ItemKind.TRACK, "Hallelujah", artist="Leonard Cohen"
+        )
+
+        MainFrame.show_covers(frame, source, self._cover_results(2, 300, 514))
+
+        title, rows = shown[0]
+        self.assertEqual(title, "Covers of Hallelujah, provided by MusicBrainz")
+        self.assertEqual(len(rows), 2)
+        first = rows[0]
+        self.assertEqual((first.name, first.artist, first.year), ("Hallelujah", "Artist 0", "2010"))
+        self.assertTrue(first.raw["unresolved"])
+        self.assertEqual(first.uri, "")
+        self.assertEqual(rows[0].raw["list_note"], "cover")
+        # Versions of one song are told apart by the performer, so lead with it.
+        self.assertEqual(rows[0].accessible_label(), "Artist 0 — Hallelujah — 2010 — cover")
+        # Rows MusicBrainz does not mark as covers carry no commentary at all.
+        self.assertNotIn("list_note", rows[1].raw)
+        self.assertNotIn("cover", rows[1].accessible_label().casefold())
+        self.assertNotIn("confirm", rows[1].accessible_label().casefold())
+        self.assertIn("2 versions by 2 artists, from MusicBrainz.", statuses[0])
+        self.assertIn("recordings by Leonard Cohen are left out", statuses[0])
+        self.assertIn("Checked the first 300 of 514 recordings.", statuses[0])
+        self.assertEqual(said, [])
+
+    def test_a_complete_check_does_not_claim_it_was_cut_short(self):
+        summary = ui.cover_summary(
+            ui.SpotifyItem("t", ui.ItemKind.TRACK, "S", artist="A"),
+            self._cover_results(1, 177, 177),
+        )
+
+        self.assertNotIn("Checked the first", summary)
+        self.assertIn("1 version by 1 artist", summary)
+        self.assertIn("looked up on Spotify only when you play", summary)
+
+    def test_no_covers_is_announced_and_no_list_is_opened(self):
+        shown = []
+        frame, said, _errors = self._frame(
+            show_lastfm_results=lambda self, title, rows: shown.append(title),
+        )
+        source = ui.SpotifyItem("t", ui.ItemKind.TRACK, "Obscure", artist="A")
+
+        MainFrame.show_covers(frame, source, self._cover_results(0))
+
+        self.assertEqual(shown, [])
+        self.assertEqual(said, ["MusicBrainz lists no other studio versions of Obscure."])
+
+    def test_a_song_musicbrainz_lacks_is_a_notice_not_an_error_report(self):
+        from blindspot.musicbrainz import CoversUnavailable
+
+        frame, errors = self._run_task_frame()
+        said = []
+        frame.say = lambda message: said.append(message)
+
+        def worker():
+            raise CoversUnavailable("MusicBrainz could not find X by Y.")
+
+        with self.assertLogs("blindspot.ui", level="INFO"):
+            self._run_inline(frame, worker, "Finding covers")
+
+        self.assertEqual(errors, [])
+        self.assertIsNone(frame.last_error)
+        self.assertIn("MusicBrainz could not find X by Y.", said)
+
+    def test_playing_a_cover_row_looks_it_up_on_spotify_first(self):
+        real = ui.SpotifyItem("r", ui.ItemKind.TRACK, "Song", uri="spotify:track:r")
+        row = ui.SpotifyItem(
+            "musicbrainz:1",
+            ui.ItemKind.TRACK,
+            "Song",
+            artist="Cover Artist",
+            raw={"unresolved": True, "list_note": "cover"},
+        )
+        looked_up = []
+        played = []
+        frame, _said, _errors = self._frame(
+            resolve_then=lambda self, items, retry: MainFrame.resolve_then(
+                self, items, retry
+            ),
+            spotify=type(
+                "Spotify",
+                (),
+                {"find_track": lambda self, n, a: looked_up.append((n, a)) or real},
+            )(),
+            run_task=lambda self, message, worker, success, **kw: success(worker()),
+            resolve_track_row=lambda self, r: MainFrame.resolve_track_row(self, r),
+            finish_resolve=lambda self, *args: MainFrame.finish_resolve(self, *args),
+            play=lambda self, item: played.append(item.uri),
+            play_playable_item=lambda self, item: MainFrame.play_playable_item(
+                self, item
+            ),
+        )
+
+        MainFrame.play_playable_item(frame, row)
+
+        self.assertEqual(looked_up, [("Song", "Cover Artist")])
+        self.assertEqual(played, ["spotify:track:r"])
+
+    # ------------------------------------------- focus return from save dialogs
+    def _capturing_file_dialog(self, result, path=""):
+        parents = []
+
+        class FakeDialog:
+            def __init__(self, parent, *args, **kwargs):
+                parents.append(parent)
+
+            def ShowModal(self):
+                return result
+
+            def GetPath(self):
+                return str(path)
+
+            def Destroy(self):
+                pass
+
+        return FakeDialog, parents
+
+    def test_the_save_dialog_is_a_child_of_the_diagnostic_dialog_that_opened_it(self):
+        frame, _said, _errors = self._frame()
+        diagnostic_dialog = object()
+        fake, parents = self._capturing_file_dialog(ui.wx.ID_CANCEL)
+
+        with patch("blindspot.ui.wx.FileDialog", fake):
+            MainFrame.save_text_report(frame, "text", "name", diagnostic_dialog)
+
+        self.assertEqual(parents, [diagnostic_dialog])
+
+    def test_the_save_dialog_falls_back_to_the_main_window_without_a_parent(self):
+        frame, _said, _errors = self._frame()
+        fake, parents = self._capturing_file_dialog(ui.wx.ID_CANCEL)
+
+        with patch("blindspot.ui.wx.FileDialog", fake):
+            MainFrame.save_text_report(frame, "text", "name")
+
+        self.assertEqual(parents, [frame])
+
+    def test_a_save_failure_error_is_parented_to_the_diagnostic_dialog_too(self):
+        parents = []
+        frame, _said, _errors = self._frame()
+        frame.show_error = lambda message, parent=None: parents.append(parent)
+        diagnostic_dialog = object()
+        fake, _ = self._capturing_file_dialog(
+            ui.wx.ID_OK,
+            "/no/such/folder/report.txt",
+        )
+
+        with patch("blindspot.ui.wx.FileDialog", fake):
+            MainFrame.save_text_report(frame, "text", "name", diagnostic_dialog)
+
+        self.assertEqual(parents, [diagnostic_dialog])
+
+    def test_show_error_parents_its_dialog_to_the_window_that_asked(self):
+        parents = []
+
+        class FakeErrorDialog:
+            def __init__(self, parent, message, on_copy):
+                parents.append(parent)
+
+            def ShowModal(self):
+                pass
+
+            def Destroy(self):
+                pass
+
+        frame, _said, _errors = self._frame(
+            last_error=None,
+            copy_error_details=lambda self: None,
+        )
+        asker = object()
+        with patch("blindspot.ui.ErrorDialog", FakeErrorDialog):
+            MainFrame.show_error(frame, "one", parent=asker)
+            MainFrame.show_error(frame, "two")
+
+        self.assertEqual(parents, [asker, frame])
+
+    def test_the_diagnostic_dialog_passes_itself_to_save_and_refocuses_afterwards(self):
+        events = []
+        dialog = type(
+            "Dialog",
+            (),
+            {
+                "report": type(
+                    "Report", (), {"GetValue": lambda self: "report text"}
+                )(),
+                "save_button": type(
+                    "Button",
+                    (),
+                    {"SetFocus": lambda self: events.append("focus save button")},
+                )(),
+                "on_save": lambda self, parent, text: events.append(
+                    ("save", parent is self, text)
+                ),
+            },
+        )()
+
+        ui.DiagnosticDialog.on_save_clicked(dialog)
+
+        self.assertEqual(
+            events,
+            [("save", True, "report text"), "focus save button"],
+        )
+
+    # ---------------------------------------------------- run_task recording
+    def _run_task_frame(self, connected=True):
+        errors = []
+        frame, said, _ = self._frame(
+            spotify=type("Spotify", (), {"connected": connected})(),
+            last_error=None,
+            offer_permission_refresh=lambda self: None,
+        )
+        frame.show_error = lambda message: errors.append(message)
+        return frame, errors
+
+    def _run_inline(self, frame, worker, message="Doing a thing"):
+        class InlineThread:
+            def __init__(self, target, daemon=None):
+                self.target = target
+
+            def start(self):
+                self.target()
+
+        with (
+            patch("blindspot.ui.threading.Thread", InlineThread),
+            patch("blindspot.ui.wx.CallAfter", lambda function, *a: function(*a)),
+        ):
+            MainFrame.run_task(frame, message, worker, lambda result: None)
+
+    def test_a_failed_task_records_type_traceback_and_what_it_was_doing(self):
+        from blindspot.spotify import SpotifyError
+
+        frame, errors = self._run_task_frame()
+
+        def worker():
+            raise SpotifyError("limited", status=429, retry_after=90)
+
+        with self.assertLogs("blindspot.ui", level="ERROR"):
+            self._run_inline(frame, worker, "Finding Song on Spotify")
+
+        self.assertEqual(errors, ["limited"])
+        self.assertEqual(frame.last_error.task, "Finding Song on Spotify")
+        self.assertEqual(frame.last_error.status, 429)
+        self.assertIn("Traceback", frame.last_error.traceback)
+
+    def test_expected_unavailable_notices_are_not_recorded_as_errors(self):
+        from blindspot.spotify import PlaylistContentsUnavailable
+
+        frame, _errors = self._run_task_frame()
+
+        def worker():
+            raise PlaylistContentsUnavailable("not yours")
+
+        self._run_inline(frame, worker)
+
+        self.assertIsNone(frame.last_error)
+
+
 class PodcastSupportTests(unittest.TestCase):
     def test_browse_category_displays_scoped_podcast_results(self):
         rendered = []
@@ -3085,7 +4994,7 @@ class PodcastSupportTests(unittest.TestCase):
         loader = ui.SpotifyItem(
             "__load_more__",
             ui.ItemKind.HEADING,
-            "Show next 50 podcasts",
+            "Show more podcasts",
             raw={"load_more": True, "next_offset": 50},
         )
         panel = type(
@@ -3125,7 +5034,7 @@ class PodcastSupportTests(unittest.TestCase):
         loader = ui.SpotifyItem(
             "__load_more__",
             ui.ItemKind.HEADING,
-            "Show next 50 podcasts",
+            "Show more podcasts",
             raw={"load_more": True, "next_offset": 100},
         )
         state = ui.ViewState(
@@ -3835,6 +5744,41 @@ class StandaloneTrackNavigationTests(unittest.TestCase):
 
         self.assertEqual(sent, ["device"])
 
+    def test_next_logs_cached_playback_diagnostics_without_extra_requests(self):
+        current = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Current song")
+        calls = []
+        spotify = type(
+            "Spotify",
+            (),
+            {
+                "next_track": lambda self, device_id: calls.append(device_id),
+            },
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "spotify": spotify,
+                "current_player_item": current,
+                "current_player_state": {
+                    "context_uri": "spotify:playlist:list-1"
+                },
+                "repeat_state": "off",
+                "shuffle_enabled": False,
+                "run_task": lambda self, message, work, done: done(work()),
+            },
+        )()
+
+        with self.assertLogs("blindspot.ui", level="INFO") as captured:
+            MainFrame.send_next_track(frame, "device")
+
+        self.assertEqual(calls, ["device"])
+        diagnostic = captured.output[0]
+        self.assertIn("current_id=track", diagnostic)
+        self.assertIn("context=spotify:playlist:list-1", diagnostic)
+        self.assertIn("repeat=off", diagnostic)
+        self.assertIn("shuffle=False", diagnostic)
+
     def test_lyric_start_does_not_seek_before_track_is_loaded(self):
         item = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Track")
         calls = []
@@ -4172,6 +6116,7 @@ class MultipleQueueTests(unittest.TestCase):
             "Frame",
             (),
             {
+                "resolve_then": lambda self, items, retry: False,
                 "pending_resume": None,
                 "current_player_item": first,
                 "deferred_queue_items": [],
@@ -4233,6 +6178,7 @@ class MultipleQueueTests(unittest.TestCase):
             "Frame",
             (),
             {
+                "resolve_then": lambda self, items, retry: False,
                 "pending_resume": (remembered, 0, ""),
                 "current_player_item": remembered,
                 "deferred_queue_items": [],
@@ -4867,7 +6813,12 @@ class PlaylistRefreshTests(unittest.TestCase):
         self.assertEqual(focus_calls, [False])
 
     def test_added_track_updates_open_playlist_without_taking_focus(self):
-        track = object()
+        track = ui.SpotifyItem(
+            "track",
+            ui.ItemKind.TRACK,
+            "Track",
+            uri="spotify:track:track",
+        )
         state = type("State", (), {"items": []})()
         rendered = []
         messages = []
@@ -4896,7 +6847,46 @@ class PlaylistRefreshTests(unittest.TestCase):
 
         self.assertEqual(state.items, [track])
         self.assertEqual(rendered, [(state, False)])
-        self.assertEqual(messages, ["Added."])
+        self.assertEqual(messages, ["Added 1 item to the playlist."])
+
+    def test_added_tracks_update_open_playlist_in_displayed_order(self):
+        tracks = [
+            ui.SpotifyItem(
+                str(number),
+                ui.ItemKind.TRACK,
+                f"Track {number}",
+                uri=f"spotify:track:{number}",
+            )
+            for number in (2, 1)
+        ]
+        state = type("State", (), {"items": []})()
+        messages = []
+        playlists = type(
+            "Playlists",
+            (),
+            {
+                "current_playlist": type("Playlist", (), {"id": "list"})(),
+                "history": type("History", (), {"current": state})(),
+                "render": lambda self, state, focus: None,
+            },
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "playlists": playlists,
+                "say": lambda self, message: messages.append(message),
+            },
+        )()
+
+        MainFrame.finish_add_to_playlist(
+            frame,
+            playlists.current_playlist,
+            tracks,
+        )
+
+        self.assertEqual(state.items, tracks)
+        self.assertEqual(messages, ["Added 2 items to the playlist."])
 
     def test_delete_on_playlist_list_removes_focused_playlist(self):
         playlist = object()
@@ -4924,6 +6914,50 @@ class PlaylistRefreshTests(unittest.TestCase):
             PlaylistsPanel.on_key(panel, event)
 
         self.assertEqual(removed, [playlist])
+
+    def test_playlist_track_removal_requires_confirmation(self):
+        track = ui.SpotifyItem(
+            "track", ui.ItemKind.TRACK, "Track", uri="spotify:track:track"
+        )
+        playlist = ui.SpotifyItem(
+            "playlist",
+            ui.ItemKind.PLAYLIST,
+            "Playlist",
+            raw={"editable": True},
+        )
+        tasks = []
+        panel = type(
+            "Panel",
+            (),
+            {
+                "current_playlist": playlist,
+                "items": type(
+                    "Items",
+                    (),
+                    {
+                        "selected_item": lambda self: track,
+                        "GetSelection": lambda self: 3,
+                    },
+                )(),
+                "frame": type(
+                    "Frame",
+                    (),
+                    {
+                        "spotify": object(),
+                        "run_task": lambda self, *args: tasks.append(args),
+                        "say": lambda self, message: None,
+                    },
+                )(),
+            },
+        )()
+
+        with patch("blindspot.ui.wx.MessageBox", return_value=ui.wx.NO):
+            PlaylistsPanel.remove_selected(panel)
+        self.assertEqual(tasks, [])
+
+        with patch("blindspot.ui.wx.MessageBox", return_value=ui.wx.YES):
+            PlaylistsPanel.remove_selected(panel)
+        self.assertEqual(len(tasks), 1)
 
 
 class LyricsKeyboardTests(unittest.TestCase):
@@ -5754,6 +7788,75 @@ class LyricsKeyboardTests(unittest.TestCase):
 
         self.assertTrue(handled)
         self.assertEqual(selected, [True])
+
+    def test_select_all_is_available_for_discover_chart_results(self):
+        selected = []
+        target = type(
+            "Target",
+            (),
+            {
+                "select_all_items": lambda self: selected.append(True),
+                "GetSelections": lambda self: [0, 1],
+            },
+        )()
+        spoken = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": type(
+                    "Notebook", (), {"GetSelection": lambda self: 9}
+                )(),
+                "new_music": type(
+                    "Discover", (), {"result_mode": "chart"}
+                )(),
+                "say": lambda self, message: spoken.append(message),
+            },
+        )()
+
+        MainFrame.select_all_in_current_list(frame, target)
+
+        self.assertEqual(selected, [True])
+        self.assertEqual(spoken, ["2 items selected"])
+
+    def test_select_all_remains_unavailable_for_discover_releases(self):
+        selected = []
+        target = type(
+            "Target",
+            (),
+            {"select_all_items": lambda self: selected.append(True)},
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": type(
+                    "Notebook", (), {"GetSelection": lambda self: 9}
+                )(),
+                "new_music": type(
+                    "Discover", (), {"result_mode": "releases"}
+                )(),
+            },
+        )()
+
+        MainFrame.select_all_in_current_list(frame, target)
+
+        self.assertEqual(selected, [])
+
+    def test_discover_is_the_sort_panel_on_its_tab(self):
+        discover = object()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": type(
+                    "Notebook", (), {"GetSelection": lambda self: 9}
+                )(),
+                "new_music": discover,
+            },
+        )()
+
+        self.assertIs(MainFrame.current_sort_panel(frame), discover)
 
     def test_bare_space_is_left_to_native_controls(self):
         event = self.Event(32)
