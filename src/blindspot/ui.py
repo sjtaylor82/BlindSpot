@@ -10329,60 +10329,64 @@ class MainFrame(wx.Frame):
                 lambda event: self.queue_similar_mix(item),
                 queue_mix,
             )
-            menu.AppendSubMenu(mix_menu, "Similar-track mix (Last.&fm)")
+            menu.AppendSubMenu(mix_menu, tr("Similar-track mix (Last.&fm)"))
             if include_album_action:
                 actions.append(
                     (
-                        menu.Append(wx.ID_ANY, "Open &album"),
+                        menu.Append(wx.ID_ANY, tr("Open &album")),
                         lambda: self.open_album_for_track(item),
                     )
                 )
         if item.kind == ItemKind.ARTIST:
             actions.append(
                 (
-                    menu.Append(wx.ID_ANY, "Find similar &artists (Last.fm)"),
+                    menu.Append(wx.ID_ANY, tr(
+                        "Find similar &artists (Last.fm)"
+                    )),
                     lambda: self.find_similar_artists(item),
                 )
             )
         if item.kind in (ItemKind.TRACK, ItemKind.ARTIST):
             actions.append(
                 (
-                    menu.Append(wx.ID_ANY, "Browse &genres (Last.fm)..."),
+                    menu.Append(wx.ID_ANY, tr("Browse &genres (Last.fm)...")),
                     lambda: self.browse_genres_for(item),
                 )
             )
         if item.kind == ItemKind.TRACK:
             actions.append(
                 (
-                    menu.Append(wx.ID_ANY, "Find &covers (MusicBrainz)"),
+                    menu.Append(wx.ID_ANY, tr("Find &covers (MusicBrainz)")),
                     lambda: self.find_covers_for(item),
                 )
             )
         if item.raw.get("lastfm_url"):
             actions.append(
                 (
-                    menu.Append(wx.ID_ANY, "Open on Last.&fm..."),
+                    menu.Append(wx.ID_ANY, tr("Open on Last.&fm...")),
                     lambda: webbrowser.open(str(item.raw["lastfm_url"])),
                 )
             )
             if self.current_player_item and item.id == self.current_player_item.id:
                 actions.append(
                     (
-                        menu.Append(wx.ID_ANY, "Bookmark current &position"),
+                        menu.Append(wx.ID_ANY, tr(
+                            "Bookmark current &position"
+                        )),
                         self.save_current_bookmark,
                     )
                 )
         if item.playable and item.uri:
             actions.append(
                 (
-                    menu.Append(wx.ID_ANY, "Add to &queue"),
+                    menu.Append(wx.ID_ANY, tr("Add to &queue")),
                     lambda: self.queue_selected(item),
                 )
             )
             if not remove_callback:
                 actions.append(
                     (
-                        menu.Append(wx.ID_ANY, "&Save to library"),
+                        menu.Append(wx.ID_ANY, tr("&Save to library")),
                         lambda: self.like_selected(item),
                     )
                 )
