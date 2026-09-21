@@ -1833,7 +1833,7 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
 
         self.assertEqual(frame.continuous_mix_generation, 1)
         self.assertEqual(frame.continuous_mix["seen"], {"source", "one", "two"})
-        self.assertEqual(frame.continuous_mix["queued"], {"one", "two"})
+        self.assertEqual(frame.continuous_mix["queued"], {"one"})
         self.assertTrue(frame.continuous_mix["building"])
 
     def test_continuous_mix_replenishes_when_tracked_queue_runs_low(self):
@@ -1856,8 +1856,8 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
                 },
                 "lastfm": object(),
                 "run_task": (
-                    lambda self, message, operation, completed: tasks.append(
-                        (operation, completed)
+                    lambda self, message, operation, completed, failure=None: (
+                        tasks.append((operation, completed))
                     )
                 ),
             },
@@ -1868,6 +1868,125 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
         self.assertEqual(frame.continuous_mix["queued"], {"next"})
         self.assertTrue(frame.continuous_mix["building"])
         self.assertEqual(len(tasks), 1)
+
+    def mix_frame(self, tasks, generation=3):
+        return type(
+            "Frame",
+            (),
+            {
+                "continuous_mix": {
+                    "generation": generation,
+                    "seen": {"current", "other"},
+                    "queued": set(),
+                    "building": False,
+                },
+                "continuous_mix_generation": generation,
+                "lastfm": object(),
+                "run_task": (
+                    lambda self, message, operation, completed, failure=None: (
+                        tasks.append((operation, completed, failure))
+                    )
+                ),
+                "player_device_id": lambda self: "device",
+                "finish_queue_many": lambda self, items, **options: None,
+                "abandon_continuous_mix_build": (
+                    MainFrame.abandon_continuous_mix_build
+                ),
+            },
+        )()
+
+    def test_failed_replenish_lookup_lets_the_mix_try_again(self):
+        current = ui.SpotifyItem("current", ui.ItemKind.TRACK, "Current")
+        other = ui.SpotifyItem("other", ui.ItemKind.TRACK, "Other")
+        tasks = []
+        frame = self.mix_frame(tasks)
+
+        MainFrame.update_continuous_similar_mix(frame, current)
+        self.assertTrue(frame.continuous_mix["building"])
+        tasks[0][2]()
+
+        self.assertFalse(frame.continuous_mix["building"])
+        MainFrame.update_continuous_similar_mix(frame, other)
+        self.assertEqual(len(tasks), 2)
+
+    def test_failed_queueing_of_mix_results_lets_the_mix_try_again(self):
+        current = ui.SpotifyItem("current", ui.ItemKind.TRACK, "Current")
+        track = ui.SpotifyItem(
+            "new", ui.ItemKind.TRACK, "New", uri="spotify:track:new"
+        )
+        tasks = []
+        frame = self.mix_frame(tasks)
+        frame.continuous_mix["building"] = True
+
+        MainFrame.queue_continuous_similar_results(frame, current, [track], 3)
+        tasks[0][2]()
+
+        self.assertFalse(frame.continuous_mix["building"])
+
+    def test_partial_initial_mix_failure_records_only_accepted_tracks(self):
+        source = ui.SpotifyItem("source", ui.ItemKind.TRACK, "Source")
+        first = ui.SpotifyItem(
+            "first", ui.ItemKind.TRACK, "First", uri="spotify:track:first"
+        )
+        second = ui.SpotifyItem(
+            "second", ui.ItemKind.TRACK, "Second", uri="spotify:track:second"
+        )
+
+        def add_to_queue(self, item, device_id):
+            if item is second:
+                raise RuntimeError("Spotify said no")
+
+        def run_task(self, message, worker, success, failure=None):
+            try:
+                worker()
+            except RuntimeError:
+                failure()
+            else:
+                success(None)
+
+        frame = type(
+            "Frame",
+            (),
+            {
+                "continuous_mix": {
+                    "generation": 3,
+                    "seen": {"source", "first", "second"},
+                    "queued": {"source"},
+                    "building": True,
+                },
+                "continuous_mix_generation": 3,
+                "spotify": type(
+                    "Spotify", (), {"add_to_queue": add_to_queue}
+                )(),
+                "player_device_id": lambda self: "device",
+                "run_task": run_task,
+                "finish_queue_many": lambda self, items, **options: None,
+                "finish_continuous_mix_build": lambda self: None,
+                "abandon_continuous_mix_build": (
+                    MainFrame.abandon_continuous_mix_build
+                ),
+            },
+        )()
+
+        MainFrame.queue_initial_similar_mix(
+            frame,
+            source,
+            [first, second],
+            [],
+            {"source", "first", "second"},
+        )
+
+        self.assertEqual(frame.continuous_mix["queued"], {"source", "first"})
+        self.assertFalse(frame.continuous_mix["building"])
+
+    def test_a_late_failure_from_an_old_mix_does_not_touch_a_new_one(self):
+        tasks = []
+        frame = self.mix_frame(tasks, generation=5)
+        frame.continuous_mix["building"] = True
+
+        MainFrame.abandon_continuous_mix_build(frame, 4)
+
+        self.assertTrue(frame.continuous_mix["building"])
 
     def test_unrelated_playback_ends_continuous_mix(self):
         unrelated = ui.SpotifyItem("other", ui.ItemKind.TRACK, "Other")
@@ -2489,6 +2608,107 @@ class NowPlayingTests(unittest.TestCase):
 
 
 class SearchContextMenuTests(unittest.TestCase):
+    def test_shared_list_context_menu_queues_the_marked_selection(self):
+        callbacks = {}
+
+        class Menu:
+            def Append(self, item_id, label):
+                return label
+
+            def AppendSubMenu(self, menu, label):
+                pass
+
+            def AppendSeparator(self):
+                pass
+
+            def Bind(self, event, callback, item):
+                callbacks[item] = callback
+
+            def Destroy(self):
+                pass
+
+        track = ui.SpotifyItem(
+            "track",
+            ui.ItemKind.TRACK,
+            "Track",
+            uri="spotify:track:track",
+        )
+        queued = []
+        owner = type(
+            "Items",
+            (),
+            {"PopupMenu": lambda self, menu: None},
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "current_player_item": None,
+                "resolve_then": lambda self, items, retry: False,
+                "queue_from_list": lambda self, items: queued.append(items),
+                "queue_selected": lambda self, item: self.fail(
+                    "A list menu must preserve the marked selection"
+                ),
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.wx.Menu", side_effect=lambda: Menu()),
+            patch("blindspot.ui.ItemList", type(owner)),
+        ):
+            MainFrame.popup_item_menu(frame, owner, track)
+            callbacks["Add to &queue"](None)
+
+        self.assertEqual(queued, [owner])
+
+    def test_shared_non_list_context_menu_queues_the_item(self):
+        callbacks = {}
+
+        class Menu:
+            def Append(self, item_id, label):
+                return label
+
+            def AppendSubMenu(self, menu, label):
+                pass
+
+            def AppendSeparator(self):
+                pass
+
+            def Bind(self, event, callback, item):
+                callbacks[item] = callback
+
+            def Destroy(self):
+                pass
+
+        track = ui.SpotifyItem(
+            "track",
+            ui.ItemKind.TRACK,
+            "Track",
+            uri="spotify:track:track",
+        )
+        queued = []
+        owner = type(
+            "Owner",
+            (),
+            {"PopupMenu": lambda self, menu: None},
+        )()
+        frame = type(
+            "Frame",
+            (),
+            {
+                "current_player_item": None,
+                "resolve_then": lambda self, items, retry: False,
+                "queue_from_list": lambda self, items: None,
+                "queue_selected": lambda self, item: queued.append(item),
+            },
+        )()
+
+        with patch("blindspot.ui.wx.Menu", side_effect=lambda: Menu()):
+            MainFrame.popup_item_menu(frame, owner, track)
+            callbacks["Add to &queue"](None)
+
+        self.assertEqual(queued, [track])
+
     def test_shared_track_context_menu_contains_show_lyrics(self):
         labels = []
 
@@ -6135,7 +6355,7 @@ class MultipleQueueTests(unittest.TestCase):
                     },
                 )(),
                 "player_device_id": lambda self: "device",
-                "run_task": lambda self, message, worker, completed: (
+                "run_task": lambda self, message, worker, completed, **options: (
                     worker(),
                     completed(None),
                 ),
@@ -6258,6 +6478,128 @@ class MultipleQueueTests(unittest.TestCase):
         self.assertEqual(queued, [(first, "device"), (second, "device")])
         self.assertEqual(frame.deferred_queue_items, [])
         self.assertFalse(frame.deferred_queue_flushing)
+
+    def test_failed_flush_does_not_requeue_items_spotify_already_accepted(self):
+        items = [
+            ui.SpotifyItem(
+                name,
+                ui.ItemKind.TRACK,
+                name,
+                uri=f"spotify:track:{name}",
+            )
+            for name in ("first", "second", "third")
+        ]
+        queued = []
+
+        def add_to_queue(self, item, device_id):
+            if item is items[2]:
+                raise RuntimeError("Spotify said no")
+            queued.append(item)
+
+        def run_task(self, message, worker, success, failure=None, **options):
+            try:
+                worker()
+            except RuntimeError:
+                failure()
+                return
+            success(None)
+
+        frame = type(
+            "Frame",
+            (),
+            {
+                "deferred_queue_items": list(items),
+                "deferred_queue_flushing": False,
+                "player_device_id": lambda self: "device",
+                "spotify": type(
+                    "Spotify", (), {"add_to_queue": add_to_queue}
+                )(),
+                "run_task": run_task,
+            },
+        )()
+
+        MainFrame.flush_deferred_queue(frame)
+
+        self.assertEqual(queued, [items[0], items[1]])
+        self.assertEqual(frame.deferred_queue_items, [items[2]])
+        self.assertFalse(frame.deferred_queue_flushing)
+
+    def test_failed_flush_preserves_an_unaccepted_duplicate_occurrence(self):
+        repeated = ui.SpotifyItem(
+            "track",
+            ui.ItemKind.TRACK,
+            "Track",
+            uri="spotify:track:track",
+        )
+        attempts = 0
+
+        def add_to_queue(self, item, device_id):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 2:
+                raise RuntimeError("Spotify said no")
+
+        def run_task(self, message, worker, success, failure=None, **options):
+            try:
+                worker()
+            except RuntimeError:
+                failure()
+            else:
+                success(None)
+
+        frame = type(
+            "Frame",
+            (),
+            {
+                "deferred_queue_items": [repeated, repeated],
+                "deferred_queue_flushing": False,
+                "player_device_id": lambda self: "device",
+                "spotify": type(
+                    "Spotify", (), {"add_to_queue": add_to_queue}
+                )(),
+                "run_task": run_task,
+            },
+        )()
+
+        MainFrame.flush_deferred_queue(frame)
+
+        self.assertEqual(frame.deferred_queue_items, [repeated])
+        self.assertFalse(frame.deferred_queue_flushing)
+
+    def test_flush_keeps_items_queued_while_it_was_running(self):
+        first = ui.SpotifyItem(
+            "first", ui.ItemKind.TRACK, "First", uri="spotify:track:first"
+        )
+        late = ui.SpotifyItem(
+            "late", ui.ItemKind.TRACK, "Late", uri="spotify:track:late"
+        )
+        deferred = [first]
+
+        def add_to_queue(self, item, device_id):
+            deferred.insert(0, late)  # user queues something mid-flush
+
+        frame = type(
+            "Frame",
+            (),
+            {
+                "deferred_queue_items": deferred,
+                "deferred_queue_flushing": False,
+                "player_device_id": lambda self: "device",
+                "spotify": type(
+                    "Spotify", (), {"add_to_queue": add_to_queue}
+                )(),
+                "run_task": (
+                    lambda self, message, worker, success, **options: (
+                        worker(),
+                        success(None),
+                    )
+                ),
+            },
+        )()
+
+        MainFrame.flush_deferred_queue(frame)
+
+        self.assertEqual(frame.deferred_queue_items, [late])
 
     def test_queue_view_includes_deferred_items(self):
         server_item = ui.SpotifyItem(

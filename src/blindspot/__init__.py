@@ -1,3 +1,3 @@
 """BlindSpot, a portable keyboard-first Spotify client."""
 
-__version__ = "2026.9.2"
+__version__ = "2026.9.3"

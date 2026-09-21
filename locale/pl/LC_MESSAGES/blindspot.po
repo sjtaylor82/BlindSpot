@@ -2,9 +2,9 @@
 # This file is distributed under the same license as the BlindSpot project.
 msgid ""
 msgstr ""
-"Project-Id-Version: BlindSpot 2026.9.2\n"
+"Project-Id-Version: BlindSpot 2026.9.3\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-09-21 14:16+1000\n"
+"POT-Creation-Date: 2026-09-21 14:41+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: BlindSpot contributors\n"
 "Language: pl\n"
@@ -31,6 +31,11 @@ msgstr "Wielka Brytania"
 #: blindspot/applemusic.py
 msgid "Vietnam"
 msgstr "Wietnam"
+
+#: blindspot/applemusic.py
+#, python-brace-format
+msgid "{date} at {time}"
+msgstr "{date} o {time}"
 
 #: blindspot/applemusic.py
 #, python-brace-format
@@ -1281,6 +1286,11 @@ msgctxt "month in a date"
 msgid "December"
 msgstr "grudnia"
 
+#. Translators: a strftime format for the time of day, such as 6:05 PM.
+#: blindspot/messages.py
+msgid "%I:%M %p"
+msgstr "%H:%M"
+
 #: blindspot/messages.py
 #, python-brace-format
 msgid "{day} {month} {year}"
@@ -1796,11 +1806,6 @@ msgstr "Pobieranie odcinka jest niedostępne."
 #: blindspot/spotify.py
 msgid "played recently"
 msgstr "odtworzono niedawno"
-
-#. Translators: a strftime format for the time of day, such as 6:05 PM.
-#: blindspot/spotify.py
-msgid "%I:%M %p"
-msgstr "%H:%M"
 
 #: blindspot/spotify.py
 #, python-brace-format
@@ -2445,6 +2450,10 @@ msgid " — featuring {artists}"
 msgstr " — gościnnie: {artists}"
 
 #: blindspot/ui.py
+msgid "Not assigned"
+msgstr "Nie przypisano"
+
+#: blindspot/ui.py
 msgid "BlindSpot setup"
 msgstr "Konfiguracja BlindSpot"
 
@@ -2521,10 +2530,6 @@ msgstr "Wyczyść glo&balnie"
 #: blindspot/ui.py
 msgid "Restore &defaults"
 msgstr "Przywróć &domyślne"
-
-#: blindspot/ui.py
-msgid "Not assigned"
-msgstr "Nie przypisano"
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -4135,4 +4140,3 @@ msgstr "Wszystkie pliki"
 
 #~ msgid "Finding {tag} {noun} results using Last.fm"
 #~ msgstr ""
-

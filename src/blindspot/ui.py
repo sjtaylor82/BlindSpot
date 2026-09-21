@@ -9987,15 +9987,18 @@ class MainFrame(wx.Frame):
         device_id = self.player_device_id()
         if not device_id:
             return
+        added: list[SpotifyItem] = []
 
         def add_all() -> None:
             for item in marked:
                 self.spotify.add_to_queue(item, device_id)
+                added.append(item)
 
         self.run_task(
             None,
             add_all,
             lambda result: self.finish_queue_many(marked),
+            failure=lambda: self.finish_queue_many(added) if added else None,
         )
 
     def queue_should_be_deferred(self) -> bool:
@@ -10024,17 +10027,40 @@ class MainFrame(wx.Frame):
             return
         items = list(self.deferred_queue_items)
         self.deferred_queue_flushing = True
+        added: list[SpotifyItem] = []
+
+        def forget_added() -> None:
+            # Remove one occurrence for each successful request. The list may
+            # have changed while the background task ran, so never delete by
+            # snapshot position and never collapse intentional duplicates.
+            for done in added:
+                position = next(
+                    (
+                        index
+                        for index, queued_item in enumerate(
+                            self.deferred_queue_items
+                        )
+                        if queued_item is done
+                    ),
+                    None,
+                )
+                if position is not None:
+                    del self.deferred_queue_items[position]
 
         def add_all() -> None:
             for queued_item in items:
                 self.spotify.add_to_queue(queued_item, device_id)
+                added.append(queued_item)
 
         def finished(result: object) -> None:
-            del self.deferred_queue_items[:len(items)]
+            forget_added()
             self.deferred_queue_flushing = False
             logger.info("Flushed %s deferred queue items", len(items))
 
         def failed() -> None:
+            # Items Spotify already accepted must not be queued a second
+            # time when the flush is retried.
+            forget_added()
             self.deferred_queue_flushing = False
 
         self.run_task(None, add_all, finished, failure=failed)
@@ -10377,10 +10403,14 @@ class MainFrame(wx.Frame):
                     )
                 )
         if item.playable and item.uri:
+            if isinstance(owner, ItemList):
+                queue_action = lambda: self.queue_from_list(owner)
+            else:
+                queue_action = lambda: self.queue_selected(item)
             actions.append(
                 (
                     menu.Append(wx.ID_ANY, tr("Add to &queue")),
-                    lambda: self.queue_selected(item),
+                    queue_action,
                 )
             )
             if not remove_callback:
@@ -10927,7 +10957,9 @@ class MainFrame(wx.Frame):
         self.continuous_mix = {
             "generation": self.continuous_mix_generation,
             "seen": seen,
-            "queued": {item.id for item in results},
+            # The first result is started immediately. Add the remaining IDs
+            # only after Spotify accepts each queue request.
+            "queued": {results[0].id},
             "building": True,
         }
         continuation = lambda: self.queue_initial_similar_mix(
@@ -10967,12 +10999,24 @@ class MainFrame(wx.Frame):
         device_id = self.player_device_id()
         if not device_id:
             return
+        generation = getattr(self, "continuous_mix_generation", 0)
+        added: list[SpotifyItem] = []
+
+        def remember_added() -> None:
+            session = getattr(self, "continuous_mix", None)
+            if not session or session.get("generation") != generation:
+                return
+            queued_ids = session.get("queued")
+            if isinstance(queued_ids, set):
+                queued_ids.update(item.id for item in added)
 
         def add_all() -> None:
             for item in results:
                 self.spotify.add_to_queue(item, device_id)
+                added.append(item)
 
         def queued(result: object) -> None:
+            remember_added()
             self.finish_queue_many(
                 results,
                 announcement=(
@@ -10990,7 +11034,16 @@ class MainFrame(wx.Frame):
             else:
                 self.finish_continuous_mix_build()
 
-        self.run_task(None, add_all, queued)
+        def failed() -> None:
+            remember_added()
+            self.abandon_continuous_mix_build(generation)
+
+        self.run_task(
+            None,
+            add_all,
+            queued,
+            failure=failed,
+        )
 
     def continue_similar_mix(
         self,
@@ -10998,6 +11051,7 @@ class MainFrame(wx.Frame):
         remaining: list[SimilarTrack],
         seen: set[str],
     ) -> None:
+        generation = getattr(self, "continuous_mix_generation", 0)
         self.run_task(
             None,
             lambda: self.match_lastfm_tracks(remaining, seen),
@@ -11005,6 +11059,7 @@ class MainFrame(wx.Frame):
                 source,
                 results,
             ),
+            failure=lambda: self.abandon_continuous_mix_build(generation),
         )
 
     def append_similar_mix_continuation(
@@ -11018,6 +11073,7 @@ class MainFrame(wx.Frame):
         device_id = self.player_device_id()
         if not device_id:
             return
+        generation = getattr(self, "continuous_mix_generation", 0)
 
         def add_all() -> None:
             for item in results:
@@ -11047,7 +11103,18 @@ class MainFrame(wx.Frame):
             None,
             add_all,
             queued,
+            failure=lambda: self.abandon_continuous_mix_build(generation),
         )
+
+    def abandon_continuous_mix_build(self, generation: int) -> None:
+        """Clear the building flag after a failed step so the mix can retry.
+
+        Without this a single failed request would leave the flag set and the
+        continuous mix would silently stop replenishing the queue.
+        """
+        session = getattr(self, "continuous_mix", None)
+        if session and session.get("generation") == generation:
+            session["building"] = False
 
     def finish_continuous_mix_build(self) -> None:
         session = getattr(self, "continuous_mix", None)
@@ -11089,6 +11156,7 @@ class MainFrame(wx.Frame):
                 results,
                 generation,
             ),
+            failure=lambda: self.abandon_continuous_mix_build(generation),
         )
 
     def queue_continuous_similar_results(
@@ -11122,7 +11190,12 @@ class MainFrame(wx.Frame):
             current_session["building"] = False
             self.finish_queue_many(results)
 
-        self.run_task(None, add_all, queued)
+        self.run_task(
+            None,
+            add_all,
+            queued,
+            failure=lambda: self.abandon_continuous_mix_build(generation),
+        )
 
     def queue_similar_mix(self, item: SpotifyItem | None) -> None:
         if not item or item.kind != ItemKind.TRACK:

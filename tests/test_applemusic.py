@@ -1,5 +1,6 @@
 import unittest
 
+from blindspot import i18n
 from blindspot.applemusic import (
     CACHE_SECONDS,
     CHART_COUNTRIES,
@@ -166,6 +167,17 @@ class AppleMusicClientTests(unittest.TestCase):
 
     def test_loaded_label_is_empty_when_the_time_is_unknown(self):
         self.assertEqual(loaded_label(0.0), "")
+
+    def test_loaded_label_uses_the_active_language(self):
+        try:
+            i18n.set_language("pl")
+            label = loaded_label(1_790_000_000.0)
+        finally:
+            i18n.set_language("en")
+
+        self.assertNotIn(" at ", label)
+        self.assertNotIn("AM", label)
+        self.assertNotIn("PM", label)
 
     def test_a_fetched_feed_records_when_it_was_loaded_not_apples_stamp(self):
         client = StubAppleMusicClient(

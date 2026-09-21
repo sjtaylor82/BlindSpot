@@ -105,40 +105,89 @@ def available_languages() -> list[tuple[str, str]]:
     return languages
 
 
-def detect_system_language() -> str:
-    """Best guess at the operating system's display language."""
-    if sys.platform == "win32":
-        try:
-            import ctypes
-
-            buffer = ctypes.create_unicode_buffer(85)
-            if ctypes.windll.kernel32.GetUserDefaultLocaleName(buffer, 85):
-                return normalise_language(buffer.value)
-        except (AttributeError, OSError):
-            pass
-    elif sys.platform == "darwin":
-        try:
-            result = subprocess.run(
-                ["defaults", "read", "-g", "AppleLanguages"],
-                capture_output=True,
-                text=True,
-                timeout=3,
-                check=False,
-            )
-            for line in result.stdout.splitlines():
-                cleaned = line.strip().strip('(),"')
-                if cleaned:
-                    return normalise_language(cleaned)
-        except (OSError, subprocess.SubprocessError):
-            pass
-    for variable in ("LC_ALL", "LC_MESSAGES", "LANG"):
-        value = os.environ.get(variable)
-        if value and value != "C":
-            return normalise_language(value)
+def _windows_ui_languages() -> list[str]:
+    """The user's Windows display languages, most preferred first."""
     try:
-        return normalise_language(locale.getlocale()[0])
-    except (ValueError, TypeError):
-        return DEFAULT_LANGUAGE
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        count = ctypes.c_ulong()
+        size = ctypes.c_ulong()
+        by_name = 0x8  # MUI_LANGUAGE_NAME
+        if not kernel32.GetUserPreferredUILanguages(
+            by_name, ctypes.byref(count), None, ctypes.byref(size)
+        ):
+            return []
+        buffer = ctypes.create_unicode_buffer(size.value)
+        if not kernel32.GetUserPreferredUILanguages(
+            by_name, ctypes.byref(count), buffer, ctypes.byref(size)
+        ):
+            return []
+        return [part for part in buffer[: size.value].split("\0") if part]
+    except (AttributeError, OSError):
+        return []
+
+
+def _macos_languages() -> list[str]:
+    try:
+        result = subprocess.run(
+            ["defaults", "read", "-g", "AppleLanguages"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    codes = []
+    for line in result.stdout.splitlines():
+        cleaned = line.strip().strip('(),"')
+        if cleaned:
+            codes.append(cleaned)
+    return codes
+
+
+def system_languages() -> list[str]:
+    """Display languages the operating system prefers, best first.
+
+    Windows reports its display-language list, not the regional format, so a
+    person who reads English but lives in Poland is not switched to Polish.
+    """
+    raw: list[str] = []
+    if sys.platform == "win32":
+        raw = _windows_ui_languages()
+    elif sys.platform == "darwin":
+        raw = _macos_languages()
+    if not raw:
+        for variable in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
+            value = os.environ.get(variable)
+            if value and value != "C":
+                raw.extend(value.split(":"))
+    if not raw:
+        try:
+            raw = [locale.getlocale()[0] or ""]
+        except (ValueError, TypeError):
+            raw = []
+    codes: list[str] = []
+    for value in raw:
+        code = normalise_language(value)
+        if value and code not in codes:
+            codes.append(code)
+    return codes
+
+
+def detect_system_language() -> str:
+    """The most preferred system display language (may have no translation)."""
+    codes = system_languages()
+    return codes[0] if codes else DEFAULT_LANGUAGE
+
+
+def _choose_system_language() -> str:
+    """First preferred language that is English or has a translation."""
+    for code in system_languages():
+        if code == DEFAULT_LANGUAGE or _catalogue_path(code).is_file():
+            return code
+    return DEFAULT_LANGUAGE
 
 
 def set_language(code: str | None = SYSTEM_LANGUAGE) -> str:
@@ -148,7 +197,7 @@ def set_language(code: str | None = SYSTEM_LANGUAGE) -> str:
     """
     global _translations, _language
     resolved = (
-        detect_system_language()
+        _choose_system_language()
         if not code or code == SYSTEM_LANGUAGE
         else normalise_language(code)
     )

@@ -6,9 +6,9 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: BlindSpot 2026.9.2\n"
+"Project-Id-Version: BlindSpot 2026.9.3\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-09-21 14:16+1000\n"
+"POT-Creation-Date: 2026-09-21 14:41+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -31,6 +31,11 @@ msgstr ""
 
 #: blindspot/applemusic.py
 msgid "Vietnam"
+msgstr ""
+
+#: blindspot/applemusic.py
+#, python-brace-format
+msgid "{date} at {time}"
 msgstr ""
 
 #: blindspot/applemusic.py
@@ -1230,6 +1235,11 @@ msgctxt "month in a date"
 msgid "December"
 msgstr ""
 
+#. Translators: a strftime format for the time of day, such as 6:05 PM.
+#: blindspot/messages.py
+msgid "%I:%M %p"
+msgstr ""
+
 #: blindspot/messages.py
 #, python-brace-format
 msgid "{day} {month} {year}"
@@ -1692,11 +1702,6 @@ msgstr ""
 
 #: blindspot/spotify.py
 msgid "played recently"
-msgstr ""
-
-#. Translators: a strftime format for the time of day, such as 6:05 PM.
-#: blindspot/spotify.py
-msgid "%I:%M %p"
 msgstr ""
 
 #: blindspot/spotify.py
@@ -2342,6 +2347,10 @@ msgid " — featuring {artists}"
 msgstr ""
 
 #: blindspot/ui.py
+msgid "Not assigned"
+msgstr ""
+
+#: blindspot/ui.py
 msgid "BlindSpot setup"
 msgstr ""
 
@@ -2417,10 +2426,6 @@ msgstr ""
 
 #: blindspot/ui.py
 msgid "Restore &defaults"
-msgstr ""
-
-#: blindspot/ui.py
-msgid "Not assigned"
 msgstr ""
 
 #: blindspot/ui.py

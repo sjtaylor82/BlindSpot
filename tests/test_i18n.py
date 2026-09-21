@@ -146,24 +146,51 @@ class TranslationTests(LocaleTestCase):
 
 
 class DefaultLanguageTests(LocaleTestCase):
+    def prefer(self, *codes: str) -> None:
+        original = i18n.system_languages
+        self.addCleanup(setattr, i18n, "system_languages", original)
+        i18n.system_languages = lambda: list(codes)
+
     def test_new_installations_follow_the_system_language(self) -> None:
         self.assertEqual(i18n.SYSTEM_LANGUAGE, i18n.DEFAULT_LANGUAGE_SETTING)
 
     def test_system_language_picks_an_installed_translation(self) -> None:
         self.add_polish()
-        original = i18n.detect_system_language
-        self.addCleanup(setattr, i18n, "detect_system_language", original)
-        i18n.detect_system_language = lambda: "pl"
+        self.prefer("pl")
         self.assertEqual("pl", i18n.set_language(i18n.SYSTEM_LANGUAGE))
         self.assertEqual("Wyciszono.", i18n.tr("Muted."))
 
     def test_system_language_without_a_translation_is_english(self) -> None:
         self.add_polish()
-        original = i18n.detect_system_language
-        self.addCleanup(setattr, i18n, "detect_system_language", original)
-        i18n.detect_system_language = lambda: "de"
+        self.prefer("de")
         self.assertEqual("en", i18n.set_language(i18n.SYSTEM_LANGUAGE))
         self.assertEqual("Muted.", i18n.tr("Muted."))
+
+    def test_first_translatable_preference_wins(self) -> None:
+        self.add_polish()
+        self.prefer("de", "pl", "en")
+        self.assertEqual("pl", i18n.set_language(i18n.SYSTEM_LANGUAGE))
+
+    def test_a_preferred_english_beats_a_later_translation(self) -> None:
+        self.add_polish()
+        self.prefer("en", "pl")
+        self.assertEqual("en", i18n.set_language(i18n.SYSTEM_LANGUAGE))
+
+    def test_no_preferences_means_english(self) -> None:
+        self.add_polish()
+        self.prefer()
+        self.assertEqual("en", i18n.set_language(i18n.SYSTEM_LANGUAGE))
+
+    def test_environment_language_list_is_split_and_normalised(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        with patch("sys.platform", "linux"), patch.dict(
+            os.environ,
+            {"LANGUAGE": "pl_PL:en_US", "LC_ALL": "", "LANG": ""},
+            clear=False,
+        ):
+            self.assertEqual(["pl", "en"], i18n.system_languages())
 
 
 class AvailableLanguageTests(LocaleTestCase):

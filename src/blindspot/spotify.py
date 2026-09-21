@@ -78,8 +78,7 @@ def _played_at_label(value: str) -> str:
     except ValueError:
         return tr("played recently")
     local = played_at.astimezone()
-    # Translators: a strftime format for the time of day, such as 6:05 PM.
-    clock = re.sub(r"^0(?=\d)", "", local.strftime(tr("%I:%M %p")))
+    clock = msg.clock_time(local)
     return tr("played {weekday} {day} {month} at {time}").format(
         weekday=msg.weekday_name(local.weekday()),
         day=local.day,

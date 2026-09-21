@@ -103,6 +103,16 @@ class ShippedCatalogueTests(unittest.TestCase):
         self.assertTrue(label.startswith("odtworzono "), label)
         self.assertNotIn("PM", label)
 
+    def test_polish_clock_keeps_the_hour_at_midnight(self) -> None:
+        i18n.set_language("pl")
+        self.assertEqual("0:05", msg.clock_time(datetime(2026, 3, 5, 0, 5)))
+        self.assertEqual("18:05", msg.clock_time(datetime(2026, 3, 5, 18, 5)))
+        self.assertEqual("6:05", msg.clock_time(datetime(2026, 3, 5, 6, 5)))
+
+    def test_english_clock_keeps_the_hour_at_midnight(self) -> None:
+        self.assertEqual("12:05 AM", msg.clock_time(datetime(2026, 3, 5, 0, 5)))
+        self.assertEqual("6:05 PM", msg.clock_time(datetime(2026, 3, 5, 18, 5)))
+
     def test_every_message_function_formats_in_polish(self) -> None:
         """A wrong placeholder in a translation would raise at run time."""
         i18n.set_language("pl")

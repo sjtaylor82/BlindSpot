@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from datetime import date
+import re
+from datetime import date, datetime
 
 from .i18n import ntr, on_language_change, ptr, tr, tr_noop
 
@@ -354,6 +355,13 @@ def month_name(month: int) -> str:
         ptr("month in a date", "November"),
         ptr("month in a date", "December"),
     )[month - 1]
+
+
+def clock_time(moment: datetime) -> str:
+    """A time of day in the language's usual style, without a leading zero."""
+    # Translators: a strftime format for the time of day, such as 6:05 PM.
+    text = moment.strftime(tr("%I:%M %p"))
+    return re.sub(r"^0(?=\d)", "", text)
 
 
 def long_date(value: date) -> str:

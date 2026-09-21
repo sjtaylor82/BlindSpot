@@ -17,6 +17,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 
+from . import messages as msg
 from .i18n import tr, tr_noop
 from .network import TLS_CONTEXT
 
@@ -101,9 +102,10 @@ def loaded_label(fetched_at: float) -> str:
     if not fetched_at:
         return ""
     moment = datetime.fromtimestamp(fetched_at)
-    return moment.strftime("%d %B %Y at %I:%M %p").lstrip("0").replace(
-        " 0",
-        " ",
+    clock = msg.clock_time(moment)
+    return tr("{date} at {time}").format(
+        date=msg.long_date(moment.date()),
+        time=clock,
     )
 
 
