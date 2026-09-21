@@ -13,10 +13,19 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+from . import messages as msg
+from .i18n import ntr, tr, tr_noop
 from .models import ItemKind, SpotifyItem
 
 EXPORTABLE_KINDS = frozenset({ItemKind.TRACK, ItemKind.EPISODE})
-CSV_COLUMNS = ("Position", "Title", "Artist", "Album", "Duration", "Spotify link")
+CSV_COLUMNS = (
+    tr_noop("Position"),
+    tr_noop("Title"),
+    tr_noop("Artist"),
+    tr_noop("Album"),
+    tr_noop("Duration"),
+    tr_noop("Spotify link"),
+)
 _UNSAFE_FILENAME = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
 _SPOTIFY_URI = re.compile(r"^spotify:(track|episode):([A-Za-z0-9]+)$")
@@ -98,12 +107,21 @@ def to_text(
     partial: bool = False,
     today: date | None = None,
 ) -> str:
-    when = (today or date.today()).strftime("%d %B %Y").lstrip("0")
-    noun = "item" if len(rows) == 1 else "items"
-    lines = [name, f"Exported from BlindSpot on {when}: {len(rows)} {noun}"]
+    when = msg.long_date(today or date.today())
+    lines = [
+        name,
+        ntr(
+            "Exported from BlindSpot on {when}: {count} item",
+            "Exported from BlindSpot on {when}: {count} items",
+            len(rows),
+        ).format(when=when, count=len(rows)),
+    ]
     if partial:
         lines.append(
-            "This is a partial list: more items exist that had not been loaded."
+            tr(
+                "This is a partial list: more items exist that had not been "
+                "loaded."
+            )
         )
     lines.append("")
     for row in rows:
@@ -123,7 +141,7 @@ def _csv_cell(value: str) -> str:
 def to_csv(rows: list[ExportRow]) -> str:
     buffer = io.StringIO(newline="")
     writer = csv.writer(buffer, lineterminator="\r\n")
-    writer.writerow(CSV_COLUMNS)
+    writer.writerow([tr(column) for column in CSV_COLUMNS])
     for row in rows:
         writer.writerow(
             [

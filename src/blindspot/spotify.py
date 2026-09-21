@@ -18,6 +18,7 @@ from typing import Any
 
 from .models import ItemKind, SpotifyItem
 from . import messages as msg
+from .i18n import tr
 from .network import TLS_CONTEXT
 from .portable import PortableStore
 
@@ -75,11 +76,15 @@ def _played_at_label(value: str) -> str:
     try:
         played_at = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
-        return "played recently"
+        return tr("played recently")
     local = played_at.astimezone()
-    return local.strftime("played %A %d %B at %I:%M %p").replace(
-        " 0",
-        " ",
+    # Translators: a strftime format for the time of day, such as 6:05 PM.
+    clock = local.strftime(tr("%I:%M %p")).lstrip("0")
+    return tr("played {weekday} {day} {month} at {time}").format(
+        weekday=msg.weekday_name(local.weekday()),
+        day=local.day,
+        month=msg.month_name(local.month),
+        time=clock,
     )
 
 
@@ -283,11 +288,11 @@ class SpotifyClient:
                     "__load_more__",
                     ItemKind.HEADING,
                     (
-                        "Show more podcasts"
+                        tr("Show more podcasts")
                         if category == "show"
-                        else "Show more episodes"
+                        else tr("Show more episodes")
                         if category == "episode"
-                        else "Load more results"
+                        else tr("Load more results")
                     ),
                     raw={
                         "load_more": True,
@@ -353,7 +358,7 @@ class SpotifyClient:
                 SpotifyItem(
                     "__load_more__",
                     ItemKind.HEADING,
-                    "Load more results",
+                    tr("Load more results"),
                     raw={
                         "load_more": True,
                         "next_offset": next_offset,
@@ -470,7 +475,7 @@ class SpotifyClient:
                 SpotifyItem(
                     "__load_more_episodes__",
                     ItemKind.HEADING,
-                    "Show more episodes",
+                    tr("Show more episodes"),
                     raw={
                         "load_more_episodes": True,
                         "next_offset": next_offset,
@@ -600,12 +605,12 @@ class SpotifyClient:
             resume_ms = int(resume.get("resume_position_ms") or 0)
             chapter.raw["resume_position_ms"] = resume_ms
             if resume.get("fully_played"):
-                chapter.raw["resume_position_label"] = "finished"
+                chapter.raw["resume_position_label"] = tr("finished")
             elif resume_ms:
                 minutes, seconds = divmod(resume_ms // 1000, 60)
-                chapter.raw["resume_position_label"] = (
-                    f"resume at {minutes} minutes {seconds} seconds"
-                )
+                chapter.raw["resume_position_label"] = tr(
+                    "resume at {position}"
+                ).format(position=msg.minutes_seconds(minutes, seconds))
             chapters.append(chapter)
         return chapters
 
@@ -1298,17 +1303,17 @@ class SpotifyClient:
             resume = value.get("resume_point") or {}
             resume_ms = int(resume.get("resume_position_ms") or 0)
             if resume.get("fully_played"):
-                value["resume_position_label"] = "finished"
+                value["resume_position_label"] = tr("finished")
             elif resume_ms:
                 minutes, seconds = divmod(resume_ms // 1000, 60)
-                value["resume_position_label"] = (
-                    f"resume at {minutes} minutes {seconds} seconds"
-                )
+                value["resume_position_label"] = tr(
+                    "resume at {position}"
+                ).format(position=msg.minutes_seconds(minutes, seconds))
             value["resume_position_ms"] = resume_ms
         return SpotifyItem(
             id=value.get("id", ""),
             kind=kind,
-            name=value.get("name", "Untitled"),
+            name=value.get("name", tr("Untitled")),
             artist=artists,
             album=album or album_value.get("name", ""),
             duration_ms=value.get("duration_ms", 0) or 0,

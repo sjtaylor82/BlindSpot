@@ -4,6 +4,9 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from . import messages as msg
+from .i18n import ntr, tr
+
 
 class ItemKind(StrEnum):
     TRACK = "track"
@@ -63,19 +66,23 @@ class SpotifyItem:
             parts.append(self.year)
         if self.duration_ms:
             minutes, seconds = divmod(self.duration_ms // 1000, 60)
-            parts.append(f"{minutes} minutes {seconds} seconds")
+            parts.append(msg.minutes_seconds(minutes, seconds))
         if self.total is not None:
             if self.kind == ItemKind.SHOW:
-                noun = "episode" if self.total == 1 else "episodes"
+                text = ntr(
+                    "{count} episode", "{count} episodes", self.total
+                )
             elif self.kind == ItemKind.AUDIOBOOK:
-                noun = "chapter" if self.total == 1 else "chapters"
+                text = ntr(
+                    "{count} chapter", "{count} chapters", self.total
+                )
             else:
-                noun = "song" if self.total == 1 else "songs"
-            parts.append(f"{self.total} {noun}")
+                text = ntr("{count} song", "{count} songs", self.total)
+            parts.append(text.format(count=self.total))
         if self.explicit:
-            parts.append("explicit")
+            parts.append(tr("explicit"))
         if self.kind == ItemKind.PLAYLIST and self.raw.get("editable") is False:
-            parts.append("read only")
+            parts.append(tr("read only"))
         if self.raw.get("played_at_label"):
             parts.append(str(self.raw["played_at_label"]))
         if self.raw.get("bookmark_position_label"):

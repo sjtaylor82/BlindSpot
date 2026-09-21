@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from .i18n import ntr, tr
 from .models import SpotifyItem
 
 
@@ -67,13 +68,20 @@ class PlaylistMovePartialError(RuntimeError):
     """The destination write succeeded but the source removal did not."""
 
     def __init__(self, destination: SpotifyItem, count: int) -> None:
-        noun = "item" if count == 1 else "items"
         super().__init__(
-            f"Copied {count} {noun} to {destination.name}, but could not "
-            "finish removing them from the source playlist. Review both "
-            "playlists to see which source entries remain. "
-            "Do not repeat Move, because that would create another copy; "
-            "remove any remaining source entries manually instead."
+            ntr(
+                "Copied {count} item to {destination}, but could not "
+                "finish removing it from the source playlist. Review both "
+                "playlists to see which source entries remain. "
+                "Do not repeat Move, because that would create another copy; "
+                "remove any remaining source entries manually instead.",
+                "Copied {count} items to {destination}, but could not "
+                "finish removing them from the source playlist. Review both "
+                "playlists to see which source entries remain. "
+                "Do not repeat Move, because that would create another copy; "
+                "remove any remaining source entries manually instead.",
+                count,
+            ).format(count=count, destination=destination.name)
         )
         self.destination = destination
         self.count = count
@@ -115,8 +123,10 @@ class PlaylistOperations:
         }
         if missing:
             raise PlaylistSourceChangedError(
-                "The source playlist changed after the items were cut. "
-                "Nothing was moved; select the items again."
+                tr(
+                    "The source playlist changed after the items were cut. "
+                    "Nothing was moved; select the items again."
+                )
             )
         ambiguous = {
             uri
@@ -125,10 +135,12 @@ class PlaylistOperations:
         }
         if ambiguous:
             raise AmbiguousPlaylistMoveError(
-                "One or more selected recordings occur more than once in "
-                "the source playlist. Spotify cannot remove one occurrence "
-                "safely. Use Copy to playlist, then remove the intended "
-                "source occurrences manually."
+                tr(
+                    "One or more selected recordings occur more than once in "
+                    "the source playlist. Spotify cannot remove one "
+                    "occurrence safely. Use Copy to playlist, then remove "
+                    "the intended source occurrences manually."
+                )
             )
         items = [selection.item for selection in selections]
         added = self.client.add_items_to_playlist(destination, items)

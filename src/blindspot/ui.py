@@ -43,6 +43,7 @@ from .musicbrainz import CoversUnavailable, CoverResults, MusicBrainzClient
 from .keymap import (
     ACTIONS_BY_ID,
     CONTEXTS,
+    CONTEXT_LABELS,
     KEY_ACTIONS,
     KeyMap,
     chord_from_event,
@@ -1027,7 +1028,10 @@ class KeyboardManagerDialog(wx.Dialog):
         )
         self.context = wx.Choice(
             self,
-            choices=[tr("All commands"), *CONTEXTS],
+            choices=[
+                tr("All commands"),
+                *(tr(CONTEXT_LABELS.get(name, name)) for name in CONTEXTS),
+            ],
         )
         self.context.SetSelection(0)
         outer.Add(
@@ -1114,8 +1118,8 @@ class KeyboardManagerDialog(wx.Dialog):
             if query
             in " ".join(
                 (
-                    action.label,
-                    action.context,
+                    action.title,
+                    action.context_title,
                     *self.keymap.bindings(action.id),
                 )
             ).casefold()
@@ -1124,13 +1128,15 @@ class KeyboardManagerDialog(wx.Dialog):
     def action_choices(self) -> list[str]:
         choices = []
         for action in self.context_actions():
-            local = ", ".join(self.keymap.bindings(action.id)) or "Not assigned"
+            local = ", ".join(self.keymap.bindings(action.id)) or tr(
+                "Not assigned"
+            )
             global_label = shortcut_label(self.global_shortcuts.get(action.id))
             description = (
-                f"{action.context}: {action.label}: "
+                f"{action.context_title}: {action.title}: "
                 f"{local}"
                 if self.current_context() is None
-                else f"{action.label}: {local}"
+                else f"{action.title}: {local}"
             )
             if action.id in GLOBAL_SHORTCUT_IDS:
                 description += tr(
@@ -1177,7 +1183,7 @@ class KeyboardManagerDialog(wx.Dialog):
         if selected == wx.NOT_FOUND or not 0 <= selected < len(actions):
             return
         action = actions[selected]
-        capture = KeymapCaptureDialog(self, action.label)
+        capture = KeymapCaptureDialog(self, action.title)
         accepted = capture.ShowModal() == wx.ID_OK and capture.chord
         chord = capture.chord
         capture.Destroy()
@@ -1186,7 +1192,7 @@ class KeyboardManagerDialog(wx.Dialog):
         owner = self.keymap.owner(chord, action.context)
         if owner and owner.id != action.id:
             answer = wx.MessageBox(
-                tr("Replace {label}?").format(label=owner.label),
+                tr("Replace {label}?").format(label=owner.title),
                 tr("Keyboard Manager"),
                 wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
                 self,
@@ -1235,7 +1241,7 @@ class KeyboardManagerDialog(wx.Dialog):
         action = self.selected_action()
         if action is None or action.id not in GLOBAL_SHORTCUT_IDS:
             return
-        capture = ShortcutCaptureDialog(self, action.label)
+        capture = ShortcutCaptureDialog(self, action.title)
         accepted = capture.ShowModal() == wx.ID_OK and capture.shortcut
         shortcut = capture.shortcut
         capture.Destroy()
@@ -1260,7 +1266,7 @@ class KeyboardManagerDialog(wx.Dialog):
             None,
         )
         if duplicate:
-            other_label = ACTIONS_BY_ID[duplicate].label
+            other_label = ACTIONS_BY_ID[duplicate].title
             answer = wx.MessageBox(
                 msg.shortcut_replace(shortcut_label(shortcut), other_label),
                 tr("Keyboard Manager"),
@@ -3410,7 +3416,7 @@ class NewMusicPanel(CollectionPanel):
         )
         self.chart_country = wx.Choice(
             self,
-            choices=[name for _code, name in CHART_COUNTRIES],
+            choices=[tr(name) for _code, name in CHART_COUNTRIES],
         )
         self.chart_country.SetSelection(
             next(
@@ -3719,7 +3725,7 @@ class ConcertsPanel(wx.Panel):
         self.country = wx.Choice(
             self,
             choices=[
-                f"{name} ({code})" for code, name in TICKETMASTER_COUNTRIES
+                f"{tr(name)} ({code})" for code, name in TICKETMASTER_COUNTRIES
             ],
         )
         self.country.SetSelection(
@@ -7705,7 +7711,7 @@ class MainFrame(wx.Frame):
         self.unregister_global_hotkeys()
         failed = []
         labels = {
-            action: ACTIONS_BY_ID[action].label
+            action: ACTIONS_BY_ID[action].title
             for action, _ in GLOBAL_SHORTCUT_ACTIONS
         }
         for action, shortcut in self.global_shortcuts.items():
@@ -9024,13 +9030,8 @@ class MainFrame(wx.Frame):
     @staticmethod
     def bookmark_position_label(milliseconds: int) -> str:
         minutes, seconds = divmod(max(0, milliseconds) // 1000, 60)
-        return tr("bookmarked at {minutes} {seconds}").format(
-            minutes=ntr(
-                "{count} minute", "{count} minutes", minutes
-            ).format(count=minutes),
-            seconds=ntr(
-                "{count} second", "{count} seconds", seconds
-            ).format(count=seconds),
+        return tr("bookmarked at {position}").format(
+            position=msg.minutes_seconds(minutes, seconds)
         )
 
     def bookmark_item_from_record(self, record: dict) -> SpotifyItem | None:

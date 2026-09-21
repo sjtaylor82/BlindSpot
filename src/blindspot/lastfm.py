@@ -10,6 +10,7 @@ import urllib.request
 from dataclasses import dataclass
 import time
 
+from .i18n import tr
 from . import __version__
 from .network import TLS_CONTEXT
 
@@ -232,7 +233,9 @@ class LastfmClient:
 
     def _request(self, method: str, **parameters: str) -> dict:
         if not self.api_key:
-            raise LastfmError("Enter a Last.fm API key in Preferences first.")
+            raise LastfmError(tr(
+                "Enter a Last.fm API key in Preferences first."
+            ))
         cache_key = (method, tuple(sorted(parameters.items())))
         cached = self._cache.get(cache_key)
         if cached and time.monotonic() - cached[0] < CACHE_SECONDS:
@@ -259,11 +262,17 @@ class LastfmClient:
             ) as response:
                 data = json.loads(response.read().decode("utf-8"))
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
-            raise LastfmError(f"Last.fm request failed: {error}") from error
+            raise LastfmError(tr(
+                "Last.fm request failed: {error}"
+            ).format(error=error)) from error
         if data.get("error"):
             raise LastfmError(
-                f"Last.fm returned error {data['error']}: "
-                f"{data.get('message') or 'Unknown error'}"
+                tr(
+                    "Last.fm returned error {data}: {value}"
+                ).format(
+                    data=data['error'],
+                    value=data.get('message') or tr('Unknown error'),
+                )
             )
         self._cache[cache_key] = (time.monotonic(), data)
         return data

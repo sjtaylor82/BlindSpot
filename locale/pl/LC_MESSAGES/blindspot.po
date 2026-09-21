@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: BlindSpot 2026.9.2\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-09-21 14:06+1000\n"
+"POT-Creation-Date: 2026-09-21 14:11+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: BlindSpot contributors\n"
 "Language: pl\n"
@@ -16,10 +16,501 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
+#: blindspot/applemusic.py
+msgid "Indonesia"
+msgstr ""
+
+#: blindspot/applemusic.py
+msgid "Philippines"
+msgstr ""
+
+#: blindspot/applemusic.py
+msgid "United Kingdom"
+msgstr ""
+
+#: blindspot/applemusic.py
+msgid "Vietnam"
+msgstr ""
+
+#: blindspot/applemusic.py
+#, python-brace-format
+msgid "Apple Music charts are unavailable ({code})."
+msgstr ""
+
+#: blindspot/applemusic.py
+msgid "Apple Music charts could not be reached."
+msgstr ""
+
+#: blindspot/applemusic.py
+msgid "Apple Music returned an unreadable chart."
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Argentina"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Australia"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Austria"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Belgium"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Brazil"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Canada"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Chile"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Colombia"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Czech Republic"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Denmark"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Finland"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "France"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Germany"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Greece"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Hong Kong"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Hungary"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "India"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Ireland"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Israel"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Italy"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Japan"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Malaysia"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Mexico"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Netherlands"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "New Zealand"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Norway"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Poland"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Portugal"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Romania"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Saudi Arabia"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Singapore"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "South Africa"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "South Korea"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Spain"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Sweden"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Switzerland"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Taiwan"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Thailand"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "Turkey"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "United Arab Emirates"
+msgstr ""
+
+#: blindspot/applemusic.py blindspot/ticketmaster.py
+msgid "United States"
+msgstr ""
+
+#: blindspot/export.py
+msgid "Position"
+msgstr ""
+
+#: blindspot/export.py
+msgid "Spotify link"
+msgstr ""
+
+#: blindspot/export.py
+#, python-brace-format
+msgid "Exported from BlindSpot on {when}: {count} item"
+msgid_plural "Exported from BlindSpot on {when}: {count} items"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: blindspot/export.py
+msgid "This is a partial list: more items exist that had not been loaded."
+msgstr ""
+
+#: blindspot/export.py blindspot/ui.py
+msgid "Title"
+msgstr ""
+
+#: blindspot/export.py blindspot/ui.py
+msgid "Artist"
+msgstr ""
+
+#: blindspot/export.py blindspot/ui.py
+msgid "Album"
+msgstr ""
+
+#: blindspot/export.py blindspot/ui.py
+msgid "Duration"
+msgstr ""
+
+#: blindspot/historical_charts.py
+msgid "The experimental US Hot 100 archive begins on 4 August 1958."
+msgstr ""
+
+#: blindspot/historical_charts.py
+msgid "The experimental chart archive returned an unreadable date list."
+msgstr ""
+
+#: blindspot/historical_charts.py
+msgid "The experimental US Hot 100 archive could not be reached."
+msgstr ""
+
 #: blindspot/i18n.py
 msgctxt "The name of this language, written in that language"
 msgid "English"
 msgstr "Polski"
+
+#: blindspot/keymap.py
+msgid "Main"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Lists"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Lyrics"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open manual"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Play focused item"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Seek backward five seconds"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Seek forward five seconds"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Restart or previous track"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Pause or resume"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Next track"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Mute or unmute"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Volume down five percent"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Volume up five percent"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Next main tab"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Previous main tab"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Focus Search"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Preferences"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Search tab"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Liked Songs tab"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Queue tab"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Playlists tab"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Recently Played tab"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Bookmarks tab"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Audiobooks tab"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Podcasts tab"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Saved Albums tab"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Discover tab"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Concerts tab"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Speak total time"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Speak elapsed time"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Speak remaining time"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Refresh current view"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Choose playback device"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Speak upcoming track"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Jump to playback time"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open sleep timer"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Retrieve lyrics"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Cycle repeat mode"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Toggle shuffle"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Select all items"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Last.fm mix for focused track"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Start Last.fm mix for focused track"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open Last.fm mix for current track"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Start Last.fm mix for current track"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Queue selected items"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Like or unlike focused item"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Like or unlike current track"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Add focused item to playlist"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Bookmark current position"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open focused track album"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Open focused item actions"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Play from selected lyric line"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Play previous lyric line"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Play next lyric line"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Move lyrics earlier"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Move lyrics later"
+msgstr ""
+
+#: blindspot/keymap.py blindspot/ui.py
+msgid "Speak current track"
+msgstr ""
+
+#: blindspot/keymap.py blindspot/ui.py
+msgid "Create playlist"
+msgstr ""
+
+#: blindspot/lastfm.py
+msgid "Enter a Last.fm API key in Preferences first."
+msgstr ""
+
+#: blindspot/lastfm.py
+#, python-brace-format
+msgid "Last.fm request failed: {error}"
+msgstr ""
+
+#: blindspot/lastfm.py
+#, python-brace-format
+msgid "Last.fm returned error {data}: {value}"
+msgstr ""
+
+#: blindspot/lastfm.py
+msgid "Unknown error"
+msgstr ""
 
 #: blindspot/messages.py
 msgid ""
@@ -648,6 +1139,127 @@ msgstr[1] ""
 msgstr[2] ""
 
 #: blindspot/messages.py
+msgctxt "weekday"
+msgid "Monday"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "weekday"
+msgid "Tuesday"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "weekday"
+msgid "Wednesday"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "weekday"
+msgid "Thursday"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "weekday"
+msgid "Friday"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "weekday"
+msgid "Saturday"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "weekday"
+msgid "Sunday"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "month in a date"
+msgid "January"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "month in a date"
+msgid "February"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "month in a date"
+msgid "March"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "month in a date"
+msgid "April"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "month in a date"
+msgid "May"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "month in a date"
+msgid "June"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "month in a date"
+msgid "July"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "month in a date"
+msgid "August"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "month in a date"
+msgid "September"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "month in a date"
+msgid "October"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "month in a date"
+msgid "November"
+msgstr ""
+
+#: blindspot/messages.py
+msgctxt "month in a date"
+msgid "December"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{day} {month} {year}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{minutes} {seconds}"
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{count} minute"
+msgid_plural "{count} minutes"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "{count} second"
+msgid_plural "{count} seconds"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: blindspot/messages.py
 #, python-brace-format
 msgid "{count} item selected"
 msgid_plural "{count} items selected"
@@ -691,14 +1303,6 @@ msgstr[2] ""
 #, python-brace-format
 msgid "{count} track"
 msgid_plural "{count} tracks"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
-
-#: blindspot/messages.py
-#, python-brace-format
-msgid "{count} song"
-msgid_plural "{count} songs"
 msgstr[0] ""
 msgstr[1] ""
 msgstr[2] ""
@@ -985,8 +1589,353 @@ msgstr ""
 msgid "LRCLIB returned error {status}."
 msgstr ""
 
+#: blindspot/messages.py blindspot/models.py
+#, python-brace-format
+msgid "{count} song"
+msgid_plural "{count} songs"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
 #: blindspot/messages.py blindspot/ui.py
 msgid "Unknown"
+msgstr ""
+
+#: blindspot/models.py
+#, python-brace-format
+msgid "{count} episode"
+msgid_plural "{count} episodes"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: blindspot/models.py
+#, python-brace-format
+msgid "{count} chapter"
+msgid_plural "{count} chapters"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: blindspot/models.py
+msgid "explicit"
+msgstr ""
+
+#: blindspot/models.py
+msgid "read only"
+msgstr ""
+
+#: blindspot/musicbrainz.py
+#, python-brace-format
+msgid "MusicBrainz could not find {title} by {artist}."
+msgstr ""
+
+#: blindspot/musicbrainz.py
+#, python-brace-format
+msgid ""
+"MusicBrainz has no song entry linked to {title} by {artist}, so it cannot "
+"list covers of it."
+msgstr ""
+
+#: blindspot/musicbrainz.py
+msgid "MusicBrainz is busy. Try again in a minute."
+msgstr ""
+
+#: blindspot/musicbrainz.py
+#, python-brace-format
+msgid "MusicBrainz returned an error ({code})."
+msgstr ""
+
+#: blindspot/musicbrainz.py
+msgid "MusicBrainz could not be reached."
+msgstr ""
+
+#: blindspot/musicbrainz.py
+msgid "MusicBrainz returned an unreadable answer."
+msgstr ""
+
+#: blindspot/playlist_operations.py
+#, python-brace-format
+msgid ""
+"Copied {count} item to {destination}, but could not finish removing it from "
+"the source playlist. Review both playlists to see which source entries "
+"remain. Do not repeat Move, because that would create another copy; remove "
+"any remaining source entries manually instead."
+msgid_plural ""
+"Copied {count} items to {destination}, but could not finish removing them "
+"from the source playlist. Review both playlists to see which source entries "
+"remain. Do not repeat Move, because that would create another copy; remove "
+"any remaining source entries manually instead."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: blindspot/playlist_operations.py
+msgid ""
+"The source playlist changed after the items were cut. Nothing was moved; "
+"select the items again."
+msgstr ""
+
+#: blindspot/playlist_operations.py
+msgid ""
+"One or more selected recordings occur more than once in the source playlist."
+" Spotify cannot remove one occurrence safely. Use Copy to playlist, then "
+"remove the intended source occurrences manually."
+msgstr ""
+
+#: blindspot/podcasts.py
+msgid "Podcast feed too large."
+msgstr ""
+
+#: blindspot/podcasts.py
+msgid "Podcast directory unavailable."
+msgstr ""
+
+#: blindspot/podcasts.py
+msgid "Podcast feed unavailable."
+msgstr ""
+
+#: blindspot/podcasts.py
+msgid "Episode download unavailable."
+msgstr ""
+
+#: blindspot/spotify.py
+msgid "played recently"
+msgstr ""
+
+#. Translators: a strftime format for the time of day, such as 6:05 PM.
+#: blindspot/spotify.py
+msgid "%I:%M %p"
+msgstr ""
+
+#: blindspot/spotify.py
+#, python-brace-format
+msgid "played {weekday} {day} {month} at {time}"
+msgstr ""
+
+#: blindspot/spotify.py
+msgid "Show more podcasts"
+msgstr ""
+
+#: blindspot/spotify.py
+msgid "Show more episodes"
+msgstr ""
+
+#: blindspot/spotify.py
+msgid "finished"
+msgstr ""
+
+#: blindspot/spotify.py
+#, python-brace-format
+msgid "resume at {position}"
+msgstr ""
+
+#: blindspot/spotify.py
+msgid "Untitled"
+msgstr ""
+
+#: blindspot/spotify.py blindspot/ui.py
+msgid "Load more results"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Andorra"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Anguilla"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Azerbaijan"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Bahamas"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Bahrain"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Barbados"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Bermuda"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Bulgaria"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "China"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Costa Rica"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Croatia"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Cyprus"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Dominican Republic"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Ecuador"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Estonia"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Faroe Islands"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Georgia"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Ghana"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Gibraltar"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "United Kingdom / Great Britain"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Iceland"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Jamaica"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Latvia"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Lebanon"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Lithuania"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Luxembourg"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Malta"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Monaco"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Montenegro"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Morocco"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Netherlands Antilles"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Northern Ireland"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Peru"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Russian Federation"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Saint Lucia"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Serbia"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Slovakia"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Slovenia"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Trinidad and Tobago"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Ukraine"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Uruguay"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Venezuela"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Enter a Ticketmaster API key in BlindSpot preferences first."
+msgstr ""
+
+#: blindspot/ticketmaster.py
+#, python-brace-format
+msgid "Ticketmaster returned {code}"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+#, python-brace-format
+msgid "Could not search Ticketmaster: {error}"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+#, python-brace-format
+msgid "Ticketmaster returned {code} while loading categories."
+msgstr ""
+
+#: blindspot/ticketmaster.py
+#, python-brace-format
+msgid "Could not load Ticketmaster categories: {error}"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Untitled event"
+msgstr ""
+
+#: blindspot/ticketmaster.py
+msgid "Date to be announced"
 msgstr ""
 
 #: blindspot/ui.py
@@ -1376,22 +2325,6 @@ msgid "Original order"
 msgstr ""
 
 #: blindspot/ui.py
-msgid "Title"
-msgstr ""
-
-#: blindspot/ui.py
-msgid "Artist"
-msgstr ""
-
-#: blindspot/ui.py
-msgid "Album"
-msgstr ""
-
-#: blindspot/ui.py
-msgid "Duration"
-msgstr ""
-
-#: blindspot/ui.py
 msgid "Date added"
 msgstr ""
 
@@ -1493,6 +2426,10 @@ msgstr ""
 
 #: blindspot/ui.py
 msgid "Restore &defaults"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Not assigned"
 msgstr ""
 
 #: blindspot/ui.py
@@ -1609,10 +2546,6 @@ msgstr ""
 
 #: blindspot/ui.py
 msgid "&Replace playlist track..."
-msgstr ""
-
-#: blindspot/ui.py
-msgid "Create playlist"
 msgstr ""
 
 #: blindspot/ui.py
@@ -2033,10 +2966,6 @@ msgid "Searching upcoming concerts"
 msgstr ""
 
 #: blindspot/ui.py
-msgid "Load more results"
-msgstr ""
-
-#: blindspot/ui.py
 #, python-brace-format
 msgid "Showing {count} of {total_events} concert."
 msgid_plural "Showing {count} of {total_events} concerts."
@@ -2442,10 +3371,6 @@ msgid "&Jump to time..."
 msgstr ""
 
 #: blindspot/ui.py
-msgid "Speak current track"
-msgstr ""
-
-#: blindspot/ui.py
 msgid "Speak &up next"
 msgstr ""
 
@@ -2777,24 +3702,8 @@ msgstr ""
 
 #: blindspot/ui.py
 #, python-brace-format
-msgid "bookmarked at {minutes} {seconds}"
+msgid "bookmarked at {position}"
 msgstr ""
-
-#: blindspot/ui.py
-#, python-brace-format
-msgid "{count} minute"
-msgid_plural "{count} minutes"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
-
-#: blindspot/ui.py
-#, python-brace-format
-msgid "{count} second"
-msgid_plural "{count} seconds"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
 
 #: blindspot/ui.py
 msgid "played recently in BlindSpot"
@@ -3092,4 +4001,7 @@ msgstr ""
 #: blindspot/ui.py
 msgid "All files"
 msgstr ""
+
+#~ msgid "bookmarked at {minutes} {seconds}"
+#~ msgstr ""
 

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
 
+from .i18n import tr
 from .models import SpotifyItem
 from .network import TLS_CONTEXT
 
@@ -56,7 +57,7 @@ def _read_url(url: str, *, limit: int) -> bytes:
     ) as response:
         value = response.read(limit + 1)
     if len(value) > limit:
-        raise PodcastDownloadUnavailable("Podcast feed too large.")
+        raise PodcastDownloadUnavailable(tr("Podcast feed too large."))
     return value
 
 
@@ -72,7 +73,7 @@ def _directory_feeds(show: str, publisher: str) -> list[str]:
     try:
         payload = json.loads(_read_url(f"{DIRECTORY_URL}?{query}", limit=2_000_000))
     except (OSError, ValueError, json.JSONDecodeError) as error:
-        raise PodcastDownloadUnavailable("Podcast directory unavailable.") from error
+        raise PodcastDownloadUnavailable(tr("Podcast directory unavailable.")) from error
 
     ranked: list[tuple[float, str]] = []
     for result in payload.get("results", []):
@@ -130,12 +131,12 @@ def find_episode_download(item: SpotifyItem) -> PodcastDownload:
         (item.raw.get("show") or {}).get("publisher") or ""
     )
     if not show:
-        raise PodcastDownloadUnavailable("Podcast feed unavailable.")
+        raise PodcastDownloadUnavailable(tr("Podcast feed unavailable."))
     for feed_url in _directory_feeds(show, publisher):
         download = _episode_from_feed(feed_url, item.name)
         if download:
             return download
-    raise PodcastDownloadUnavailable("Episode download unavailable.")
+    raise PodcastDownloadUnavailable(tr("Episode download unavailable."))
 
 
 def download_episode(download: PodcastDownload, destination: Path) -> None:

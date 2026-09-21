@@ -9,6 +9,7 @@ import urllib.request
 from dataclasses import dataclass
 from datetime import date
 
+from .i18n import tr
 from .network import TLS_CONTEXT
 
 PROJECT_URL = "https://github.com/mhollingshead/billboard-hot-100"
@@ -48,7 +49,10 @@ class HistoricalHot100Client:
         position = bisect.bisect_right(dates, wanted) - 1
         if position < 0:
             raise HistoricalChartError(
-                "The experimental US Hot 100 archive begins on 4 August 1958."
+                tr(
+                    "The experimental US Hot 100 archive begins on 4 August "
+                    "1958."
+                )
             )
         chart_date = dates[position]
         payload = self._request(f"{RAW_ROOT}/date/{chart_date}.json")
@@ -75,7 +79,10 @@ class HistoricalHot100Client:
             values = self._request(f"{RAW_ROOT}/valid_dates.json")
             if not isinstance(values, list):
                 raise HistoricalChartError(
-                    "The experimental chart archive returned an unreadable date list."
+                    tr(
+                        "The experimental chart archive returned an "
+                        "unreadable date list."
+                    )
                 )
             self._dates = sorted(str(value) for value in values)
         return self._dates
@@ -93,5 +100,8 @@ class HistoricalHot100Client:
                 return json.loads(response.read().decode("utf-8"))
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
             raise HistoricalChartError(
-                "The experimental US Hot 100 archive could not be reached."
+                tr(
+                    "The experimental US Hot 100 archive could not be "
+                    "reached."
+                )
             ) from error

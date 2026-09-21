@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from .i18n import tr, tr_noop
 from .network import TLS_CONTEXT
 
 
@@ -17,36 +18,89 @@ API_ROOT = "https://app.ticketmaster.com/discovery/v2"
 # users; codes are sent to the API. Ticketmaster publishes ND for Northern
 # Ireland even though the rest of the list largely follows ISO 3166-1 alpha-2.
 TICKETMASTER_COUNTRIES = (
-    ("AD", "Andorra"), ("AI", "Anguilla"), ("AR", "Argentina"),
-    ("AU", "Australia"), ("AT", "Austria"), ("AZ", "Azerbaijan"),
-    ("BS", "Bahamas"), ("BH", "Bahrain"), ("BB", "Barbados"),
-    ("BE", "Belgium"), ("BM", "Bermuda"), ("BR", "Brazil"),
-    ("BG", "Bulgaria"), ("CA", "Canada"), ("CL", "Chile"),
-    ("CN", "China"), ("CO", "Colombia"), ("CR", "Costa Rica"),
-    ("HR", "Croatia"), ("CY", "Cyprus"), ("CZ", "Czech Republic"),
-    ("DK", "Denmark"), ("DO", "Dominican Republic"), ("EC", "Ecuador"),
-    ("EE", "Estonia"), ("FO", "Faroe Islands"), ("FI", "Finland"),
-    ("FR", "France"), ("GE", "Georgia"), ("DE", "Germany"),
-    ("GH", "Ghana"), ("GI", "Gibraltar"),
-    ("GB", "United Kingdom / Great Britain"), ("GR", "Greece"),
-    ("HK", "Hong Kong"), ("HU", "Hungary"), ("IS", "Iceland"),
-    ("IN", "India"), ("IE", "Ireland"), ("IL", "Israel"),
-    ("IT", "Italy"), ("JM", "Jamaica"), ("JP", "Japan"),
-    ("KR", "South Korea"), ("LV", "Latvia"), ("LB", "Lebanon"),
-    ("LT", "Lithuania"), ("LU", "Luxembourg"), ("MY", "Malaysia"),
-    ("MT", "Malta"), ("MX", "Mexico"), ("MC", "Monaco"),
-    ("ME", "Montenegro"), ("MA", "Morocco"), ("NL", "Netherlands"),
-    ("AN", "Netherlands Antilles"), ("NZ", "New Zealand"),
-    ("ND", "Northern Ireland"), ("NO", "Norway"), ("PE", "Peru"),
-    ("PL", "Poland"), ("PT", "Portugal"), ("RO", "Romania"),
-    ("RU", "Russian Federation"), ("LC", "Saint Lucia"),
-    ("SA", "Saudi Arabia"), ("RS", "Serbia"), ("SG", "Singapore"),
-    ("SK", "Slovakia"), ("SI", "Slovenia"), ("ZA", "South Africa"),
-    ("ES", "Spain"), ("SE", "Sweden"), ("CH", "Switzerland"),
-    ("TW", "Taiwan"), ("TH", "Thailand"),
-    ("TT", "Trinidad and Tobago"), ("TR", "Turkey"), ("UA", "Ukraine"),
-    ("AE", "United Arab Emirates"), ("US", "United States"),
-    ("UY", "Uruguay"), ("VE", "Venezuela"),
+    ("AD", tr_noop("Andorra")),
+    ("AI", tr_noop("Anguilla")),
+    ("AR", tr_noop("Argentina")),
+    ("AU", tr_noop("Australia")),
+    ("AT", tr_noop("Austria")),
+    ("AZ", tr_noop("Azerbaijan")),
+    ("BS", tr_noop("Bahamas")),
+    ("BH", tr_noop("Bahrain")),
+    ("BB", tr_noop("Barbados")),
+    ("BE", tr_noop("Belgium")),
+    ("BM", tr_noop("Bermuda")),
+    ("BR", tr_noop("Brazil")),
+    ("BG", tr_noop("Bulgaria")),
+    ("CA", tr_noop("Canada")),
+    ("CL", tr_noop("Chile")),
+    ("CN", tr_noop("China")),
+    ("CO", tr_noop("Colombia")),
+    ("CR", tr_noop("Costa Rica")),
+    ("HR", tr_noop("Croatia")),
+    ("CY", tr_noop("Cyprus")),
+    ("CZ", tr_noop("Czech Republic")),
+    ("DK", tr_noop("Denmark")),
+    ("DO", tr_noop("Dominican Republic")),
+    ("EC", tr_noop("Ecuador")),
+    ("EE", tr_noop("Estonia")),
+    ("FO", tr_noop("Faroe Islands")),
+    ("FI", tr_noop("Finland")),
+    ("FR", tr_noop("France")),
+    ("GE", tr_noop("Georgia")),
+    ("DE", tr_noop("Germany")),
+    ("GH", tr_noop("Ghana")),
+    ("GI", tr_noop("Gibraltar")),
+    ("GB", tr_noop("United Kingdom / Great Britain")),
+    ("GR", tr_noop("Greece")),
+    ("HK", tr_noop("Hong Kong")),
+    ("HU", tr_noop("Hungary")),
+    ("IS", tr_noop("Iceland")),
+    ("IN", tr_noop("India")),
+    ("IE", tr_noop("Ireland")),
+    ("IL", tr_noop("Israel")),
+    ("IT", tr_noop("Italy")),
+    ("JM", tr_noop("Jamaica")),
+    ("JP", tr_noop("Japan")),
+    ("KR", tr_noop("South Korea")),
+    ("LV", tr_noop("Latvia")),
+    ("LB", tr_noop("Lebanon")),
+    ("LT", tr_noop("Lithuania")),
+    ("LU", tr_noop("Luxembourg")),
+    ("MY", tr_noop("Malaysia")),
+    ("MT", tr_noop("Malta")),
+    ("MX", tr_noop("Mexico")),
+    ("MC", tr_noop("Monaco")),
+    ("ME", tr_noop("Montenegro")),
+    ("MA", tr_noop("Morocco")),
+    ("NL", tr_noop("Netherlands")),
+    ("AN", tr_noop("Netherlands Antilles")),
+    ("NZ", tr_noop("New Zealand")),
+    ("ND", tr_noop("Northern Ireland")),
+    ("NO", tr_noop("Norway")),
+    ("PE", tr_noop("Peru")),
+    ("PL", tr_noop("Poland")),
+    ("PT", tr_noop("Portugal")),
+    ("RO", tr_noop("Romania")),
+    ("RU", tr_noop("Russian Federation")),
+    ("LC", tr_noop("Saint Lucia")),
+    ("SA", tr_noop("Saudi Arabia")),
+    ("RS", tr_noop("Serbia")),
+    ("SG", tr_noop("Singapore")),
+    ("SK", tr_noop("Slovakia")),
+    ("SI", tr_noop("Slovenia")),
+    ("ZA", tr_noop("South Africa")),
+    ("ES", tr_noop("Spain")),
+    ("SE", tr_noop("Sweden")),
+    ("CH", tr_noop("Switzerland")),
+    ("TW", tr_noop("Taiwan")),
+    ("TH", tr_noop("Thailand")),
+    ("TT", tr_noop("Trinidad and Tobago")),
+    ("TR", tr_noop("Turkey")),
+    ("UA", tr_noop("Ukraine")),
+    ("AE", tr_noop("United Arab Emirates")),
+    ("US", tr_noop("United States")),
+    ("UY", tr_noop("Uruguay")),
+    ("VE", tr_noop("Venezuela")),
 )
 
 
@@ -125,7 +179,10 @@ class TicketmasterClient:
     ) -> ConcertPage:
         if not self.api_key:
             raise TicketmasterError(
-                "Enter a Ticketmaster API key in BlindSpot preferences first."
+                tr(
+                    "Enter a Ticketmaster API key in BlindSpot preferences "
+                    "first."
+                )
             )
         query: dict[str, str | int] = {
             "apikey": self.api_key,
@@ -173,11 +230,13 @@ class TicketmasterClient:
             except Exception:
                 detail = None
             raise TicketmasterError(
-                f"Ticketmaster returned {error.code}"
+                tr("Ticketmaster returned {code}").format(code=error.code)
                 + (f": {detail}" if detail else ".")
             ) from error
         except (OSError, ValueError) as error:
-            raise TicketmasterError(f"Could not search Ticketmaster: {error}") from error
+            raise TicketmasterError(tr(
+                "Could not search Ticketmaster: {error}"
+            ).format(error=error)) from error
 
         values = (data.get("_embedded") or {}).get("events") or []
         page_data = data.get("page") or {}
@@ -191,7 +250,10 @@ class TicketmasterClient:
     def classifications(self) -> list[EventCategory]:
         if not self.api_key:
             raise TicketmasterError(
-                "Enter a Ticketmaster API key in BlindSpot preferences first."
+                tr(
+                    "Enter a Ticketmaster API key in BlindSpot preferences "
+                    "first."
+                )
             )
         query = urllib.parse.urlencode(
             {"apikey": self.api_key, "locale": "*", "size": 200}
@@ -207,11 +269,15 @@ class TicketmasterClient:
                 data = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as error:
             raise TicketmasterError(
-                f"Ticketmaster returned {error.code} while loading categories."
+                tr(
+                    "Ticketmaster returned {code} while loading categories."
+                ).format(code=error.code)
             ) from error
         except (OSError, ValueError) as error:
             raise TicketmasterError(
-                f"Could not load Ticketmaster categories: {error}"
+                tr(
+                    "Could not load Ticketmaster categories: {error}"
+                ).format(error=error)
             ) from error
         categories = []
         for classification in (
@@ -250,8 +316,8 @@ class TicketmasterClient:
         genre = classification.get("genre") or {}
         return ConcertEvent(
             id=str(value.get("id") or ""),
-            name=str(value.get("name") or "Untitled event"),
-            date=str(start.get("localDate") or "Date to be announced"),
+            name=str(value.get("name") or tr("Untitled event")),
+            date=str(start.get("localDate") or tr("Date to be announced")),
             time=str(start.get("localTime") or ""),
             venue=str(venue.get("name") or ""),
             city=str((venue.get("city") or {}).get("name") or ""),

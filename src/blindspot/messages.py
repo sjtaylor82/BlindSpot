@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from .i18n import ntr, on_language_change, tr, tr_noop
+from datetime import date
+
+from .i18n import ntr, on_language_change, ptr, tr, tr_noop
 
 
 SETUP_WELCOME = tr_noop(
@@ -321,6 +323,54 @@ def result_count(count: int, query: str) -> str:
 
 def item_count(count: int) -> str:
     return ntr("{count} item.", "{count} items.", count).format(count=count)
+
+
+def weekday_name(index: int) -> str:
+    """Name of a weekday, 0 for Monday."""
+    return (
+        ptr("weekday", "Monday"),
+        ptr("weekday", "Tuesday"),
+        ptr("weekday", "Wednesday"),
+        ptr("weekday", "Thursday"),
+        ptr("weekday", "Friday"),
+        ptr("weekday", "Saturday"),
+        ptr("weekday", "Sunday"),
+    )[index]
+
+
+def month_name(month: int) -> str:
+    """Name of a month as used inside a date, 1 for January."""
+    return (
+        ptr("month in a date", "January"),
+        ptr("month in a date", "February"),
+        ptr("month in a date", "March"),
+        ptr("month in a date", "April"),
+        ptr("month in a date", "May"),
+        ptr("month in a date", "June"),
+        ptr("month in a date", "July"),
+        ptr("month in a date", "August"),
+        ptr("month in a date", "September"),
+        ptr("month in a date", "October"),
+        ptr("month in a date", "November"),
+        ptr("month in a date", "December"),
+    )[month - 1]
+
+
+def long_date(value: date) -> str:
+    return tr("{day} {month} {year}").format(
+        day=value.day, month=month_name(value.month), year=value.year
+    )
+
+
+def minutes_seconds(minutes: int, seconds: int) -> str:
+    return tr("{minutes} {seconds}").format(
+        minutes=ntr("{count} minute", "{count} minutes", minutes).format(
+            count=minutes
+        ),
+        seconds=ntr("{count} second", "{count} seconds", seconds).format(
+            count=seconds
+        ),
+    )
 
 
 def selected_count(count: int) -> str:

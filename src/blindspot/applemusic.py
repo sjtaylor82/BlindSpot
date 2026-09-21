@@ -17,6 +17,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 
+from .i18n import tr, tr_noop
 from .network import TLS_CONTEXT
 
 API_ROOT = "https://rss.applemarketingtools.com/api/v2"
@@ -31,21 +32,51 @@ logger = logging.getLogger(__name__)
 
 # Apple Music storefronts, by ISO country code and the name shown in Discover.
 CHART_COUNTRIES = (
-    ("AR", "Argentina"), ("AU", "Australia"), ("AT", "Austria"),
-    ("BE", "Belgium"), ("BR", "Brazil"), ("CA", "Canada"),
-    ("CL", "Chile"), ("CO", "Colombia"), ("CZ", "Czech Republic"),
-    ("DK", "Denmark"), ("FI", "Finland"), ("FR", "France"),
-    ("DE", "Germany"), ("GR", "Greece"), ("HK", "Hong Kong"),
-    ("HU", "Hungary"), ("IN", "India"), ("ID", "Indonesia"),
-    ("IE", "Ireland"), ("IL", "Israel"), ("IT", "Italy"),
-    ("JP", "Japan"), ("MY", "Malaysia"), ("MX", "Mexico"),
-    ("NL", "Netherlands"), ("NZ", "New Zealand"), ("NO", "Norway"),
-    ("PH", "Philippines"), ("PL", "Poland"), ("PT", "Portugal"),
-    ("RO", "Romania"), ("SA", "Saudi Arabia"), ("SG", "Singapore"),
-    ("ZA", "South Africa"), ("KR", "South Korea"), ("ES", "Spain"),
-    ("SE", "Sweden"), ("CH", "Switzerland"), ("TW", "Taiwan"),
-    ("TH", "Thailand"), ("TR", "Turkey"), ("AE", "United Arab Emirates"),
-    ("GB", "United Kingdom"), ("US", "United States"), ("VN", "Vietnam"),
+    ("AR", tr_noop("Argentina")),
+    ("AU", tr_noop("Australia")),
+    ("AT", tr_noop("Austria")),
+    ("BE", tr_noop("Belgium")),
+    ("BR", tr_noop("Brazil")),
+    ("CA", tr_noop("Canada")),
+    ("CL", tr_noop("Chile")),
+    ("CO", tr_noop("Colombia")),
+    ("CZ", tr_noop("Czech Republic")),
+    ("DK", tr_noop("Denmark")),
+    ("FI", tr_noop("Finland")),
+    ("FR", tr_noop("France")),
+    ("DE", tr_noop("Germany")),
+    ("GR", tr_noop("Greece")),
+    ("HK", tr_noop("Hong Kong")),
+    ("HU", tr_noop("Hungary")),
+    ("IN", tr_noop("India")),
+    ("ID", tr_noop("Indonesia")),
+    ("IE", tr_noop("Ireland")),
+    ("IL", tr_noop("Israel")),
+    ("IT", tr_noop("Italy")),
+    ("JP", tr_noop("Japan")),
+    ("MY", tr_noop("Malaysia")),
+    ("MX", tr_noop("Mexico")),
+    ("NL", tr_noop("Netherlands")),
+    ("NZ", tr_noop("New Zealand")),
+    ("NO", tr_noop("Norway")),
+    ("PH", tr_noop("Philippines")),
+    ("PL", tr_noop("Poland")),
+    ("PT", tr_noop("Portugal")),
+    ("RO", tr_noop("Romania")),
+    ("SA", tr_noop("Saudi Arabia")),
+    ("SG", tr_noop("Singapore")),
+    ("ZA", tr_noop("South Africa")),
+    ("KR", tr_noop("South Korea")),
+    ("ES", tr_noop("Spain")),
+    ("SE", tr_noop("Sweden")),
+    ("CH", tr_noop("Switzerland")),
+    ("TW", tr_noop("Taiwan")),
+    ("TH", tr_noop("Thailand")),
+    ("TR", tr_noop("Turkey")),
+    ("AE", tr_noop("United Arab Emirates")),
+    ("GB", tr_noop("United Kingdom")),
+    ("US", tr_noop("United States")),
+    ("VN", tr_noop("Vietnam")),
 )
 
 DEFAULT_COUNTRY = "AU"
@@ -55,7 +86,7 @@ def country_name(code: str) -> str:
     """Return the display name for a storefront code, else the code."""
     wanted = code.strip().upper()
     return next(
-        (name for value, name in CHART_COUNTRIES if value == wanted),
+        (tr(name) for value, name in CHART_COUNTRIES if value == wanted),
         wanted,
     )
 
@@ -183,7 +214,9 @@ class AppleMusicClient:
                 break
             except urllib.error.HTTPError as error:
                 raise AppleMusicError(
-                    f"Apple Music charts are unavailable ({error.code})."
+                    tr(
+                        "Apple Music charts are unavailable ({code})."
+                    ).format(code=error.code)
                 ) from error
             except (urllib.error.URLError, TimeoutError, OSError) as error:
                 if attempt == 0:
@@ -191,11 +224,11 @@ class AppleMusicClient:
                     time.sleep(1)
                     continue
                 raise AppleMusicError(
-                    "Apple Music charts could not be reached."
+                    tr("Apple Music charts could not be reached.")
                 ) from error
         try:
             return json.loads(payload)
         except ValueError as error:
             raise AppleMusicError(
-                "Apple Music returned an unreadable chart."
+                tr("Apple Music returned an unreadable chart.")
             ) from error

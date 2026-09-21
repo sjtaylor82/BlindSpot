@@ -23,6 +23,7 @@ import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from .i18n import tr
 from . import __version__
 from .network import TLS_CONTEXT
 
@@ -391,7 +392,9 @@ class MusicBrainzClient:
         )[:MAX_SEED_CANDIDATES]
         if not candidates:
             raise CoversUnavailable(
-                f"MusicBrainz could not find {title} by {artist}."
+                tr(
+                    "MusicBrainz could not find {title} by {artist}."
+                ).format(title=title, artist=artist)
             )
         for candidate in candidates:
             recording = self._get(
@@ -403,8 +406,10 @@ class MusicBrainzClient:
                 if work and work.get("id"):
                     return str(work["id"]), str(work.get("title") or title)
         raise CoversUnavailable(
-            f"MusicBrainz has no song entry linked to {title} by {artist}, so "
-            "it cannot list covers of it."
+            tr(
+                "MusicBrainz has no song entry linked to {title} by "
+                "{artist}, so it cannot list covers of it."
+            ).format(title=title, artist=artist)
         )
 
     def _work_flags(self, work_id: str) -> dict[str, frozenset[str]]:
@@ -461,14 +466,16 @@ class MusicBrainzClient:
             except urllib.error.HTTPError as error:
                 if error.code in (429, 503):
                     raise MusicBrainzError(
-                        "MusicBrainz is busy. Try again in a minute."
+                        tr("MusicBrainz is busy. Try again in a minute.")
                     ) from error
                 raise MusicBrainzError(
-                    f"MusicBrainz returned an error ({error.code})."
+                    tr(
+                        "MusicBrainz returned an error ({code})."
+                    ).format(code=error.code)
                 ) from error
             except (urllib.error.URLError, TimeoutError, OSError) as error:
                 raise MusicBrainzError(
-                    "MusicBrainz could not be reached."
+                    tr("MusicBrainz could not be reached.")
                 ) from error
             finally:
                 self._last_request = time.monotonic()
@@ -476,5 +483,5 @@ class MusicBrainzClient:
             return json.loads(payload)
         except ValueError as error:
             raise MusicBrainzError(
-                "MusicBrainz returned an unreadable answer."
+                tr("MusicBrainz returned an unreadable answer.")
             ) from error
