@@ -145,6 +145,27 @@ class TranslationTests(LocaleTestCase):
         self.assertEqual("Muted.", i18n.tr("Muted."))
 
 
+class DefaultLanguageTests(LocaleTestCase):
+    def test_new_installations_follow_the_system_language(self) -> None:
+        self.assertEqual(i18n.SYSTEM_LANGUAGE, i18n.DEFAULT_LANGUAGE_SETTING)
+
+    def test_system_language_picks_an_installed_translation(self) -> None:
+        self.add_polish()
+        original = i18n.detect_system_language
+        self.addCleanup(setattr, i18n, "detect_system_language", original)
+        i18n.detect_system_language = lambda: "pl"
+        self.assertEqual("pl", i18n.set_language(i18n.SYSTEM_LANGUAGE))
+        self.assertEqual("Wyciszono.", i18n.tr("Muted."))
+
+    def test_system_language_without_a_translation_is_english(self) -> None:
+        self.add_polish()
+        original = i18n.detect_system_language
+        self.addCleanup(setattr, i18n, "detect_system_language", original)
+        i18n.detect_system_language = lambda: "de"
+        self.assertEqual("en", i18n.set_language(i18n.SYSTEM_LANGUAGE))
+        self.assertEqual("Muted.", i18n.tr("Muted."))
+
+
 class AvailableLanguageTests(LocaleTestCase):
     def test_lists_english_then_installed_languages_by_native_name(self) -> None:
         self.add_polish()

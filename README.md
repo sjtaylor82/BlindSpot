@@ -279,9 +279,10 @@ single gettext `.po` file under `locale/`, so a translator needs a text editor
 rather than programming skills. See [locale/README.md](locale/README.md) for
 the translator guide.
 
-Polish is included as a first draft produced with Claude and awaiting review by
-a native speaker. It is not selected by default: choose it in Options,
-Preferences, Language, then restart BlindSpot.
+Polish is included. It was drafted with Claude, and corrections from native
+speakers are welcome. By default BlindSpot follows the operating system's
+language and uses English when no translation exists; choose a language
+explicitly in Options, Preferences, Language, then restart BlindSpot.
 
 For developers, user-visible text goes through `tr()`, `ntr()` (plurals),
 `ptr()` (context) and `tr_noop()` (module-level tables) from

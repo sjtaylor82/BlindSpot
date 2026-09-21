@@ -28,9 +28,9 @@ from .portable import resource_directory
 DOMAIN = "blindspot"
 DEFAULT_LANGUAGE = "en"
 SYSTEM_LANGUAGE = "system"
-# What a new installation uses. Switch to SYSTEM_LANGUAGE once the shipped
-# translations have been reviewed by native speakers.
-DEFAULT_LANGUAGE_SETTING = DEFAULT_LANGUAGE
+# What an installation uses until the user chooses a language: follow the
+# operating system, falling back to English when no translation exists.
+DEFAULT_LANGUAGE_SETTING = SYSTEM_LANGUAGE
 
 _translations: gettext.NullTranslations = gettext.NullTranslations()
 _language = DEFAULT_LANGUAGE

@@ -90,7 +90,6 @@ pace. Until then those messages are shown in English.
 
 ## Status of the shipped translations
 
-The Polish translation was drafted with Claude (an AI model) and has not yet
-been reviewed by a native speaker. Corrections are very welcome, especially of
-menu wording, grammar and anything that sounds unnatural when spoken by a
-screen reader.
+The Polish translation was drafted with Claude (an AI model). Corrections are
+very welcome, especially of menu wording, grammar and anything that sounds
+unnatural when spoken by a screen reader.
