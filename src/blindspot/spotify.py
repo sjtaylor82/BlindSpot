@@ -12,6 +12,7 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -201,6 +202,49 @@ class SpotifyClient:
         self._account_country = ""
         self.store.remove("authentication.json")
 
+    def _artists_with_albums(
+        self,
+        artists: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Drop artists whose album list would be empty when opened.
+
+        Opening an artist lists only its albums, so an artist with none is a
+        dead end. Answers are remembered, and a failed check keeps the artist.
+        """
+        known: dict[str, bool] = self.__dict__.setdefault("_has_albums", {})
+        pending = [
+            str(value["id"])
+            for value in artists
+            if value.get("id") and str(value["id"]) not in known
+        ]
+        if pending and time.monotonic() >= self.__dict__.get("_album_check_pause", 0):
+            def check(artist_id: str) -> tuple[str, bool | None]:
+                try:
+                    payload = self._request(
+                        "GET",
+                        f"/artists/{artist_id}/albums",
+                        query={"include_groups": "album", "limit": 1},
+                    )
+                except SpotifyError as error:
+                    if error.status == 429:
+                        self.__dict__["_album_check_pause"] = (
+                            time.monotonic() + 60
+                        )
+                    return artist_id, None
+                except Exception:
+                    return artist_id, None
+                return artist_id, bool((payload or {}).get("items"))
+
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                for artist_id, has_albums in pool.map(check, pending):
+                    if has_albums is not None:
+                        known[artist_id] = has_albums
+        return [
+            value
+            for value in artists
+            if known.get(str(value.get("id")), True)
+        ]
+
     def search(
         self,
         query: str,
@@ -263,6 +307,8 @@ class SpotifyClient:
                 for value in (payload.get(key) or {}).get("items", [])
                 if value
             ]
+            if kind == ItemKind.ARTIST:
+                values = self._artists_with_albums(values)
             if not values:
                 continue
             if category == "all":
@@ -300,72 +346,6 @@ class SpotifyClient:
                 )
             )
         return items
-
-    def new_music(
-        self,
-        release_type: str = "album",
-        offset: int = 0,
-    ) -> list[SpotifyItem]:
-        if release_type not in {"album", "single", "compilation"}:
-            raise ValueError(f"Unsupported release type: {release_type}")
-        releases: list[SpotifyItem] = []
-        raw_counts: dict[str, int] = {}
-        next_offset = offset
-        total = offset
-        while len(releases) < 20 and next_offset <= 1000:
-            payload = self._request(
-                "GET",
-                "/search",
-                query={
-                    "q": "tag:new",
-                    "type": "album",
-                    "limit": 10,
-                    "offset": next_offset,
-                    "include_external": "audio",
-                },
-            )
-            page = payload.get("albums") or {}
-            values = [value for value in page.get("items", []) if value]
-            total = int(page.get("total") or 0)
-            if not values:
-                next_offset = total
-                break
-            consumed = 0
-            for value in values:
-                consumed += 1
-                album_type = str(value.get("album_type") or "unknown")
-                raw_counts[album_type] = raw_counts.get(album_type, 0) + 1
-                if album_type == release_type:
-                    releases.append(self._map_item(value, ItemKind.ALBUM))
-                    if len(releases) >= 20:
-                        break
-            next_offset += consumed
-            if next_offset >= total:
-                break
-        logger.info(
-            "New music search type=%s offset=%d scanned=%d matches=%d types=%s next_offset=%d total=%d",
-            release_type,
-            offset,
-            sum(raw_counts.values()),
-            len(releases),
-            raw_counts,
-            next_offset,
-            total,
-        )
-        if next_offset < total and next_offset <= 1000:
-            releases.append(
-                SpotifyItem(
-                    "__load_more__",
-                    ItemKind.HEADING,
-                    tr("Load more results"),
-                    raw={
-                        "load_more": True,
-                        "next_offset": next_offset,
-                        "release_type": release_type,
-                    },
-                )
-            )
-        return releases
 
     def children(self, item: SpotifyItem) -> list[SpotifyItem]:
         logger.info(
@@ -491,6 +471,23 @@ class SpotifyClient:
         if not album.get("id"):
             raise SpotifyError(msg.ALBUM_NOT_PROVIDED)
         return self._map_item(album, ItemKind.ALBUM)
+
+    def music_details(self, item: SpotifyItem) -> dict[str, Any]:
+        """Return full Spotify metadata for a track and its album."""
+        track: dict[str, Any] | None = None
+        if item.kind == ItemKind.TRACK:
+            track = self._request("GET", f"/tracks/{item.id}")
+            album_id = str((track.get("album") or {}).get("id") or "")
+        elif item.kind == ItemKind.ALBUM:
+            album_id = item.id
+        else:
+            return {}
+        album = (
+            self._request("GET", f"/albums/{album_id}")
+            if album_id
+            else None
+        )
+        return {"track": track, "album": album}
 
     def liked_songs(self) -> list[SpotifyItem]:
         values = self._paged_items(
@@ -895,6 +892,39 @@ class SpotifyClient:
             ),
             candidates[0] if candidates else None,
         )
+
+    def find_audiobook(self, name: str, author: str) -> SpotifyItem | None:
+        data = self._request(
+            "GET",
+            "/search",
+            query={
+                "q": f'"{name}" {author}',
+                "type": "audiobook",
+                "limit": 10,
+                "offset": 0,
+            },
+        )
+        candidates = [
+            self._map_item(value, ItemKind.AUDIOBOOK)
+            for value in (data.get("audiobooks") or {}).get("items", [])
+            if value
+        ]
+        wanted_name = _search_normalized(name)
+        wanted_author = _search_normalized(author)
+        exact = [
+            item
+            for item in candidates
+            if _search_normalized(item.name) == wanted_name
+        ]
+        by_author = next(
+            (
+                item
+                for item in exact
+                if wanted_author in _search_normalized(item.artist)
+            ),
+            None,
+        )
+        return by_author or (exact[0] if exact else None)
 
     def replace_playlist_item(
         self,

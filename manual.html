@@ -10,7 +10,7 @@
       reports that BlindSpot is already running.</p>
   <main>
     <h1>BlindSpot manual</h1>
-    <p>Build 2026.9.3</p>
+    <p>Build 2026.9.4</p>
     <p>BlindSpot is a portable, keyboard-first Spotify client for Windows and macOS.</p>
 
     <h2>Main interface</h2>
@@ -21,22 +21,39 @@
     <h2>Keyboard commands</h2>
     <ul>
       <li>Ctrl+1 through Ctrl+9: Search, Liked Songs, Queue, Playlists,
-        Recently Played, Bookmarks, Audiobooks, Podcasts, and Saved Albums
-        respectively. Ctrl+0 selects Discover.</li>
+        Recently Played, Audiobooks, Podcasts, Saved Albums, and Discover
+        respectively.</li>
+      <li>Ctrl+B: open Bookmarks. Ctrl+Shift+G: search for concerts. Both are
+        in the File menu and open in their own window; playback keys still
+        work there.</li>
       <li>Ctrl+Tab and Ctrl+Shift+Tab: cycle through the main tabs.</li>
       <li>Ctrl+F: focus the search box.</li>
       <li>Ctrl+Comma: open Preferences.</li>
       <li>Enter: open a container, or play a track or episode.</li>
-      <li>F4: play the focused track, playlist, album, or artist.</li>
+      <li>F4: play the focused track, playlist, album, or artist. When no list
+        has focus, F4 plays the song remembered from your last session.</li>
       <li>F5: restart current track. Double-press within 0.5 seconds to move to the previous track
         immediately.</li>
       <li>F6 / F8: seek backward and forward five seconds.</li>
+      <li>Shift+F8 / Shift+F6: jump to the next or previous lyric section
+      (verse or chorus). BlindSpot finds sections from the gaps between lines
+      in the synced lyrics, so this works only for songs that have them.
+      Preferences has an option, off by default, to speak the section number
+      after each jump.</li>
       <li>F7: pause or resume. After launch, F7 also starts a remembered
         track when playback memory is enabled.</li>
       <li>F9: next track.</li>
-      <li>Shift+F5 / Shift+F6: decrease and increase volume by five
+      <li>Left bracket then right bracket: mark the start and end of a cart
+        while a song is playing. Press Alt+1 through Alt+9 to assign the
+        marked section.</li>
+      <li>Alt+1 through Alt+9: play the corresponding cart when no marked
+        section is waiting to be assigned. Use File, Manage carts to preview
+        or clear saved carts. Repeat One loops the current cart; Repeat All
+        advances through populated carts in number order and wraps around.</li>
+      <li>Shift+F4 / Shift+F5: decrease and increase volume by five
         percent.</li>
-      <li>Shift+F4: mute or restore previous volume.</li>
+      <li>Shift+F7: mute or restore previous volume. Preferences can turn off
+        the spoken volume percentage, which is on by default.</li>
       <li>Space: pause or resume playback, except when focus is in a control
         that uses Space itself, such as a button, radio button, checkbox, or
         edit field.</li>
@@ -188,7 +205,12 @@
       Spotify.</p>
 
     <h2>Albums</h2>
-    <p>Press Ctrl+9 to browse albums saved in your Spotify library. Enter
+    <p>Choose Album and recording information from a track or album context
+      menu. The read-only window includes Spotify's detailed release and
+      recording metadata: release type and date, record label, copyrights,
+      track and disc numbers, duration, explicit status, ISRC and UPC when
+      available. The same command is under Playback, Now playing.</p>
+    <p>Press Ctrl+8 to browse albums saved in your Spotify library. Enter
       opens the selected album, and Backspace returns to the previous position. Use Ctrl+L to like or unlike the selected album.</p>
     <p>When browsing an album, each row contains its track number and
       title, followed by any artist credited in addition to the album's primary
@@ -196,33 +218,63 @@
       the album from the focused track.</p>
 
     <h2>Discover</h2>
-    <p>Press Ctrl+0 to open Discover. The Discover radio buttons choose
-      between New releases, Top songs, Top albums and Experimental US Hot 100.
+    <p>Press Ctrl+9 to open Discover. The Discover radio buttons choose
+      between New releases, Followed artists and authors, Top charts and
+      Historical charts.
       Only the control that applies to
       the chosen source stays enabled, and neither source replaces the
       current list until Search is activated again.</p>
-    <p>With New releases selected, choose Albums, Singles and EPs, or
-      Compilations under Release type, then activate Search. Spotify search
-      identifies releases within about the last two weeks. Results
-      are sorted by their supplied release date. Enter opens a release, F4
-      plays it, and Ctrl+L saves or removes it from your library. Choose Load
-      more results at the end of the list to retrieve the next 20 matching
-      releases.</p>
-    <p>Top songs lists the most played songs in the country chosen
-      under Chart country. The chart comes from Apple Music's public feed,
+    <p>With New releases selected, choose Songs or Albums under Show, then a
+      Genre, how recent a release must be under Released within, and a
+      country, and activate Search. The list comes from Apple's iTunes Store
+      chart for that genre and country, keeping only releases inside your
+      window, newest first. Type an artist or title in the keyword box to list
+      that artist's releases instead, for example a small Australian artist who
+      does not chart. Keyword searches ignore the genre but still honour
+      Released within, so choose Any time to see older releases.
+      Releases are looked up on Spotify only when you act on them. Choose
+      Followed artists and authors to see new releases by artists you follow
+      and new audiobooks by authors you follow: right-click an artist, song,
+      album or audiobook and choose Follow for new releases, or use Playback,
+      Now playing, Follow artist or author for new releases for what is
+      playing. Audiobook releases come from Apple's catalogue and only titles
+      marked Unabridged or Abridged are listed, which skips translated
+      editions; an audiobook opens in the Audiobooks tab if Spotify has it.
+      Choose File, Followed artists and authors to review or remove them.
+      BlindSpot also checks for new releases a few seconds after it starts and
+      announces any it has not mentioned before; turn that off in
+      Preferences. Enter opens a release, F4
+      plays it, and Ctrl+L saves or removes it from your library.</p>
+    <p>Top charts lists the most played songs or albums, chosen under Show, in
+      the country chosen under Chart country. The chart comes from Apple
+      Music's public feed,
       so it reflects real listening across Apple Music's whole user base
       rather than a sample. Apple provides up to a hundred entries and all
       of them are listed at once. Every row announces its chart position,
       title, artist and year.</p>
-    <p>Top albums uses Apple Music's matching album chart for the chosen
-      country. Enter resolves the album on Spotify and opens its tracks; F4
-      resolves and plays it.</p>
-    <p>Experimental US Hot 100 accepts a date written as year-month-day,
-      with or without hyphens, and
+    <p>With Albums chosen, Enter resolves the album on Spotify and opens its
+      tracks; F4 resolves and plays it.</p>
+    <p>Historical charts offers two charts, chosen under Chart. The US
+      Billboard Hot 100 (experimental) accepts a date written as
+      year-month-day, with or without hyphens, and
       loads the latest weekly chart on or before that date. BlindSpot reads
       the JSON live from the community-maintained
       mhollingshead/billboard-hot-100 project on GitHub. The source is
       unofficial, is not included with BlindSpot, and may change or disappear.</p>
+    <p>Number ones by country covers the United Kingdom, Australia and New
+      Zealand, chosen under Number ones country. It accepts a year or a date in
+      the same box. Type a year such as 1985 to list every number one that
+      year, choosing Songs or Albums under Show. Each song is listed once, with
+      its weeks at number one that year and, when it differs, in total. Order
+      puts the song with the most weeks at number one first, which is the
+      default, or lists them in date order. Type a full date such as 1985-07-13
+      to hear which single or album was number one in that chart week. Years
+      available: United Kingdom singles from 1952 and albums from 1956;
+      Australia singles from 1940 and albums from 1965; New Zealand singles
+      and albums from 1980. The data comes from Wikipedia's lists of number
+      ones, which are licensed CC BY-SA and compiled from each country's
+      official charts. They list only number ones, not the whole chart, and
+      being community edited they can contain mistakes.</p>
     <p>BlindSpot does not search Spotify for chart entries when the chart
       appears. Each song or album is looked up only when you play it with Enter or
       F4, queue it, like it, add it to a playlist, open its album or menu,
@@ -249,8 +301,9 @@
       that loads the next page.</p>
 
     <h2>Concerts</h2>
-    <p>Press Ctrl+Shift+G to open the Concerts tab and search Ticketmaster for
-      upcoming live events. Ctrl+0 continues to open Discover.
+    <p>Press Ctrl+Shift+G, or choose File, Search for concerts, to open the
+      concert search window and search Ticketmaster for upcoming live events.
+      Close the window with Escape; it keeps your last search.
       Choose a country and From and Until dates, then enter an optional keyword,
       state code or city, optionally choose a Ticketmaster category and genre,
       and activate Search concerts. Genres update to match the chosen category;
@@ -263,7 +316,15 @@
       API key to open Ticketmaster's registration instructions.</p>
 
     <h2>Lyrics</h2>
-    <p>Press Ctrl+Y to retrieve lyrics, either on a focused track, or a currently playing song.</p>
+    <p>To translate fetched lyrics, open File, Preferences, enter a DeepL API
+      key and choose a Lyrics translation language. BlindSpot automatically
+      recognises API Free keys. BlindSpot does not translate each fetched song
+      automatically. Activate Fetch translation in the Lyrics window when you
+      want one. The button disappears after success and Translation is added
+      to the Lyrics view choice. Translations are cached locally, so reopening
+      the same lyrics does not submit them again or consume more translation
+      credit.</p>
+    <p>Press Ctrl+Y to retrieve lyrics, either on a focused track, or a currently playing song. In the Lyrics window, press Ctrl+F on Windows or Command+F on macOS to show a Find box. Enter finds the next match and Shift+Enter finds the previous match. With focus back in the read-only lyrics, N and P repeat next and previous. Escape closes the Find box.</p>
     <p>Select Follow playback on braille display to read the lyrics in real-time
       as the song plays. BlindSpot changes lines
       around 1 second early by default, giving you time to read the
@@ -274,7 +335,7 @@
       start or resume audio playback from that line. Press Spacebar in the
       lyrics text, or F7, to pause or resume audio playback. Spacebar remains
       available normally for controls such as the follow-playback checkbox.
-      Ctrl+Up Arrow and Ctrl+Down Arrow on Windows, or Option+Command+Up Arrow
+      Alt+Up Arrow and Alt+Down Arrow on Windows, or Option+Command+Up Arrow
       and Option+Command+Down Arrow on macOS, move to the previous or next
       synced lyric line and play the audio from that position. Select Enable phrase
       mode to have any of these commands pause playback when the next synced
@@ -322,13 +383,11 @@
       tab's contents. Enter plays the selected track, and its context menu
       provides the usual album, queue, and library actions. The first time it
       is opened, BlindSpot may ask to authorize access to Spotify listening
-      history. BlindSpot also keeps a local record of confirmed playback, so
-      tracks started from playlists are retained even when Spotify's history
-      feed is delayed or omits them. This local history is stored in
-      <code>data/recently_played.json</code>.</p>
+      history. The list comes directly from Spotify and preserves Spotify's
+      most-recent-first ordering.</p>
 
     <h2>Audiobooks</h2>
-    <p>Press Ctrl+7 to open saved Spotify audiobooks. Enter opens a book and
+    <p>Press Ctrl+6 to open saved Spotify audiobooks. Enter opens a book and
       lists its chapters. Each chapter announces its saved Spotify resume
       position when one is available; Enter plays from that position.
       Backspace returns to the saved-book list. </p>
@@ -336,7 +395,7 @@
       determined by the individual's Spotify plan. </p>
 
     <h2>Podcasts</h2>
-    <p>Press Ctrl+8 to open Podcasts. Choose a category such as Comedy, News,
+    <p>Press Ctrl+7 to open Podcasts. Choose a category such as Comedy, News,
       Science or Technology, then activate Browse podcasts to explore matching
       Spotify shows. These are relevance-ranked Spotify search results, not a
       complete Spotify catalogue. Each show identifies its publisher; use its
@@ -366,8 +425,8 @@
       as well as selected Spotify Connect devices. </p>
 
     <h2>Bookmarks</h2>
-    <p>Press control+shift+b to bookmark a position whilst a song is playing. Press Ctrl+6
-      to open Bookmarks. Each entry includes its saved playback position.
+    <p>Press control+shift+b to bookmark a position whilst a song is playing. Press Ctrl+B,
+      or choose File, Bookmarks, to open Bookmarks in its own window. Each entry includes its saved playback position.
       Press Enter to resume from that position, Delete to remove it, or use
       the context menu for resume, album, queue, library, and delete actions.</p>
     <p>Bookmarks are stored locally in data/bookmarks.json in BlindSpot's
@@ -375,7 +434,7 @@
       not synchronize to other Spotify applications.</p>
 
     <h2>Preferences</h2>
-    <p>Use Options, Preferences to adjust settings such as speaking the track name whenever
+    <p>Use File, Preferences to adjust settings such as speaking the track name whenever
       playback changes. Track-change announcements use the configured
       accessible-output2 screen-reader output and are disabled by default.
       Startup playback memory can either remember nothing, remember the last track
@@ -431,7 +490,7 @@
 
     <h2>Portable data</h2>
     <p>On Windows, settings, authentication, and logs are stored in the data
-      folder beside BlindSpot. Use Options, Account, Sign out and erase
+      folder beside BlindSpot. Use File, Account, Sign out and erase
       credentials before sharing the portable folder.</p>
     <p>On macOS, BlindSpot uses Library/Application Support/BlindSpot in the
       current user's home folder. Authentication remains available when

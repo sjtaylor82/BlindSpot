@@ -167,6 +167,7 @@ DISCOVER_SEARCH_PROMPT = tr_noop(
     "Choose New releases or Top songs, then activate Search."
 )
 LOADING_MUSIC_CHART = tr_noop("Loading chart")
+LOADING_NEW_RELEASES = tr_noop("Loading new releases")
 ERROR_DETAILS_COPIED = tr_noop("Error details copied to the clipboard.")
 NO_ERROR_TO_COPY = tr_noop("No error has occurred in this session.")
 CLIPBOARD_UNAVAILABLE = tr_noop("The clipboard could not be opened.")
@@ -215,6 +216,7 @@ NOT_ENOUGH_LYRIC_INFO = tr_noop(
 LYRICS_UNAVAILABLE_TRACK = tr_noop("Lyrics unavailable for this track.")
 LRCLIB_BUSY = tr_noop("LRCLIB is busy. Please try again later.")
 LYRICS_RETRIEVAL_FAILED = tr_noop("Lyrics could not be retrieved.")
+WIKIPEDIA_RETRIEVAL_FAILED = tr_noop("Wikipedia could not be reached.")
 PHRASE_END_UNAVAILABLE = tr_noop("The end of this lyric line is unavailable.")
 INVALID_PLAYLIST_POSITION = tr_noop("Enter a valid playlist position.")
 NO_ALTERNATE_VERSIONS = tr_noop("No alternate versions were found.")
@@ -693,6 +695,14 @@ def lrclib_retry(seconds: str) -> str:
 
 def lrclib_error(status: int) -> str:
     return tr("LRCLIB returned error {status}.").format(status=status)
+
+
+def song_story_unavailable(name: str) -> str:
+    return tr("No Wikipedia article about {name} was found.").format(name=name)
+
+
+def wikipedia_error(status: int) -> str:
+    return tr("Wikipedia returned error {status}.").format(status=status)
 
 
 _SOURCE_TEXT = {

@@ -17,7 +17,8 @@ class KeyMapTests(unittest.TestCase):
     def test_concerts_has_distinct_shortcut_from_new_music(self):
         value = keymap.KeyMap(platform="win32")
 
-        self.assertEqual(value.bindings("open_new_music"), ("Control+0",))
+        self.assertEqual(value.bindings("open_new_music"), ("Control+9",))
+        self.assertEqual(value.bindings("open_bookmarks"), ("Control+B",))
         self.assertEqual(
             value.bindings("open_concerts"),
             ("Control+Shift+G",),
@@ -53,7 +54,7 @@ class KeyMapTests(unittest.TestCase):
         self.assertEqual(value.bindings("seek_backward"), ())
         self.assertEqual(
             value.bindings("previous_lyric_line"),
-            ("Control+Up",),
+            ("Alt+Up",),
         )
 
     def test_clear_disables_default_and_round_trips(self):

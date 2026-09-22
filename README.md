@@ -18,10 +18,11 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
 - Album context menus include **Related albums**, which opens a deduplicated
   discovery list derived from the source album. Results behave like ordinary
   albums and Backspace restores the originating view.
-- Liked Songs, Queue, Playlists, Recently Played, Bookmarks, Audiobooks,
-  Podcasts, Saved Albums, Discover, and Concerts tabs.
-- The Discover tab offers **New releases**, **Top songs**, **Top albums**, and
-  an **Experimental US Hot 100** history. The Apple charts show the most-played
+- Liked Songs, Queue, Playlists, Recently Played, Audiobooks, Podcasts,
+  Saved Albums, and Discover tabs. Bookmarks and concert search open from the
+  File menu instead of the tab bar.
+- The Discover tab offers **New releases**, **Followed artists and authors**,
+  **Top charts**, and **Historical charts**. The Apple charts show the most-played
   songs or albums for one of 45 countries, taken from Apple Music's
   public RSS feed, which reports real play data from Apple Music's whole
   user base and needs no API key. Rows announce their chart position.
@@ -39,15 +40,49 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
   moment of the request, not when the ranking was measured. Like any real
   chart, long-standing favourites appear alongside new releases because
   people genuinely keep playing them.
-  The experimental historical source accepts a date, maps it to the latest
-  weekly US Hot 100 chart on or before that day, and reads the JSON live from
-  the community-maintained mhollingshead/billboard-hot-100 project on GitHub.
-  It is unofficial, is not bundled with BlindSpot, and may change or disappear.
+  **New releases** reads Apple's iTunes Store genre charts for a country (for
+  example Country in Australia), keeps only releases inside a chosen window
+  (7, 14, 30 or 90 days, or any time), and lists them newest first. Typing an
+  artist or title in its keyword box instead searches Apple's catalogue (the
+  genre is ignored, the window still applies), which finds small releases that
+  never chart.
+  **Top charts** shows Apple's most-played chart for the chosen country;
+  choose Songs or Albums under Show.
+  **Followed artists and authors** lists new releases by artists you follow and
+  new audiobooks by authors you follow. Right-click an artist, song, album or
+  audiobook and choose Follow for new releases (or use Playback, Now playing,
+  Follow artist or author for new releases for what is playing). Audiobook
+  releases come from Apple's catalogue, keep only titles marked Unabridged or
+  Abridged to skip translated editions, and open in the Audiobooks tab if
+  Spotify has them.
+  File, Followed artists and authors lists everyone you follow and lets you
+  stop. BlindSpot
+  also checks for new releases at start-up and announces any it has not told
+  you about yet; Preferences can turn that off. The list is kept locally in
+  data/followed_artists.json and is separate from following on Spotify.
+  Spotify's own new-release search is no longer used, because it returns the
+  top 100 worldwide releases and cannot be limited by genre or country.
+  **Historical charts** has two sources. The experimental US Billboard Hot 100
+  accepts a date, maps it to the latest weekly chart on or before that day,
+  and reads the JSON live from the community-maintained
+  mhollingshead/billboard-hot-100 project on GitHub. It is unofficial, is not
+  bundled with BlindSpot, and may change or disappear. **Number ones by
+  country** covers the United Kingdom (singles from 1952, albums from 1956),
+  Australia (singles from 1940, albums from 1965) and New Zealand (singles and
+  albums from 1980). Choose the country, then Songs or Albums under Show, and
+  type a year (such as 1985) or a date (1985-07-13). A year lists every number
+  one that year once each, with its weeks at number one that year and in
+  total, most weeks first by default or in date order. A date gives the number
+  one for that week. The data comes from Wikipedia's lists of number ones
+  (CC BY-SA), compiled from each country's official charts. They list only
+  number ones, and Wikipedia is community edited so it can contain mistakes.
 - Upcoming Ticketmaster live-event search by keyword, country, state, city, and
   genre, with 50 results per page. Add your own Ticketmaster Discovery API key
   in Preferences to use it; a link beneath the key field opens Ticketmaster's
   registration instructions.
-- Ctrl+Shift+G opens the Concerts tab; Ctrl+0 opens Discover.
+- Right-click or Shift+F10 a track and choose "What's this song about?" to read the introduction of its English Wikipedia article. It makes one Wikipedia request when chosen, and says so if no matching article exists.
+- Preferences can turn off spoken volume percentages and spoken cart names (both on by default).
+- File > Search for concerts (Ctrl+Shift+G) opens concert search; File > Bookmarks (Ctrl+B) opens your bookmarks. Playback keys such as F5 to F9 still work in both windows. Ctrl+9 opens Discover.
 - Enter drills into containers and plays tracks or episodes.
 - Backspace returns to the previous view and restores the selected row.
 - Q queues an item, L likes or unlikes it, and Ctrl+F returns to search.
@@ -113,10 +148,14 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
   application key, which can be replaced in Preferences.
 - Track context menus can open a Last.fm similar-track mix for inspection,
   start it now as an ordered Spotify playback sequence, or append it after the
-  current queue. The Go menu offers the same actions for the currently playing
+  current queue. The Playback menu offers the same actions for the currently playing
   track. BlindSpot requests up to 50 Last.fm candidates and resolves browsed
   results in pages of 20; fewer may remain after Spotify matching and duplicate
   removal.
+- Track and album context menus include **Album and recording information**.
+  It opens a read-only, searchable view of Spotify's full metadata, including
+  release date and type, label, copyrights, track and disc numbers, duration,
+  explicit status, ISRC and UPC identifiers when Spotify supplies them.
 - Starting a mix resolves and starts the first page, then prepares the remaining
   candidates in the background and appends matched tracks to the mix. BlindSpot
   starts one track and places the rest in Spotify's queue, avoiding the looping
@@ -146,8 +185,9 @@ Register this redirect URI in the Spotify developer dashboard:
 
 ## Keyboard model
 
-- Ctrl+1 through Ctrl+9: select the existing tabs in the interface. Ctrl+9
-  opens Saved Albums. Ctrl+0 opens Discover.
+- Ctrl+1 through Ctrl+9: select the tabs in the interface: Search, Liked
+  Songs, Queue, Playlists, Recently Played, Audiobooks, Podcasts, Saved Albums,
+  and Discover.
 - Ctrl+Tab and Ctrl+Shift+Tab: cycle main tabs.
 - Ctrl+F: focus Search.
 - Ctrl+Comma: open Preferences.
@@ -156,23 +196,35 @@ Register this redirect URI in the Spotify developer dashboard:
 - Backspace or Alt+Left: return to the previous remembered view.
 - F4: play the focused track, playlist, album, or artist. In an open album,
   Enter plays only the selected track, while F4 plays the album beginning at
-  that track.
+  that track. When no list has focus, F4 plays the song remembered from your
+  last session, as F7 does.
 - F5: restart the current track after the half-second double-press window.
   Press twice within that window to move to the previous track immediately.
 - F6 and F8: seek backward or forward five seconds.
+- Shift+F8 and Shift+F6: jump to the next or previous lyric section (verse or chorus), found from the stanza breaks in the lyrics (or gaps in the synced timing). The section number is only spoken if you turn on "Speak section number when jumping between lyric sections" in Preferences.
 - F7: pause or resume the current track.
 - F9: next track.
-- Shift+F5 and Shift+F6: decrease or increase volume five percent.
-- Shift+F4: mute or restore the previous volume.
+- Shift+F4 and Shift+F5: decrease or increase volume five percent.
+- Shift+F7: mute or restore the previous volume.
 - BlindSpot remembers the last manually selected volume for its built-in player
   between sessions; temporary muting does not replace that saved level.
 - Space: pause or resume playback, except when focus is in a control that
   uses Space itself, such as a button, checkbox, radio button, or edit field.
 - Shift+Space: play from the current line in Lyrics. In Lyrics, enable
   **Phrase mode** to pause at
-  the start of the next synced line. Ctrl+Up and Ctrl+Down move to and play
+  the start of the next synced line. Alt+Up and Alt+Down move to and play
   the previous or next line using the same mode on Windows; on macOS, use
   Option+Command+Up and Option+Command+Down.
+- Ctrl+F in the Lyrics window, or Command+F on macOS: show the lyrics Find
+  box. Enter finds the next match and Shift+Enter finds the previous match.
+  With focus back in the read-only lyrics, N and P repeat next and previous.
+  Escape closes the Find box.
+- Preferences can translate lyrics with DeepL. Enter a DeepL API key and
+  choose a target language; API Free keys are detected automatically. Lyrics
+  are not submitted automatically: use **Fetch translation** in the Lyrics
+  window. A successful result adds Translation to the keyboard-accessible
+  **Lyrics view** choice. Translations are cached locally to avoid repeat
+  charges.
 - Ctrl+Space on Windows: select or deselect the focused list item while
   preserving other selections. On macOS, use VoiceOver's native selection
   commands.
@@ -263,6 +315,9 @@ settings.
 
 ## Releases and updates
 
+See the [plain-English changelog](CHANGELOG.txt) for a record of what users
+received in each version.
+
 Pushing a version tag such as `v2026.7.0.0` builds Windows and macOS portable
 ZIP files and publishes them as a GitHub Release. BlindSpot checks that release
 feed at startup and Help > Check for updates checks it on demand. When a newer
@@ -282,7 +337,7 @@ the translator guide.
 Polish is included. It was drafted with Claude, and corrections from native
 speakers are welcome. By default BlindSpot follows the operating system's
 language and uses English when no translation exists; choose a language
-explicitly in Options, Preferences, Language, then restart BlindSpot.
+explicitly in File, Preferences, Language, then restart BlindSpot.
 
 For developers, user-visible text goes through `tr()`, `ntr()` (plurals),
 `ptr()` (context) and `tr_noop()` (module-level tables) from

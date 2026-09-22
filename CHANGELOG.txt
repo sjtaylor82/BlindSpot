@@ -1,0 +1,209 @@
+BLINDSPOT CHANGELOG
+===================
+
+2026.9.4 - 23 September 2026
+
+Features implemented:
+- Search within lyrics and optional DeepL lyric translation.
+- Previous and next lyric-section shortcuts.
+- Detailed album and recording information and Wikipedia song stories.
+- New-release searches and notifications for followed artists and authors.
+- Historical number-one singles and albums for several countries.
+- Named carts for quickly playing saved tracks.
+- Bookmarks, concerts, account settings and preferences moved into File.
+
+Bugs fixed:
+- Improved Lyrics window focus, tab order, closing and keyboard handling.
+- Reused loaded lyrics instead of requesting them again for lyric navigation.
+- Added a controlled retry for temporary LRCLIB 503 errors.
+- Improved Spotify request, playback and window reliability.
+
+
+2026.9.3 - 21 September 2026
+
+Features implemented:
+- Discover charts and historical chart browsing.
+- List filtering, sorting and improved first-letter navigation.
+- Copying and moving tracks between playlists.
+- Related albums, genre browsing and finding cover versions.
+- Text and CSV list export.
+- Podcast language and listening-status filters.
+- Diagnostic reports and copyable error details.
+- Interface translations, including Polish.
+
+
+2026.9.2 - 19 September 2026
+
+Features implemented:
+- Podcast browsing by category with accessible paging.
+- Last.fm mixes that automatically continue with more music.
+
+
+2026.9.1 - 18 September 2026
+
+Features implemented:
+- Last.fm similar-track mixes.
+- Select all in lists.
+
+
+2026.9.0 - 15 September 2026
+
+Bugs fixed:
+- Fixed BlindSpot failing to start on macOS.
+
+
+2026.7.0.18 - 7 September 2026
+
+Features implemented:
+- Ticketmaster concert searching.
+- Remembering the built-in player's volume.
+
+Changes:
+- Revised the playback function keys.
+
+
+2026.7.0.17 - 29 July 2026
+
+Features implemented:
+- One Keyboard Manager for local and optional global shortcuts.
+
+Bugs fixed:
+- Improved shortcut conflict handling.
+
+
+2026.7.0.16 - 28 July 2026
+
+Bugs fixed:
+- Added automatic rollback when a Windows update fails.
+- Improved podcast matching for accented and non-English names.
+- Made signing out close the Spotify playback session completely.
+- Improved handling of unavailable lyrics and playlists.
+
+
+2026.7.0.15 - 28 July 2026
+
+Bugs fixed:
+- Corrected first-run focus for screen readers.
+- Delayed the Spotify player until sign-in is complete.
+
+
+2026.7.0.14 - 28 July 2026
+
+Features implemented:
+- Keyboard Manager for finding, changing and restoring shortcuts.
+- Separate Main, Lists and Lyrics shortcut contexts.
+
+
+2026.7.0.13 - 27 July 2026
+
+Features implemented:
+- New Music browsing.
+- Spotify Connect device selection.
+
+Bugs fixed:
+- Revised conflicting Windows and macOS shortcuts.
+
+
+2026.7.0.12 - 26 July 2026
+
+Features implemented:
+- Saved Albums.
+- Playlist track reordering and replacement with alternate versions.
+- Phrase mode for practising synced lyrics one line at a time.
+- A shortcut to like the song currently playing.
+
+
+2026.7.0.11 - 26 July 2026
+
+Bugs fixed:
+- Corrected Control-key detection on macOS.
+
+
+2026.7.0.10 - 26 July 2026
+
+Bugs fixed:
+- Corrected album playback, playlist selection and playback shortcuts.
+
+
+2026.7.0.9 - 26 July 2026
+
+Features implemented:
+- A shortcut for opening the focused track's album.
+- Option+M for item actions on macOS.
+
+Bugs fixed:
+- Corrected macOS keyboard and item actions.
+
+
+2026.7.0.8 - 26 July 2026
+
+Features implemented:
+- Refresh current view.
+- Management of followed podcasts and saved episodes.
+- Protection against opening BlindSpot twice.
+
+Bugs fixed:
+- Preserved macOS settings and sign-in details when moving or updating the app.
+
+
+2026.7.0.7 - 26 July 2026
+
+Bugs fixed:
+- Fixed Spotify authentication certificates on macOS.
+
+
+2026.7.0.6 - 26 July 2026
+
+Features implemented:
+- Podcast and episode searching.
+- Downloading publicly available podcast episodes.
+- Loading additional pages of search results.
+
+Bugs fixed:
+- Improved album playback and keyboard behaviour.
+
+
+2026.7.0.5 - 25 July 2026
+
+Features implemented:
+- Clearer album track lists with track, disc and featured-artist information.
+
+Bugs fixed:
+- Made Spotify browser sign-in more reliable.
+
+
+2026.7.0.4 - 25 July 2026
+
+Features implemented:
+- Recently Played, Bookmarks and saved Audiobooks.
+- Expanded playlist support and multiple-track queueing.
+- Configurable global playback shortcuts.
+- Synced lyrics, lyric seeking and timing adjustment.
+- Local playback history.
+
+
+2026.7.0.3 - 25 July 2026
+
+Bugs fixed:
+- Made Windows updates safer and restored focus after update prompts.
+
+
+2026.7.0.2 - 25 July 2026
+
+Features implemented:
+- Automatic updates for packaged Windows builds.
+
+Bugs fixed:
+- Improved portable Spotify sign-in data handling.
+
+
+2026.7.0.1 - 25 July 2026
+
+Bugs fixed:
+- Included the WebView component required by the Windows Spotify player.
+
+
+2026.7.0.0 - 25 July 2026
+
+Features implemented:
+- First public release of BlindSpot for Windows and macOS.

@@ -185,3 +185,218 @@ class AppleMusicClientTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def chart_payload(*entries):
+    return {
+        "feed": {
+            "entry": [
+                {
+                    "im:name": {"label": name},
+                    "im:artist": {"label": artist},
+                    "id": {"label": f"https://music.apple.com/{ident}", "attributes": {"im:id": ident}},
+                    "im:releaseDate": {"label": f"{released}T00:00:00-07:00"},
+                }
+                for ident, name, artist, released in entries
+            ]
+        }
+    }
+
+
+class RoutedAppleMusicClient(AppleMusicClient):
+    """Answers each Apple endpoint from a table, recording what was asked."""
+
+    def __init__(self, routes):
+        super().__init__()
+        self.routes = routes
+        self.urls = []
+
+    def _request(self, url):
+        self.urls.append(url)
+        for fragment, payload in self.routes.items():
+            if fragment in url:
+                return payload
+        raise AssertionError(f"unexpected request {url}")
+
+
+class NewReleaseTests(unittest.TestCase):
+    def test_genre_chart_keeps_only_recent_entries_newest_first(self):
+        from datetime import date
+        from unittest.mock import patch
+
+        client = RoutedAppleMusicClient(
+            {
+                "/au/rss/topsongs/genre=6/": chart_payload(
+                    ("1", "Old Hit", "A", "2025-01-01"),
+                    ("2", "Fresh", "B", "2026-09-18"),
+                    ("3", "Freshest", "C", "2026-09-20"),
+                    ("4", "Undated", "D", ""),
+                )
+            }
+        )
+        with patch("blindspot.applemusic.date") as fake_date:
+            fake_date.today.return_value = date(2026, 9, 21)
+            fake_date.fromisoformat = date.fromisoformat
+            fake_date.min = date.min
+            feed = client.new_releases("AU", media_type="songs", genre="6", days=30)
+
+        self.assertEqual([e.name for e in feed.entries], ["Freshest", "Fresh"])
+        self.assertIn("/au/rss/topsongs/genre=6/limit=100/json", client.urls[0])
+
+    def test_any_time_and_any_genre_use_the_plain_album_chart(self):
+        client = RoutedAppleMusicClient(
+            {"/au/rss/topalbums/limit=100": chart_payload(("9", "Signs - EP", "L", "2020-01-01"))}
+        )
+
+        feed = client.new_releases("AU", media_type="albums", genre="", days=0)
+
+        self.assertEqual([e.name for e in feed.entries], ["Signs"])
+        self.assertNotIn("genre=", client.urls[0])
+
+    def test_a_single_chart_entry_arrives_as_an_object_not_a_list(self):
+        client = RoutedAppleMusicClient(
+            {"topsongs": {"feed": {"entry": chart_payload(("1", "Only", "A", "2026-09-20"))["feed"]["entry"][0]}}}
+        )
+
+        feed = client.new_releases("AU", genre="6", days=0)
+
+        self.assertEqual([e.name for e in feed.entries], ["Only"])
+
+    def test_keyword_lists_the_matching_artists_newest_releases_first(self):
+        client = RoutedAppleMusicClient(
+            {
+                "entity=musicArtist": {
+                    "results": [
+                        {"artistId": 11, "artistName": "John Williamson"},
+                        {"artistId": 12, "artistName": "John Williams"},
+                    ]
+                },
+                "/lookup?id=11&": {
+                    "results": [
+                        {"wrapperType": "artist"},
+                        {
+                            "wrapperType": "collection",
+                            "collectionId": 5,
+                            "collectionName": "September Wind - Single",
+                            "artistName": "John Williamson",
+                            "releaseDate": "2026-09-21T07:00:00Z",
+                            "collectionViewUrl": "https://music.apple.com/5",
+                        },
+                        {
+                            "wrapperType": "collection",
+                            "collectionId": 4,
+                            "collectionName": "How Many Songs",
+                            "artistName": "John Williamson",
+                            "releaseDate": "2025-04-04T07:00:00Z",
+                        },
+                    ]
+                },
+                "entity=album": {
+                    "results": [
+                        {
+                            "wrapperType": "collection",
+                            "collectionId": 5,
+                            "collectionName": "September Wind - Single",
+                            "artistName": "John Williamson",
+                            "releaseDate": "2026-09-21T07:00:00Z",
+                        },
+                        {
+                            "wrapperType": "collection",
+                            "collectionId": 8,
+                            "collectionName": "Other Williamson Title",
+                            "artistName": "Someone Else",
+                            "releaseDate": "2024-01-01T07:00:00Z",
+                        },
+                    ]
+                },
+            }
+        )
+
+        feed = client.new_releases("AU", keyword="Williamson", days=0)
+
+        self.assertEqual(
+            [(e.name, e.artist) for e in feed.entries],
+            [
+                ("September Wind", "John Williamson"),
+                ("How Many Songs", "John Williamson"),
+                ("Other Williamson Title", "Someone Else"),
+            ],
+        )
+        # John Williams is not a match for "williamson", so it is never looked up.
+        lookups = [url for url in client.urls if "/lookup?" in url]
+        self.assertEqual(len(lookups), 1)
+        self.assertNotIn("12", lookups[0].split("id=")[1].split("&")[0])
+        self.assertTrue(any("sort=recent" in url for url in client.urls))
+
+    def test_repeat_queries_are_served_from_memory(self):
+        client = RoutedAppleMusicClient(
+            {"topsongs": chart_payload(("1", "Fresh", "B", "2026-09-18"))}
+        )
+
+        client.new_releases("AU", genre="6", days=0)
+        client.new_releases("AU", genre="6", days=0)
+
+        self.assertEqual(len(client.urls), 1)
+
+
+class UnreleasedTests(unittest.TestCase):
+    def test_pre_orders_are_never_listed_as_new_releases(self):
+        from datetime import date
+
+        from blindspot.applemusic import ChartEntry, recent_first
+
+        entries = [
+            ChartEntry("Future", "A", release_date="2027-02-05T00:00:00Z"),
+            ChartEntry("Today", "B", release_date="2026-09-21T00:00:00Z"),
+            ChartEntry("Older", "C", release_date="2026-08-30T00:00:00Z"),
+        ]
+        today = date(2026, 9, 21)
+
+        self.assertEqual(
+            [e.name for e in recent_first(entries, 30, today)],
+            ["Today", "Older"],
+        )
+        self.assertEqual(
+            [e.name for e in recent_first(entries, 0, today)],
+            ["Today", "Older"],
+        )
+
+
+class KeywordWindowTests(unittest.TestCase):
+    def test_keyword_results_honour_the_release_window(self):
+        from datetime import date, timedelta
+
+        recent = (date.today() - timedelta(days=3)).isoformat()
+        old = (date.today() - timedelta(days=200)).isoformat()
+        client = RoutedAppleMusicClient(
+            {
+                "entity=musicArtist": {
+                    "results": [{"artistId": 1, "artistName": "John Williamson"}]
+                },
+                "/lookup?": {
+                    "results": [
+                        {
+                            "wrapperType": "collection",
+                            "collectionId": 1,
+                            "collectionName": "Fresh",
+                            "artistName": "John Williamson",
+                            "releaseDate": recent + "T07:00:00Z",
+                        },
+                        {
+                            "wrapperType": "collection",
+                            "collectionId": 2,
+                            "collectionName": "Stale",
+                            "artistName": "John Williamson",
+                            "releaseDate": old + "T07:00:00Z",
+                        },
+                    ]
+                },
+                "entity=album": {"results": []},
+            }
+        )
+
+        within_30 = client.new_releases("AU", keyword="john", days=30)
+        any_time = client.new_releases("AU", keyword="john", days=0)
+
+        self.assertEqual([e.name for e in within_30.entries], ["Fresh"])
+        self.assertEqual([e.name for e in any_time.entries], ["Fresh", "Stale"])

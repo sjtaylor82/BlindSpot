@@ -45,6 +45,7 @@ PLAYER_HTML = """<!doctype html>
         const track = state.track_window.current_track;
         return {
           progress_ms: state.position,
+          sent_at_ms: Date.now(),
           is_playing: !state.paused,
           context_uri: state.context && state.context.uri
             ? state.context.uri
@@ -193,6 +194,13 @@ PLAYER_HTML = """<!doctype html>
       window.blindSpotSeekTo = positionMs => {
         if (player) {
           player.seek(Math.max(0, positionMs))
+            .catch(error => reportCommandError("seek", error));
+        }
+      };
+      window.blindSpotSeekAndPlay = positionMs => {
+        if (player) {
+          player.seek(Math.max(0, positionMs))
+            .then(() => player.resume())
             .catch(error => reportCommandError("seek", error));
         }
       };
@@ -399,6 +407,9 @@ class WebPlaybackController:
 
     def seek_to(self, position_ms: int) -> None:
         self._run_script(f"window.blindSpotSeekTo({int(position_ms)});")
+
+    def seek_and_play(self, position_ms: int) -> None:
+        self._run_script(f"window.blindSpotSeekAndPlay({int(position_ms)});")
 
     def adjust_volume(
         self,

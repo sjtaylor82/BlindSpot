@@ -51,6 +51,39 @@ class ResponseParsingTests(unittest.TestCase):
         self.assertEqual(client._open_json(request, allow_empty=True), {})
 
 
+class MusicDetailsTests(unittest.TestCase):
+    def test_track_details_include_full_track_and_album(self):
+        client = SpotifyClient.__new__(SpotifyClient)
+        requests = []
+
+        def request(method, path, **kwargs):
+            requests.append((method, path))
+            if path == "/tracks/track-id":
+                return {"id": "track-id", "album": {"id": "album-id"}}
+            return {"id": "album-id", "label": "Example Records"}
+
+        client._request = request
+        item = SpotifyItem("track-id", ItemKind.TRACK, "Song")
+
+        details = client.music_details(item)
+
+        self.assertEqual(
+            requests,
+            [("GET", "/tracks/track-id"), ("GET", "/albums/album-id")],
+        )
+        self.assertEqual(details["album"]["label"], "Example Records")
+
+    def test_album_details_need_one_request(self):
+        client = SpotifyClient.__new__(SpotifyClient)
+        client._request = lambda method, path: {"id": "album-id"}
+
+        details = client.music_details(
+            SpotifyItem("album-id", ItemKind.ALBUM, "Album")
+        )
+
+        self.assertEqual(details, {"track": None, "album": {"id": "album-id"}})
+
+
 class TokenRefreshTests(unittest.TestCase):
     def test_concurrent_access_refreshes_and_writes_token_once(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -1606,6 +1639,43 @@ class SearchBatchTests(unittest.TestCase):
             [0, 10],
         )
 
+    def test_artist_search_hides_artists_without_albums(self):
+        class ArtistClient(SpotifyClient):
+            def __init__(self):
+                self.album_probes = []
+
+            def _request(self, method, path, *, query=None, **kwargs):
+                if path == "/search":
+                    if query["offset"]:
+                        return {}
+                    return {
+                        "artists": {
+                            "items": [
+                                {"id": "has", "name": "Has Albums"},
+                                {"id": "none", "name": "Laverty"},
+                                {"id": "broken", "name": "Unchecked"},
+                            ],
+                            "total": 3,
+                        }
+                    }
+                artist_id = path.split("/")[2]
+                self.album_probes.append((artist_id, query))
+                if artist_id == "broken":
+                    raise SpotifyError("boom", status=500)
+                return {"items": [{"id": "album"}] if artist_id == "has" else []}
+
+        client = ArtistClient()
+
+        names = [item.name for item in client.search("x", "artist")]
+
+        self.assertEqual(names, ["Has Albums", "Unchecked"])
+        self.assertEqual(
+            client.album_probes[0][1],
+            {"include_groups": "album", "limit": 1},
+        )
+        client.search("x", "artist")
+        self.assertEqual(len(client.album_probes), 3 + 1)
+
     def test_search_adds_load_more_row_and_accepts_page_offset(self):
         client = SearchClient(total=45)
 
@@ -1621,87 +1691,34 @@ class SearchBatchTests(unittest.TestCase):
         self.assertEqual(second_page[0].id, "track-20")
         self.assertEqual(second_page[-1].raw["next_offset"], 40)
 
-    def test_new_music_scans_past_singles_to_fill_album_results(self):
-        def values(album_types, start):
-            return [
-                {
-                    "id": f"release-{start + index}",
-                    "name": f"Release {start + index}",
-                    "uri": f"spotify:album:{start + index}",
-                    "type": "album",
-                    "album_type": album_type,
-                    "release_date": "2026-07-25",
-                }
-                for index, album_type in enumerate(album_types)
-            ]
+class FindAudiobookTests(unittest.TestCase):
+    def client(self, items):
+        return CommandClient([{"audiobooks": {"items": items}}])
 
-        client = CommandClient(
+    def book(self, book_id, name, author):
+        return {
+            "id": book_id,
+            "name": name,
+            "type": "audiobook",
+            "authors": [{"name": author}],
+            "uri": f"spotify:show:{book_id}",
+        }
+
+    def test_the_exact_title_by_the_right_author_wins(self):
+        client = self.client(
             [
-                {
-                    "albums": {
-                        "items": values(["single"] * 10, 0),
-                        "total": 30,
-                    }
-                },
-                {
-                    "albums": {
-                        "items": values(["single"] * 9 + ["album"], 10),
-                        "total": 30,
-                    }
-                },
-                {
-                    "albums": {
-                        "items": values(["single"] * 8 + ["album"] * 2, 20),
-                        "total": 30,
-                    }
-                },
+                self.book("a", "The Egg", "Someone Else"),
+                self.book("b", "The Egg and Other Stories", "Andy Weir"),
+                self.book("c", "the egg", "Andy Weir"),
             ]
         )
 
-        results = client.new_music("album")
+        found = client.find_audiobook("The Egg", "Andy Weir")
 
-        self.assertEqual(
-            [call[2]["offset"] for call in client.calls],
-            [0, 10, 20],
-        )
-        self.assertTrue(
-            all(call[2]["q"] == "tag:new" for call in client.calls)
-        )
-        self.assertEqual(len(results), 3)
-        self.assertTrue(
-            all(item.raw["album_type"] == "album" for item in results)
-        )
+        self.assertEqual(found.id, "c")
+        self.assertEqual(client.calls[0][2]["type"], "audiobook")
 
-    def test_new_music_stops_at_twenty_and_preserves_search_offset(self):
-        responses = []
-        for offset in (0, 10):
-            responses.append(
-                {
-                    "albums": {
-                        "items": [
-                            {
-                                "id": f"album-{offset + index}",
-                                "name": f"Album {offset + index}",
-                                "uri": f"spotify:album:{offset + index}",
-                                "type": "album",
-                                "album_type": "album",
-                                "release_date": "2026-07-25",
-                            }
-                            for index in range(10)
-                        ],
-                        "total": 30,
-                    }
-                }
-            )
-        client = CommandClient(responses)
+    def test_no_exact_title_means_not_found(self):
+        client = self.client([self.book("b", "The Egg and Other Stories", "Andy Weir")])
 
-        results = client.new_music("album")
-
-        self.assertEqual(len(results), 21)
-        self.assertTrue(results[-1].raw["load_more"])
-        self.assertEqual(results[-1].raw["next_offset"], 20)
-        self.assertEqual(results[-1].raw["release_type"], "album")
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self.assertIsNone(client.find_audiobook("The Egg", "Andy Weir"))

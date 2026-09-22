@@ -62,7 +62,7 @@ python scripts/i18n.py compile
 ```
 
 Then start BlindSpot (`python src/blindspot_launcher.py`), open
-Options, Preferences, choose your language and restart BlindSpot. The compiled
+File, Preferences, choose your language and restart BlindSpot. The compiled
 `.mo` files are build output and are not committed.
 
 ## Starting a new language

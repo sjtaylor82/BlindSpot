@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: BlindSpot 2026.9.3\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-09-21 14:41+1000\n"
+"POT-Creation-Date: 2026-09-23 07:26+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: BlindSpot contributors\n"
 "Language: pl\n"
@@ -31,6 +31,90 @@ msgstr "Wielka Brytania"
 #: blindspot/applemusic.py
 msgid "Vietnam"
 msgstr "Wietnam"
+
+#: blindspot/applemusic.py
+msgid "Alternative"
+msgstr "Alternatywa"
+
+#: blindspot/applemusic.py
+msgid "Blues"
+msgstr "Blues"
+
+#: blindspot/applemusic.py
+msgid "Christian and Gospel"
+msgstr "Muzyka chrześcijańska i gospel"
+
+#: blindspot/applemusic.py
+msgid "Classical"
+msgstr "Muzyka klasyczna"
+
+#: blindspot/applemusic.py
+msgid "Country music"
+msgstr "Muzyka country"
+
+#: blindspot/applemusic.py
+msgid "Dance"
+msgstr "Dance"
+
+#: blindspot/applemusic.py
+msgid "Electronic"
+msgstr "Muzyka elektroniczna"
+
+#: blindspot/applemusic.py
+msgid "Hip-Hop and Rap"
+msgstr "Hip-hop i rap"
+
+#: blindspot/applemusic.py
+msgid "Jazz"
+msgstr "Jazz"
+
+#: blindspot/applemusic.py
+msgid "Metal"
+msgstr "Metal"
+
+#: blindspot/applemusic.py
+msgid "Pop"
+msgstr "Pop"
+
+#: blindspot/applemusic.py
+msgid "R&B and Soul"
+msgstr "R&B i soul"
+
+#: blindspot/applemusic.py
+msgid "Reggae"
+msgstr "Reggae"
+
+#: blindspot/applemusic.py
+msgid "Rock"
+msgstr "Rock"
+
+#: blindspot/applemusic.py
+msgid "Singer-Songwriter"
+msgstr "Piosenka autorska"
+
+#: blindspot/applemusic.py
+msgid "Soundtrack"
+msgstr "Ścieżki dźwiękowe"
+
+#: blindspot/applemusic.py
+msgid "Last 7 days"
+msgstr "Ostatnie 7 dni"
+
+#: blindspot/applemusic.py
+msgid "Last 14 days"
+msgstr "Ostatnie 14 dni"
+
+#: blindspot/applemusic.py
+msgid "Last 30 days"
+msgstr "Ostatnie 30 dni"
+
+#: blindspot/applemusic.py
+msgid "Last 90 days"
+msgstr "Ostatnie 90 dni"
+
+#: blindspot/applemusic.py
+msgid "Any time"
+msgstr "Dowolny czas"
 
 #: blindspot/applemusic.py
 #, python-brace-format
@@ -214,6 +298,35 @@ msgstr "Zjednoczone Emiraty Arabskie"
 msgid "United States"
 msgstr "Stany Zjednoczone"
 
+#: blindspot/applemusic.py blindspot/ui.py
+msgid "Any genre"
+msgstr "Dowolny gatunek"
+
+#: blindspot/deepl.py
+msgid "Enter a DeepL API key in preferences first."
+msgstr ""
+
+#: blindspot/deepl.py
+msgid "Choose a lyrics translation language in preferences first."
+msgstr ""
+
+#: blindspot/deepl.py
+msgid "DeepL rejected the API key."
+msgstr ""
+
+#: blindspot/deepl.py
+msgid "The DeepL translation quota has been reached."
+msgstr ""
+
+#: blindspot/deepl.py
+#, python-brace-format
+msgid "DeepL returned error {status}."
+msgstr ""
+
+#: blindspot/deepl.py
+msgid "Lyrics translation failed."
+msgstr ""
+
 #: blindspot/export.py
 msgid "Position"
 msgstr "Pozycja"
@@ -278,10 +391,6 @@ msgid "Lists"
 msgstr "Listy"
 
 #: blindspot/keymap.py
-msgid "Lyrics"
-msgstr "Tekst utworu"
-
-#: blindspot/keymap.py
 msgid "Open manual"
 msgstr "Otwórz podręcznik"
 
@@ -308,6 +417,14 @@ msgstr "Wstrzymaj lub wznów"
 #: blindspot/keymap.py
 msgid "Next track"
 msgstr "Następny utwór"
+
+#: blindspot/keymap.py
+msgid "Jump to next lyric section"
+msgstr "Przejdź do następnej części tekstu"
+
+#: blindspot/keymap.py
+msgid "Jump to previous lyric section"
+msgstr "Przejdź do poprzedniej części tekstu"
 
 #: blindspot/keymap.py
 msgid "Mute or unmute"
@@ -358,8 +475,8 @@ msgid "Open Recently Played tab"
 msgstr "Otwórz kartę Ostatnio odtwarzane"
 
 #: blindspot/keymap.py
-msgid "Open Bookmarks tab"
-msgstr "Otwórz kartę Zakładki"
+msgid "Open Bookmarks"
+msgstr "Otwórz zakładki"
 
 #: blindspot/keymap.py
 msgid "Open Audiobooks tab"
@@ -376,10 +493,6 @@ msgstr "Otwórz kartę Zapisane albumy"
 #: blindspot/keymap.py
 msgid "Open Discover tab"
 msgstr "Otwórz kartę Odkrywaj"
-
-#: blindspot/keymap.py
-msgid "Open Concerts tab"
-msgstr "Otwórz kartę Koncerty"
 
 #: blindspot/keymap.py
 msgid "Speak total time"
@@ -402,6 +515,10 @@ msgid "Choose playback device"
 msgstr "Wybierz urządzenie odtwarzania"
 
 #: blindspot/keymap.py
+msgid "Speak current track"
+msgstr "Odczytaj bieżący utwór"
+
+#: blindspot/keymap.py
 msgid "Speak upcoming track"
 msgstr "Odczytaj następny utwór"
 
@@ -412,6 +529,14 @@ msgstr "Przejdź do czasu odtwarzania"
 #: blindspot/keymap.py
 msgid "Open sleep timer"
 msgstr "Otwórz wyłącznik czasowy"
+
+#: blindspot/keymap.py
+msgid "What's this song about?"
+msgstr "O czym jest ten utwór?"
+
+#: blindspot/keymap.py
+msgid "Open album of current track"
+msgstr "Otwórz album bieżącego utworu"
 
 #: blindspot/keymap.py
 msgid "Retrieve lyrics"
@@ -494,8 +619,12 @@ msgid "Move lyrics later"
 msgstr "Przesuń tekst później"
 
 #: blindspot/keymap.py blindspot/ui.py
-msgid "Speak current track"
-msgstr "Odczytaj bieżący utwór"
+msgid "Lyrics"
+msgstr "Tekst utworu"
+
+#: blindspot/keymap.py blindspot/ui.py
+msgid "Search for concerts"
+msgstr "Szukaj koncertów"
 
 #: blindspot/keymap.py blindspot/ui.py
 msgid "Create playlist"
@@ -941,6 +1070,10 @@ msgstr ""
 #: blindspot/messages.py
 msgid "Loading chart"
 msgstr "Ładowanie listy przebojów"
+
+#: blindspot/messages.py
+msgid "Loading new releases"
+msgstr "Wczytywanie nowych wydawnictw"
 
 #: blindspot/messages.py
 msgid "Error details copied to the clipboard."
@@ -1589,14 +1722,6 @@ msgid "Collaborative: {collaborative}"
 msgstr "Współtworzona: {collaborative}"
 
 #: blindspot/messages.py
-msgid "Yes"
-msgstr "Tak"
-
-#: blindspot/messages.py
-msgid "No"
-msgstr "Nie"
-
-#: blindspot/messages.py
 #, python-brace-format
 msgid "Description: {description}"
 msgstr "Opis: {description}"
@@ -1673,6 +1798,11 @@ msgstr "LRCLIB jest zajęty. Spróbuj ponownie za {seconds} s."
 msgid "LRCLIB returned error {status}."
 msgstr "LRCLIB zwrócił błąd {status}."
 
+#: blindspot/messages.py
+#, python-brace-format
+msgid "No Wikipedia article about {name} was found."
+msgstr "Nie znaleziono artykułu w Wikipedii o utworze {name}."
+
 #: blindspot/messages.py blindspot/models.py
 #, python-brace-format
 msgid "{count} song"
@@ -1684,6 +1814,23 @@ msgstr[2] "{count} utworów"
 #: blindspot/messages.py blindspot/ui.py
 msgid "Unknown"
 msgstr "Nieznany"
+
+#: blindspot/messages.py blindspot/ui.py
+msgid "Yes"
+msgstr "Tak"
+
+#: blindspot/messages.py blindspot/ui.py
+msgid "No"
+msgstr "Nie"
+
+#: blindspot/messages.py blindspot/ukcharts.py
+msgid "Wikipedia could not be reached."
+msgstr "Nie można połączyć się z Wikipedią."
+
+#: blindspot/messages.py blindspot/ukcharts.py
+#, python-brace-format
+msgid "Wikipedia returned error {status}."
+msgstr "Wikipedia zwróciła błąd {status}."
 
 #: blindspot/models.py
 #, python-brace-format
@@ -1739,6 +1886,23 @@ msgstr "Nie można połączyć się z MusicBrainz."
 #: blindspot/musicbrainz.py
 msgid "MusicBrainz returned an unreadable answer."
 msgstr "MusicBrainz zwrócił nieczytelną odpowiedź."
+
+#: blindspot/numberones.py
+msgid "The number ones list could not be read."
+msgstr "Nie można odczytać listy numerów jeden."
+
+#: blindspot/numberones.py
+#, python-brace-format
+msgid "{country} number one {which} are available from {first} to {last}."
+msgstr "Numery jeden ({which}) dla: {country} są dostępne od {first} do {last}."
+
+#: blindspot/numberones.py blindspot/ui.py
+msgid "singles"
+msgstr "single"
+
+#: blindspot/numberones.py blindspot/ui.py
+msgid "albums"
+msgstr "albumy"
 
 #: blindspot/playlist_operations.py
 #, python-brace-format
@@ -2550,6 +2714,24 @@ msgid "Speak track name when playback changes"
 msgstr "Odczytuj nazwę utworu przy zmianie odtwarzania"
 
 #: blindspot/ui.py
+msgid "Speak section number when jumping between lyric sections"
+msgstr "Odczytuj numer części przy przechodzeniu między częściami tekstu"
+
+#: blindspot/ui.py
+msgid "Speak volume level when it changes"
+msgstr "Odczytuj poziom głośności po zmianie"
+
+#: blindspot/ui.py
+msgid "Speak cart name when a cart plays"
+msgstr "Odczytuj nazwę carta przy jego odtwarzaniu"
+
+#: blindspot/ui.py
+msgid "Check followed artists and authors for new releases at start-up"
+msgstr ""
+"Sprawdzaj nowe wydawnictwa obserwowanych wykonawców i autorów przy "
+"uruchomieniu"
+
+#: blindspot/ui.py
 msgid "Language (restart required)"
 msgstr "Język (wymaga ponownego uruchomienia)"
 
@@ -2586,6 +2768,49 @@ msgid "Last.fm API key"
 msgstr "Klucz API Last.fm"
 
 #: blindspot/ui.py
+msgid "DeepL API key"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Get a DeepL API key..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Lyrics translation language"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{name} on Wikipedia"
+msgstr "{name} w Wikipedii"
+
+#: blindspot/ui.py
+msgid "Source: Wikipedia, licensed CC BY-SA."
+msgstr "Źródło: Wikipedia, licencja CC BY-SA."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "About {name}"
+msgstr "O utworze {name}"
+
+#: blindspot/ui.py
+msgid "Open on &Wikipedia"
+msgstr "Otwórz w &Wikipedii"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Information about {name}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Album and recording information"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Recording"
+msgstr ""
+
+#: blindspot/ui.py
 #, python-brace-format
 msgid "Lyrics for {track_name} - BlindSpot"
 msgstr "Tekst utworu {track_name} - BlindSpot"
@@ -2604,9 +2829,69 @@ msgid "Enable phrase mode"
 msgstr "Włącz tryb fraz"
 
 #: blindspot/ui.py
+msgid "&Find"
+msgstr "&Znajdź"
+
+#: blindspot/ui.py
+msgid "Find in lyrics"
+msgstr "Znajdź w tekście utworu"
+
+#: blindspot/ui.py
+msgid "&Previous"
+msgstr "&Poprzedni"
+
+#: blindspot/ui.py
+msgid "&Next"
+msgstr "&Następny"
+
+#: blindspot/ui.py
+msgid "&Close find"
+msgstr "&Zamknij wyszukiwanie"
+
+#: blindspot/ui.py
 #, python-brace-format
 msgid "Lyrics for {heading}"
 msgstr "Tekst utworu: {heading}"
+
+#: blindspot/ui.py
+msgid "Original"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Translation"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Lyrics view"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Fetch translation"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Translated lyrics"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Original lyrics"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Fetching translation..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Fetching lyrics translation"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Enter text to find."
+msgstr "Wpisz tekst do znalezienia."
+
+#: blindspot/ui.py
+msgid "Not found."
+msgstr "Nie znaleziono."
 
 #: blindspot/ui.py
 msgid "First"
@@ -2780,11 +3065,6 @@ msgstr "Zapisane albumy"
 
 #: blindspot/ui.py
 #, python-brace-format
-msgid "released {release_date}"
-msgstr "wydano {release_date}"
-
-#: blindspot/ui.py
-#, python-brace-format
 msgid "{count} version"
 msgid_plural "{count} versions"
 msgstr[0] "{count} wersja"
@@ -2842,6 +3122,33 @@ msgstr ""
 
 #: blindspot/ui.py
 #, python-brace-format
+msgid ""
+"{detail}. From Wikipedia's lists of number ones (licensed CC BY-SA), "
+"compiled from each country's official charts. Only number ones are listed. "
+"Songs are looked up on Spotify only when you play, queue or save them."
+msgstr ""
+"{detail}. Z list numerów jeden w Wikipedii (licencja CC BY-SA), opartych na "
+"oficjalnych listach przebojów każdego kraju. Wymienione są tylko numery "
+"jeden. Utwory są wyszukiwane w Spotify dopiero wtedy, gdy je odtwarzasz, "
+"dodajesz do kolejki lub zapisujesz."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ", loaded {stamp}"
+msgstr ", załadowano {stamp}"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ""
+"{source}. Releases are looked up on Spotify only when you play, queue or "
+"save them, so a few may turn out to be unavailable."
+msgstr ""
+"{source}. Wydawnictwa są wyszukiwane w Spotify dopiero wtedy, gdy je "
+"odtwarzasz, dodajesz do kolejki lub zapisujesz, więc niektóre mogą okazać "
+"się niedostępne."
+
+#: blindspot/ui.py
+#, python-brace-format
 msgid "Most played albums on Apple Music in {country_name}"
 msgstr "Najczęściej odtwarzane albumy w Apple Music: {country_name}"
 
@@ -2849,11 +3156,6 @@ msgstr "Najczęściej odtwarzane albumy w Apple Music: {country_name}"
 #, python-brace-format
 msgid "Most played on Apple Music in {country_name}"
 msgstr "Najczęściej odtwarzane w Apple Music: {country_name}"
-
-#: blindspot/ui.py
-#, python-brace-format
-msgid ", loaded {stamp}"
-msgstr ", załadowano {stamp}"
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -2888,32 +3190,72 @@ msgid "New releases"
 msgstr "Nowe wydawnictwa"
 
 #: blindspot/ui.py
-msgid "Top songs"
-msgstr "Najpopularniejsze utwory"
+msgid "Followed artists and authors"
+msgstr "Obserwowani wykonawcy i autorzy"
 
 #: blindspot/ui.py
-msgid "Top albums"
-msgstr "Najpopularniejsze albumy"
+msgid "Top charts"
+msgstr "Najpopularniejsze listy"
 
 #: blindspot/ui.py
-msgid "Historical US Hot 100 (experimental)"
-msgstr "Historyczna lista US Hot 100 (eksperymentalna)"
+msgid "Historical charts"
+msgstr "Listy historyczne"
 
 #: blindspot/ui.py
-msgid "Release type"
-msgstr "Typ wydawnictwa"
+msgid "Show"
+msgstr "Pokaż"
 
 #: blindspot/ui.py
-msgid "Singles and EPs"
-msgstr "Single i EP-ki"
+msgid "Released within"
+msgstr "Wydane w ciągu"
 
 #: blindspot/ui.py
-msgid "Compilations"
-msgstr "Kompilacje"
+msgid "Artist or title (optional)"
+msgstr "Wykonawca lub tytuł (opcjonalnie)"
+
+#: blindspot/ui.py
+msgid "Artist or title, optional"
+msgstr "Wykonawca lub tytuł, opcjonalnie"
 
 #: blindspot/ui.py
 msgid "Chart country"
 msgstr "Kraj listy przebojów"
+
+#: blindspot/ui.py
+msgid "Chart"
+msgstr "Lista"
+
+#: blindspot/ui.py
+msgid "US Billboard Hot 100 (experimental)"
+msgstr "Billboard Hot 100 USA (eksperymentalne)"
+
+#: blindspot/ui.py
+msgid "Number ones by country"
+msgstr "Numery jeden według kraju"
+
+#: blindspot/ui.py
+msgid "Historical chart"
+msgstr "Lista historyczna"
+
+#: blindspot/ui.py
+msgid "Number ones country"
+msgstr "Kraj numerów jeden"
+
+#: blindspot/ui.py
+msgid "Order"
+msgstr "Kolejność"
+
+#: blindspot/ui.py
+msgid "By date"
+msgstr "Według daty"
+
+#: blindspot/ui.py
+msgid "Most weeks at number one"
+msgstr "Najwięcej tygodni na pierwszym miejscu"
+
+#: blindspot/ui.py
+msgid "Order of number ones"
+msgstr "Kolejność numerów jeden"
 
 #: blindspot/ui.py
 msgid "Historical chart date (YYYY-MM-DD)"
@@ -2924,12 +3266,36 @@ msgid "Chart date, year-month-day"
 msgstr "Data listy: rok-miesiąc-dzień"
 
 #: blindspot/ui.py
+msgid "Year or date (YYYY or YYYY-MM-DD)"
+msgstr "Rok lub data (RRRR lub RRRR-MM-DD)"
+
+#: blindspot/ui.py
 msgid "Enter the chart date as year-month-day."
 msgstr "Wpisz datę listy w formacie rok-miesiąc-dzień."
 
 #: blindspot/ui.py
 msgid "Loading experimental historical chart"
 msgstr "Ładowanie eksperymentalnej historycznej listy"
+
+#: blindspot/ui.py
+msgid ""
+"You are not following any artists yet. Right-click an artist or song and "
+"choose Follow for new releases."
+msgstr ""
+"Nie obserwujesz jeszcze żadnych wykonawców. Kliknij prawym przyciskiem "
+"wykonawcę lub utwór i wybierz obserwowanie nowych wydawnictw."
+
+#: blindspot/ui.py
+msgid "Enter a year, such as 1985, or a date as year-month-day."
+msgstr "Wpisz rok, na przykład 1985, lub datę w formacie rok-miesiąc-dzień."
+
+#: blindspot/ui.py
+msgid "Loading number ones"
+msgstr "Wczytywanie numerów jeden"
+
+#: blindspot/ui.py
+msgid "No matching releases were found."
+msgstr "Nie znaleziono pasujących wydawnictw."
 
 #: blindspot/ui.py
 msgid "Concerts"
@@ -3379,6 +3745,46 @@ msgid "&Export list..."
 msgstr "&Eksportuj listę..."
 
 #: blindspot/ui.py
+msgid "Manage &carts..."
+msgstr "Zarządzaj &cartami..."
+
+#: blindspot/ui.py
+msgid "Followed &artists and authors..."
+msgstr "Obserwowani &wykonawcy i autorzy..."
+
+#: blindspot/ui.py
+msgid "&Bookmarks..."
+msgstr "&Zakładki..."
+
+#: blindspot/ui.py
+msgid "Search for c&oncerts..."
+msgstr "Szukaj k&oncertów..."
+
+#: blindspot/ui.py
+msgid "&Preferences..."
+msgstr "&Ustawienia..."
+
+#: blindspot/ui.py
+msgid "&Connect to Spotify..."
+msgstr "&Połącz ze Spotify..."
+
+#: blindspot/ui.py
+msgid "&Refresh Spotify permissions..."
+msgstr "Odśwież &uprawnienia Spotify..."
+
+#: blindspot/ui.py
+msgid "Sign &out and erase credentials"
+msgstr "&Wyloguj i usuń dane logowania"
+
+#: blindspot/ui.py
+msgid "Accoun&t"
+msgstr "&Konto"
+
+#: blindspot/ui.py
+msgid "E&xit\tAlt+F4"
+msgstr "&Zakończ\tAlt+F4"
+
+#: blindspot/ui.py
 msgid "&File"
 msgstr "&Plik"
 
@@ -3414,16 +3820,148 @@ msgid "&Play focused item"
 msgstr "&Odtwórz zaznaczony element"
 
 #: blindspot/ui.py
-msgid "&Pause or resume"
+msgid "Pause or &resume"
 msgstr "&Wstrzymaj lub wznów"
+
+#: blindspot/ui.py
+msgid "Pre&vious track"
+msgstr "Po&przedni utwór"
+
+#: blindspot/ui.py
+msgid "&Next track"
+msgstr "&Następny utwór"
+
+#: blindspot/ui.py
+msgid "Seek &backward 5 seconds"
+msgstr "Przewiń do &tyłu o 5 sekund"
+
+#: blindspot/ui.py
+msgid "Seek &forward 5 seconds"
+msgstr "Przewiń do p&rzodu o 5 sekund"
+
+#: blindspot/ui.py
+msgid "&Previous lyric section"
+msgstr "&Poprzednia część tekstu"
+
+#: blindspot/ui.py
+msgid "&Next lyric section"
+msgstr "&Następna część tekstu"
+
+#: blindspot/ui.py
+msgid "&Jump to time..."
+msgstr "Przejdź do &czasu..."
+
+#: blindspot/ui.py
+msgid "Bookmark current p&osition"
+msgstr "Dodaj zakładkę w bieżącym &miejscu"
+
+#: blindspot/ui.py
+msgid "S&eek and jump"
+msgstr "Prz&ewijanie i skoki"
+
+#: blindspot/ui.py
+msgid "Volume &down 5 percent"
+msgstr "Zmn&iejsz głośność o 5 procent"
+
+#: blindspot/ui.py
+msgid "Volume &up 5 percent"
+msgstr "&Zwiększ głośność o 5 procent"
 
 #: blindspot/ui.py
 msgid "&Mute or unmute"
 msgstr "Wyci&sz lub włącz dźwięk"
 
 #: blindspot/ui.py
-msgid "Open focused track's &album"
-msgstr "Otwórz &album zaznaczonego utworu"
+msgid "Vol&ume"
+msgstr "&Głośność"
+
+#: blindspot/ui.py
+msgid "Speak &total time"
+msgstr "Odczytaj cał&kowity czas"
+
+#: blindspot/ui.py
+msgid "Speak &elapsed time"
+msgstr "Odczytaj czas, który &upłynął"
+
+#: blindspot/ui.py
+msgid "Speak &remaining time"
+msgstr "Odczytaj &pozostały czas"
+
+#: blindspot/ui.py
+msgid "Speak &current track"
+msgstr "Odczytaj &bieżący utwór"
+
+#: blindspot/ui.py
+msgid "Speak &up next"
+msgstr "Odczytaj nas&tępny utwór"
+
+#: blindspot/ui.py
+msgid "Spea&k"
+msgstr "Odczyt&ywanie"
+
+#: blindspot/ui.py
+msgid "What's this song &about?"
+msgstr "O czym &jest ten utwór?"
+
+#: blindspot/ui.py
+msgid "Album and recording &information..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Open album"
+msgstr "&Otwórz album"
+
+#: blindspot/ui.py
+msgid "&Lyrics..."
+msgstr "&Tekst utworu..."
+
+#: blindspot/ui.py
+msgid "Albums by a&rtist"
+msgstr "Albumy &wykonawcy"
+
+#: blindspot/ui.py
+msgid "Find &covers (MusicBrainz)"
+msgstr "Znajdź wersje &coverowe (MusicBrainz)"
+
+#: blindspot/ui.py
+msgid "&Open for inspection"
+msgstr "&Otwórz do przeglądania"
+
+#: blindspot/ui.py
+msgid "Start &now"
+msgstr "Rozpocznij &teraz"
+
+#: blindspot/ui.py
+msgid "Add after current &queue"
+msgstr "Dodaj po bieżącej &kolejce"
+
+#: blindspot/ui.py
+msgid "Similar-track &mix (Last.fm)"
+msgstr "&Miks podobnych utworów (Last.fm)"
+
+#: blindspot/ui.py
+msgid "Browse &genres (Last.fm)..."
+msgstr "Przeglądaj &gatunki (Last.fm)..."
+
+#: blindspot/ui.py
+msgid "&Follow artist or author for new releases"
+msgstr "O&bserwuj wykonawcę lub autora (nowe wydawnictwa)"
+
+#: blindspot/ui.py
+msgid "Like or unlike &now playing"
+msgstr "Polub lub cofnij polub&ienie odtwarzanego utworu"
+
+#: blindspot/ui.py
+msgid "Now pla&ying"
+msgstr "&Bieżący utwór"
+
+#: blindspot/ui.py
+msgid "Repea&t"
+msgstr "Pow&tarzanie"
+
+#: blindspot/ui.py
+msgid "&Shuffle"
+msgstr "Odtwarzanie &losowe"
 
 #: blindspot/ui.py
 msgid "Choose playback &device..."
@@ -3450,152 +3988,12 @@ msgid "&Cancel sleep timer"
 msgstr "&Anuluj wyłącznik czasowy"
 
 #: blindspot/ui.py
-msgid "Sleep ti&mer..."
-msgstr "Wyłącznik &czasowy..."
+msgid "S&leep timer..."
+msgstr "Wyłącznik cza&sowy..."
 
 #: blindspot/ui.py
-msgid "Bookmark current &position"
-msgstr "Dodaj zakładkę w bieżącym &miejscu"
-
-#: blindspot/ui.py
-msgid "Pre&vious track"
-msgstr "Po&przedni utwór"
-
-#: blindspot/ui.py
-msgid "&Next track"
-msgstr "&Następny utwór"
-
-#: blindspot/ui.py
-msgid "Seek &backward 5 seconds (F6)"
-msgstr "Przewiń do &tyłu o 5 sekund (F6)"
-
-#: blindspot/ui.py
-msgid "Seek &forward 5 seconds (F8)"
-msgstr "Przewiń do p&rzodu o 5 sekund (F8)"
-
-#: blindspot/ui.py
-msgid "Speak &total time"
-msgstr "Odczytaj cał&kowity czas"
-
-#: blindspot/ui.py
-msgid "Speak &elapsed time"
-msgstr "Odczytaj czas, który &upłynął"
-
-#: blindspot/ui.py
-msgid "Speak &remaining time"
-msgstr "Odczytaj &pozostały czas"
-
-#: blindspot/ui.py
-msgid "&Jump to time..."
-msgstr "Przejdź do &czasu..."
-
-#: blindspot/ui.py
-msgid "Speak &up next"
-msgstr "Odczytaj nas&tępny utwór"
-
-#: blindspot/ui.py
-msgid "L&yrics..."
-msgstr "&Tekst utworu..."
-
-#: blindspot/ui.py
-msgid "&Repeat"
-msgstr "Po&wtarzanie"
-
-#: blindspot/ui.py
-msgid "&Shuffle"
-msgstr "Odtwarzanie &losowe"
-
-#: blindspot/ui.py
-msgid "Volume &down 5 percent"
-msgstr "Zmn&iejsz głośność o 5 procent"
-
-#: blindspot/ui.py
-msgid "Volume &up 5 percent"
-msgstr "&Zwiększ głośność o 5 procent"
-
-#: blindspot/ui.py
-msgid "Add marked items to &queue"
-msgstr "Dodaj zaznaczone elementy do &kolejki"
-
-#: blindspot/ui.py
-msgid "&Like/unlike selected item"
-msgstr "&Polub lub cofnij polubienie zaznaczonego elementu"
-
-#: blindspot/ui.py
-msgid "Like/unlike &now playing"
-msgstr "Polub lub cofnij polubienie &bieżącego utworu"
-
-#: blindspot/ui.py
-msgid "&Open for inspection"
-msgstr "&Otwórz do przeglądania"
-
-#: blindspot/ui.py
-msgid "Start &now"
-msgstr "Rozpocznij &teraz"
-
-#: blindspot/ui.py
-msgid "Add after current &queue"
-msgstr "Dodaj po bieżącej &kolejce"
-
-#: blindspot/ui.py
-msgid "Last.fm mix for now &playing"
-msgstr "Miks Last.fm dla &odtwarzanego utworu"
-
-#: blindspot/ui.py
-msgid "Add selected to a pl&aylist..."
-msgstr "Dodaj zaznaczone do &playlisty..."
-
-#: blindspot/ui.py
-msgid "Selected item &actions..."
-msgstr "&Działania dla zaznaczonego elementu..."
-
-#: blindspot/ui.py
-msgid "Refresh current &view"
-msgstr "Odśwież bieżący &widok"
-
-#: blindspot/ui.py
-msgid "Open &Liked Songs"
-msgstr "Otwórz &Polubione utwory"
-
-#: blindspot/ui.py
-msgid "Open &Queue"
-msgstr "Otwórz &kolejkę"
-
-#: blindspot/ui.py
-msgid "Open Playlists"
-msgstr "Otwórz Playlisty"
-
-#: blindspot/ui.py
-msgid "Open Recently Played"
-msgstr "Otwórz Ostatnio odtwarzane"
-
-#: blindspot/ui.py
-msgid "Open &Bookmarks"
-msgstr "Otwórz &Zakładki"
-
-#: blindspot/ui.py
-msgid "Open &Audiobooks"
-msgstr "Otwórz &Audiobooki"
-
-#: blindspot/ui.py
-msgid "Open Pod&casts"
-msgstr "Otwórz Pod&casty"
-
-#: blindspot/ui.py
-msgid "Open Saved &Albums"
-msgstr "Otwórz Zapisane a&lbumy"
-
-#: blindspot/ui.py
-msgid "Open &Discover"
-msgstr "Otwórz &Odkrywaj"
-
-#: blindspot/ui.py
-msgid "Open &Concerts"
-msgstr "Otwórz &Koncerty"
-
-#: blindspot/ui.py
-msgid "&Go"
-msgstr "&Przejdź"
+msgid "&Playback"
+msgstr "Od&twarzanie"
 
 #: blindspot/ui.py
 msgid "&Sort by"
@@ -3606,36 +4004,12 @@ msgid "&Descending"
 msgstr "&Malejąco"
 
 #: blindspot/ui.py
+msgid "&Refresh current view"
+msgstr "&Odśwież bieżący widok"
+
+#: blindspot/ui.py
 msgid "&View"
 msgstr "&Widok"
-
-#: blindspot/ui.py
-msgid "&Preferences..."
-msgstr "&Ustawienia..."
-
-#: blindspot/ui.py
-msgid "&Connect to Spotify..."
-msgstr "&Połącz ze Spotify..."
-
-#: blindspot/ui.py
-msgid "&Refresh Spotify permissions..."
-msgstr "Odśwież &uprawnienia Spotify..."
-
-#: blindspot/ui.py
-msgid "Sign &out and erase credentials"
-msgstr "&Wyloguj i usuń dane logowania"
-
-#: blindspot/ui.py
-msgid "&Account"
-msgstr "&Konto"
-
-#: blindspot/ui.py
-msgid "E&xit\tAlt+F4"
-msgstr "Za&kończ\tAlt+F4"
-
-#: blindspot/ui.py
-msgid "&Options"
-msgstr "&Opcje"
 
 #: blindspot/ui.py
 msgid "&Manual"
@@ -3737,6 +4111,78 @@ msgid "About BlindSpot"
 msgstr "O programie BlindSpot"
 
 #: blindspot/ui.py
+msgid "Play a song before marking a cart."
+msgstr "Odtwórz utwór, zanim zaznaczysz cart."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Cart start {position}."
+msgstr "Początek carta: {position}."
+
+#: blindspot/ui.py
+msgid "Mark the cart start with left bracket first."
+msgstr "Najpierw zaznacz początek carta lewym nawiasem kwadratowym."
+
+#: blindspot/ui.py
+msgid "The song changed. Mark the cart start again."
+msgstr "Utwór się zmienił. Zaznacz początek carta ponownie."
+
+#: blindspot/ui.py
+msgid "The cart end must be after its start."
+msgstr "Koniec carta musi być po jego początku."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Cart end {position}. Press Alt plus 1 through 9 to assign it."
+msgstr "Koniec carta: {position}. Naciśnij Alt plus od 1 do 9, aby go przypisać."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Cart {number} assigned to {name}, {duration}."
+msgstr "Cart {number} przypisany do: {name}, {duration}."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Cart {number} is empty."
+msgstr "Cart {number} jest pusty."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Playing cart {number}: {name}."
+msgstr "Odtwarzanie carta {number}: {name}."
+
+#: blindspot/ui.py
+msgid "Manage Carts"
+msgstr "Zarządzanie cartami"
+
+#: blindspot/ui.py
+msgid "Carts 1 through 9"
+msgstr "Carty od 1 do 9"
+
+#: blindspot/ui.py
+msgid "Empty"
+msgstr "Pusty"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Cart {number}: {description}"
+msgstr "Cart {number}: {description}"
+
+#: blindspot/ui.py
+msgid "&Preview"
+msgstr "&Odsłuchaj"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Cart {number}: Empty"
+msgstr "Cart {number}: pusty"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Cart {number} cleared."
+msgstr "Cart {number} wyczyszczony."
+
+#: blindspot/ui.py
 msgid "After current track"
 msgstr "Po bieżącym utworze"
 
@@ -3816,6 +4262,19 @@ msgid "{name} information"
 msgstr "Informacje: {name}"
 
 #: blindspot/ui.py
+msgid "No later section."
+msgstr "Brak dalszej części."
+
+#: blindspot/ui.py
+msgid "No earlier section."
+msgstr "Brak wcześniejszej części."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Section {number} of {total}."
+msgstr "Część {number} z {total}."
+
+#: blindspot/ui.py
 msgid "Jump to time"
 msgstr "Przejdź do czasu"
 
@@ -3823,10 +4282,6 @@ msgstr "Przejdź do czasu"
 #, python-brace-format
 msgid "bookmarked at {position}"
 msgstr "zakładka w miejscu: {position}"
-
-#: blindspot/ui.py
-msgid "played recently in BlindSpot"
-msgstr "odtworzono niedawno w BlindSpot"
 
 #: blindspot/ui.py
 msgid "Bookmark renamed."
@@ -3921,16 +4376,36 @@ msgid "Find similar &artists (Last.fm)"
 msgstr "Znajdź podobnych &wykonawców (Last.fm)"
 
 #: blindspot/ui.py
-msgid "Browse &genres (Last.fm)..."
-msgstr "Przeglądaj &gatunki (Last.fm)..."
+msgid "&What's this song about?"
+msgstr "&O czym jest ten utwór?"
 
 #: blindspot/ui.py
-msgid "Find &covers (MusicBrainz)"
-msgstr "Znajdź wersje &coverowe (MusicBrainz)"
+#, python-brace-format
+msgid "Stop following author {artist} for &new releases"
+msgstr "Przestań obserwować autora: {artist} (&nowe wydawnictwa)"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Follow author {artist} for &new releases"
+msgstr "Obserwuj autora: {artist} (&nowe wydawnictwa)"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Stop following {artist} for &new releases"
+msgstr "Przestań obserwować: {artist} (&nowe wydawnictwa)"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Follow {artist} for &new releases"
+msgstr "Obserwuj: {artist} (&nowe wydawnictwa)"
 
 #: blindspot/ui.py
 msgid "Open on Last.&fm..."
 msgstr "Otwórz w Last.&fm..."
+
+#: blindspot/ui.py
+msgid "Bookmark current &position"
+msgstr "Dodaj zakładkę w bieżącym &miejscu"
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -3955,6 +4430,148 @@ msgstr "Nie znaleziono albumów powiązanych z: {name}."
 #: blindspot/ui.py
 msgid "Show more Last.fm tag results"
 msgstr "Pokaż więcej wyników tagu Last.fm"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "released {release_date}"
+msgstr "wydano {release_date}"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "released in the last {days} day"
+msgid_plural "released in the last {days} days"
+msgstr[0] "wydane w ciągu ostatniego {days} dnia"
+msgstr[1] "wydane w ciągu ostatnich {days} dni"
+msgstr[2] "wydane w ciągu ostatnich {days} dni"
+
+#: blindspot/ui.py
+msgid "of any age"
+msgstr "z dowolnego okresu"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Releases by followed artists and authors in {country}, {window}, newest first"
+msgstr ""
+"Wydawnictwa obserwowanych wykonawców i autorów: {country}, {window}, od "
+"najnowszych"
+
+#: blindspot/ui.py
+msgid "This item has no artist to follow."
+msgstr "Ten element nie ma wykonawcy do obserwowania."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Stopped following {artist}."
+msgstr "Przestano obserwować: {artist}."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ""
+"Following author {artist} for new releases. Find them under Discover, "
+"Followed artists and authors."
+msgstr ""
+"Obserwujesz autora: {artist}. Nowe wydawnictwa znajdziesz w zakładce "
+"Odkrywaj, Obserwowani wykonawcy i autorzy."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ""
+"Following {artist} for new releases. Find them under Discover, Followed "
+"artists and authors."
+msgstr ""
+"Obserwujesz: {artist}. Nowe wydawnictwa znajdziesz w zakładce Odkrywaj, "
+"Obserwowani wykonawcy i autorzy."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ""
+"{count} new release from followed artists and authors: {name} by {artist}. "
+"Open Discover, Followed artists and authors to see it."
+msgid_plural ""
+"{count} new releases from followed artists and authors, including {name} by "
+"{artist}. Open Discover, Followed artists and authors to see them."
+msgstr[0] ""
+"{count} nowe wydawnictwo obserwowanych wykonawców i autorów: {name} – "
+"{artist}. Otwórz Odkrywaj, Obserwowani wykonawcy i autorzy, aby je zobaczyć."
+msgstr[1] ""
+"{count} nowe wydawnictwa obserwowanych wykonawców i autorów, w tym {name} – "
+"{artist}. Otwórz Odkrywaj, Obserwowani wykonawcy i autorzy, aby je zobaczyć."
+msgstr[2] ""
+"{count} nowych wydawnictw obserwowanych wykonawców i autorów, w tym {name} –"
+" {artist}. Otwórz Odkrywaj, Obserwowani wykonawcy i autorzy, aby je "
+"zobaczyć."
+
+#: blindspot/ui.py
+msgid "Checked for new releases"
+msgstr "Sprawdzane pod kątem nowych wydawnictw"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{name}, author"
+msgstr "{name}, autor"
+
+#: blindspot/ui.py
+msgid "&Stop following"
+msgstr "&Przestań obserwować"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Apple Music releases matching {keyword} in {country}, {window}, newest first"
+msgstr ""
+"Wydawnictwa w Apple Music dla zapytania {keyword}: {country}, {window}, od "
+"najnowszych"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ""
+"{genre} {media} in {country} from Apple's iTunes Store chart, {window}, "
+"newest first"
+msgstr ""
+"{genre}, {media}, {country}, z listy Apple iTunes Store, {window}, od "
+"najnowszych"
+
+#: blindspot/ui.py
+msgid "songs"
+msgstr "utwory"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{weeks} week at number one in {year}"
+msgid_plural "{weeks} weeks at number one in {year}"
+msgstr[0] "{weeks} tydzień na pierwszym miejscu w {year}"
+msgstr[1] "{weeks} tygodnie na pierwszym miejscu w {year}"
+msgstr[2] "{weeks} tygodni na pierwszym miejscu w {year}"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ", {weeks} in total"
+msgstr ", łącznie {weeks}"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{country} number one {which} of {year}, {order}"
+msgstr "Numery jeden ({which}) w kraju {country} w roku {year}, {order}"
+
+#: blindspot/ui.py
+msgid "most weeks at number one first"
+msgstr "od największej liczby tygodni na pierwszym miejscu"
+
+#: blindspot/ui.py
+msgid "in date order"
+msgstr "w kolejności dat"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{weeks} week at number one from {date}"
+msgid_plural "{weeks} weeks at number one from {date}"
+msgstr[0] "{weeks} tydzień na pierwszym miejscu od {date}"
+msgstr[1] "{weeks} tygodnie na pierwszym miejscu od {date}"
+msgstr[2] "{weeks} tygodni na pierwszym miejscu od {date}"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{country} number one {which} for the week of {date}"
+msgstr "Numer jeden ({which}) w kraju {country} w tygodniu {date}"
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -4051,6 +4668,24 @@ msgid "The currently playing item is not a track"
 msgstr "Aktualnie odtwarzany element nie jest utworem"
 
 #: blindspot/ui.py
+msgid "This track has no artist to show."
+msgstr "Ten utwór nie ma wykonawcy do pokazania."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Looking up {name} on Wikipedia."
+msgstr "Wyszukiwanie utworu {name} w Wikipedii."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Loading album and recording information for {name}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "No additional album or recording information was found."
+msgstr ""
+
+#: blindspot/ui.py
 #, python-brace-format
 msgid "Finding covers of {name} using MusicBrainz. This can take up to 20 seconds."
 msgstr ""
@@ -4126,6 +4761,15 @@ msgstr "Pliki audio"
 msgid "All files"
 msgstr "Wszystkie pliki"
 
+#: blindspot/ukcharts.py
+msgid "The UK number ones list could not be read."
+msgstr "Nie można odczytać listy brytyjskich numerów jeden."
+
+#: blindspot/ukcharts.py
+#, python-brace-format
+msgid "UK number ones are available from {first} to {last}."
+msgstr "Brytyjskie numery jeden są dostępne od {first} do {last}."
+
 #~ msgid "bookmarked at {minutes} {seconds}"
 #~ msgstr ""
 
@@ -4139,4 +4783,191 @@ msgstr "Wszystkie pliki"
 #~ msgstr ""
 
 #~ msgid "Finding {tag} {noun} results using Last.fm"
+#~ msgstr ""
+
+#~ msgid "Open Bookmarks tab"
+#~ msgstr "Otwórz kartę Zakładki"
+
+#~ msgid "Open Concerts tab"
+#~ msgstr "Otwórz kartę Koncerty"
+
+#~ msgid "Open &Bookmarks"
+#~ msgstr "Otwórz &Zakładki"
+
+#~ msgid "Open &Concerts"
+#~ msgstr "Otwórz &Koncerty"
+
+#~ msgid "Open focused track's &album"
+#~ msgstr "Otwórz &album zaznaczonego utworu"
+
+#~ msgid "Selected item &actions..."
+#~ msgstr "&Działania dla zaznaczonego elementu..."
+
+#~ msgid "Refresh current &view"
+#~ msgstr "Odśwież bieżący &widok"
+
+#~ msgid "Open &Liked Songs"
+#~ msgstr "Otwórz &Polubione utwory"
+
+#~ msgid "Open &Queue"
+#~ msgstr "Otwórz &kolejkę"
+
+#~ msgid "Open Playlists"
+#~ msgstr "Otwórz Playlisty"
+
+#~ msgid "Open Recently Played"
+#~ msgstr "Otwórz Ostatnio odtwarzane"
+
+#~ msgid "Open &Audiobooks"
+#~ msgstr "Otwórz &Audiobooki"
+
+#~ msgid "Open Pod&casts"
+#~ msgstr "Otwórz Pod&casty"
+
+#~ msgid "Open Saved &Albums"
+#~ msgstr "Otwórz Zapisane a&lbumy"
+
+#~ msgid "Open &Discover"
+#~ msgstr "Otwórz &Odkrywaj"
+
+#~ msgid "&Go"
+#~ msgstr "&Przejdź"
+
+#~ msgid "&Pause or resume"
+#~ msgstr "&Wstrzymaj lub wznów"
+
+#~ msgid "Sleep ti&mer..."
+#~ msgstr "Wyłącznik &czasowy..."
+
+#~ msgid "Seek &backward 5 seconds (F6)"
+#~ msgstr "Przewiń do &tyłu o 5 sekund (F6)"
+
+#~ msgid "Seek &forward 5 seconds (F8)"
+#~ msgstr "Przewiń do p&rzodu o 5 sekund (F8)"
+
+#~ msgid "L&yrics..."
+#~ msgstr "&Tekst utworu..."
+
+#~ msgid "&Repeat"
+#~ msgstr "Po&wtarzanie"
+
+#~ msgid "Add marked items to &queue"
+#~ msgstr "Dodaj zaznaczone elementy do &kolejki"
+
+#~ msgid "&Like/unlike selected item"
+#~ msgstr "&Polub lub cofnij polubienie zaznaczonego elementu"
+
+#~ msgid "Like/unlike &now playing"
+#~ msgstr "Polub lub cofnij polubienie &bieżącego utworu"
+
+#~ msgid "Last.fm mix for now &playing"
+#~ msgstr "Miks Last.fm dla &odtwarzanego utworu"
+
+#~ msgid "Add selected to a pl&aylist..."
+#~ msgstr "Dodaj zaznaczone do &playlisty..."
+
+#~ msgid "Release type"
+#~ msgstr "Typ wydawnictwa"
+
+#~ msgid "Singles and EPs"
+#~ msgstr "Single i EP-ki"
+
+#~ msgid "Compilations"
+#~ msgstr "Kompilacje"
+
+#~ msgid "Newest Apple Music releases matching {keyword} in {country}"
+#~ msgstr "Najnowsze wydawnictwa w Apple Music dla zapytania {keyword}: {country}"
+
+#~ msgid "Check followed artists for new releases at start-up"
+#~ msgstr "Sprawdzaj nowe wydawnictwa obserwowanych wykonawców przy uruchomieniu"
+
+#~ msgid "Followed artists"
+#~ msgstr "Obserwowani wykonawcy"
+
+#~ msgid "Top songs"
+#~ msgstr "Najpopularniejsze utwory"
+
+#~ msgid "Top albums"
+#~ msgstr "Najpopularniejsze albumy"
+
+#~ msgid "Followed &artists..."
+#~ msgstr "Obserwowani &wykonawcy..."
+
+#~ msgid "&Follow artist for new releases"
+#~ msgstr "O&bserwuj wykonawcę (nowe wydawnictwa)"
+
+#~ msgid "Releases by followed artists in {country}, {window}, newest first"
+#~ msgstr "Wydawnictwa obserwowanych wykonawców: {country}, {window}, od najnowszych"
+
+#~ msgid ""
+#~ "Following {artist} for new releases. Find"
+#~ " them under Discover, Followed artists."
+#~ msgstr ""
+#~ "Obserwujesz: {artist}. Nowe wydawnictwa "
+#~ "znajdziesz w zakładce Odkrywaj, Obserwowani "
+#~ "wykonawcy."
+
+#~ msgid ""
+#~ "{count} new release from followed artists:"
+#~ " {name} by {artist}. Open Discover, "
+#~ "Followed artists to see it."
+#~ msgid_plural ""
+#~ "{count} new releases from followed artists,"
+#~ " including {name} by {artist}. Open "
+#~ "Discover, Followed artists to see them."
+#~ msgstr[0] ""
+#~ "{count} nowe wydawnictwo obserwowanych "
+#~ "wykonawców: {name} – {artist}. Otwórz "
+#~ "Odkrywaj, Obserwowani wykonawcy, aby je "
+#~ "zobaczyć."
+#~ msgstr[1] ""
+#~ "{count} nowe wydawnictwa obserwowanych "
+#~ "wykonawców, w tym {name} – {artist}. "
+#~ "Otwórz Odkrywaj, Obserwowani wykonawcy, aby "
+#~ "je zobaczyć."
+#~ msgstr[2] ""
+#~ "{count} nowych wydawnictw obserwowanych "
+#~ "wykonawców, w tym {name} – {artist}. "
+#~ "Otwórz Odkrywaj, Obserwowani wykonawcy, aby "
+#~ "je zobaczyć."
+
+#~ msgid "Artists checked for new releases"
+#~ msgstr "Wykonawcy sprawdzani pod kątem nowych wydawnictw"
+
+#~ msgid "Historical US Hot 100 (experimental)"
+#~ msgstr "Historyczna lista US Hot 100 (eksperymentalna)"
+
+#~ msgid ""
+#~ "{detail}. From Wikipedia's lists of UK "
+#~ "number ones (licensed CC BY-SA), "
+#~ "which draw on the Official Charts "
+#~ "Company. Only number ones are listed. "
+#~ "Songs are looked up on Spotify only"
+#~ " when you play, queue or save "
+#~ "them."
+#~ msgstr ""
+#~ "{detail}. Z list brytyjskich numerów jeden"
+#~ " w Wikipedii (licencja CC BY-SA), "
+#~ "opartych na danych Official Charts Company."
+#~ " Wymienione są tylko numery jeden. "
+#~ "Utwory są wyszukiwane w Spotify dopiero "
+#~ "wtedy, gdy je odtwarzasz, dodajesz do "
+#~ "kolejki lub zapisujesz."
+
+#~ msgid "UK number ones"
+#~ msgstr "Brytyjskie numery jeden"
+
+#~ msgid "Order of UK number ones"
+#~ msgstr "Kolejność brytyjskich numerów jeden"
+
+#~ msgid "Loading UK number ones"
+#~ msgstr "Wczytywanie brytyjskich numerów jeden"
+
+#~ msgid "UK number one {which} of {year}, {order}"
+#~ msgstr "Brytyjskie numery jeden ({which}) w roku {year}, {order}"
+
+#~ msgid "UK number one {which} for the week of {date}"
+#~ msgstr "Brytyjski numer jeden ({which}) w tygodniu {date}"
+
+#~ msgid "Translated lyrics for {heading}"
 #~ msgstr ""

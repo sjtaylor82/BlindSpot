@@ -32,7 +32,9 @@ jobs:
         shell: bash
         run: |
           version="$(python -c 'from pathlib import Path; import re; print(re.search(r"__version__ = \"([^\"]+)\"", Path("src/blindspot/__init__.py").read_text()).group(1))')"
+          changelog_version="$(python -c 'from pathlib import Path; import re; print(re.search(r"(?m)^(20[0-9.]+) - ", Path("CHANGELOG.txt").read_text()).group(1))')"
           test "${GITHUB_REF_NAME}" = "v${version}"
+          test "${changelog_version}" = "${version}"
 
       - name: Install dependencies
         run: |

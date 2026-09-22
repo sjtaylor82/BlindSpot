@@ -28,18 +28,48 @@ from . import messages as msg
 from .applemusic import (
     CHART_COUNTRIES,
     DEFAULT_COUNTRY as DEFAULT_CHART_COUNTRY,
+    DEFAULT_RELEASE_WINDOW,
+    GENRES,
+    RELEASE_WINDOWS,
     AppleMusicClient,
     country_name,
     loaded_label,
+    released_on,
 )
 from .auth_callback import CallbackServer
+from .followed import ARTIST, AUTHOR, FollowedArtists, primary_artist
+from .carts import (
+    Cart,
+    cart_cutoff_state,
+    dump_carts,
+    load_carts,
+    next_cart_number,
+)
 from .logging_setup import LOG_LEVELS, configure_logging
-from .lyrics import LRCLibClient, Lyrics, LyricsUnavailable
+from .deepl import DeepLClient, TARGET_LANGUAGES
+from .lyrics import (
+    LRCLibClient,
+    Lyrics,
+    LyricsUnavailable,
+    section_starts,
+    section_target,
+)
 from .lastfm import DEFAULT_API_KEY as DEFAULT_LASTFM_API_KEY, LastfmClient
 from .lastfm import GenreTag, SimilarTrack, TaggedItem
 from .i18n import ntr, tr, tr_noop
 from .historical_charts import HistoricalHot100Client, PROJECT_URL
+from .numberones import COUNTRIES as NUMBER_ONE_COUNTRIES, NumberOnesClient
+from .ukcharts import (
+    ALBUMS as UK_ALBUMS,
+    SINGLES as UK_SINGLES,
+    UKChartError,
+    UKChartsClient,
+    artist_candidates,
+    title_candidates,
+    weeks_text,
+)
 from .musicbrainz import CoversUnavailable, CoverResults, MusicBrainzClient
+from .wikipedia import SongStory, SongStoryUnavailable, WikipediaClient
 from .keymap import (
     ACTIONS_BY_ID,
     CONTEXTS,
@@ -222,9 +252,18 @@ if sys.platform == "win32":
             if child_id == wx.ACC_SELF:
                 return wx.ACC_OK, self._name
             return wx.ACC_NOT_IMPLEMENTED, ""
+    class _SilentLabelAccessible(wx.Accessible):
+        """Hide a painted label from screen readers that would announce it."""
+
+        def GetName(self, child_id):
+            return wx.ACC_OK, ""
+
+        def GetState(self, child_id):
+            return wx.ACC_OK, wx.ACC_STATE_SYSTEM_INVISIBLE
 else:
     _NamedPageAccessible = None
     _NamedControlAccessible = None
+    _SilentLabelAccessible = None
 
 
 def set_windows_accessible(
@@ -235,6 +274,20 @@ def set_windows_accessible(
     """Attach a custom MSAA object only on Windows."""
     if sys.platform == "win32" and accessible_type is not None:
         window.SetAccessible(accessible_type(window, name))
+
+def silence_labels(window: wx.Window, keep: tuple[object, ...] = ()) -> None:
+    """Stop screen readers announcing the static labels inside ``window``.
+
+    Every control keeps its own accessible name, so the labels only add noise
+    when a dialog opens and its whole text is read out.
+    """
+    if sys.platform != "win32" or _SilentLabelAccessible is None:
+        return
+    for child in window.GetChildren():
+        if isinstance(child, wx.StaticText) and child not in keep:
+            child.SetAccessible(_SilentLabelAccessible(child))
+        silence_labels(child, keep)
+
 
 SEARCH_LABELS = [
     tr_noop("Songs"),
@@ -376,6 +429,7 @@ DEVELOPER_DASHBOARD_URL = "https://developer.spotify.com/dashboard"
 TICKETMASTER_DEVELOPER_URL = (
     "https://developer.ticketmaster.com/products-and-docs/apis/getting-started/"
 )
+DEEPL_DEVELOPER_URL = "https://www.deepl.com/en/developers"
 
 
 def normalise_filter_text(value: str) -> str:
@@ -801,8 +855,8 @@ def playback_adjustment_modifier_down(event: wx.KeyEvent) -> bool:
 def lyric_navigation_modifier_down(event: wx.KeyEvent) -> bool:
     if sys.platform != "darwin":
         return (
-            physical_control_down(event)
-            and not event.AltDown()
+            event.AltDown()
+            and not physical_control_down(event)
             and not event.ShiftDown()
         )
     get_modifiers = getattr(event, "GetModifiers", None)
@@ -820,6 +874,13 @@ def lyric_navigation_modifier_down(event: wx.KeyEvent) -> bool:
         and not event.ShiftDown()
         and not physical_control_down(event)
     )
+
+
+def chord_display(chord: str, platform: str = sys.platform) -> str:
+    """Show a stored key chord the way it is written in the manual."""
+    if platform != "darwin":
+        chord = chord.replace("Control", "Ctrl")
+    return chord
 
 
 def menu_function_shortcut(
@@ -1306,6 +1367,12 @@ class PreferencesDialog(wx.Dialog):
         open_logs_folder: Callable[[], None] | None = None,
         open_keyboard_manager: Callable[[wx.Window | None], None] | None = None,
         language: str = i18n.DEFAULT_LANGUAGE_SETTING,
+        announce_lyric_sections: bool = False,
+        announce_volume_changes: bool = True,
+        announce_cart_names: bool = True,
+        check_followed_on_start: bool = True,
+        deepl_api_key: str = "",
+        lyrics_translation_language: str = "",
     ) -> None:
         super().__init__(parent, title=tr("BlindSpot preferences"))
         self.open_logs_folder_callback = open_logs_folder
@@ -1320,6 +1387,50 @@ class PreferencesDialog(wx.Dialog):
             self.announce_track_changes,
             0,
             wx.ALL,
+            12,
+        )
+        self.announce_lyric_sections = wx.CheckBox(
+            self,
+            label=tr("Speak section number when jumping between lyric sections"),
+        )
+        self.announce_lyric_sections.SetValue(announce_lyric_sections)
+        outer.Add(
+            self.announce_lyric_sections,
+            0,
+            wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            12,
+        )
+        self.announce_volume_changes = wx.CheckBox(
+            self,
+            label=tr("Speak volume level when it changes"),
+        )
+        self.announce_volume_changes.SetValue(announce_volume_changes)
+        outer.Add(
+            self.announce_volume_changes,
+            0,
+            wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            12,
+        )
+        self.announce_cart_names = wx.CheckBox(
+            self,
+            label=tr("Speak cart name when a cart plays"),
+        )
+        self.announce_cart_names.SetValue(announce_cart_names)
+        outer.Add(
+            self.announce_cart_names,
+            0,
+            wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            12,
+        )
+        self.check_followed_on_start = wx.CheckBox(
+            self,
+            label=tr("Check followed artists and authors for new releases at start-up"),
+        )
+        self.check_followed_on_start.SetValue(check_followed_on_start)
+        outer.Add(
+            self.check_followed_on_start,
+            0,
+            wx.LEFT | wx.RIGHT | wx.BOTTOM,
             12,
         )
         self.language_codes = [i18n.SYSTEM_LANGUAGE] + [
@@ -1446,6 +1557,71 @@ class PreferencesDialog(wx.Dialog):
             wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
             12,
         )
+        lyrics_box = wx.StaticBoxSizer(wx.VERTICAL, self, label=tr("Lyrics"))
+        lyrics_box.Add(
+            wx.StaticText(self, label=tr("DeepL API key")),
+            0,
+            wx.LEFT | wx.RIGHT | wx.TOP,
+            8,
+        )
+        self.deepl_api_key = wx.TextCtrl(
+            self,
+            value=deepl_api_key,
+            style=wx.TE_PASSWORD,
+        )
+        self.deepl_api_key.SetName(tr("DeepL API key"))
+        lyrics_box.Add(
+            self.deepl_api_key,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            8,
+        )
+        self.get_deepl_key_button = wx.Button(
+            self,
+            label=tr("&Get a DeepL API key..."),
+        )
+        lyrics_box.Add(
+            self.get_deepl_key_button,
+            0,
+            wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            8,
+        )
+        self.lyrics_translation_codes = [code for code, _name in TARGET_LANGUAGES]
+        self.lyrics_translation_language = wx.Choice(
+            self,
+            choices=[tr(name) for _code, name in TARGET_LANGUAGES],
+        )
+        self.lyrics_translation_language.SetName(
+            tr("Lyrics translation language")
+        )
+        set_windows_accessible(
+            self.lyrics_translation_language,
+            _NamedControlAccessible,
+            tr("Lyrics translation language"),
+        )
+        self.lyrics_translation_language.SetSelection(
+            self.lyrics_translation_codes.index(lyrics_translation_language)
+            if lyrics_translation_language in self.lyrics_translation_codes
+            else 0
+        )
+        lyrics_box.Add(
+            wx.StaticText(self, label=tr("Lyrics translation language")),
+            0,
+            wx.LEFT | wx.RIGHT | wx.TOP,
+            8,
+        )
+        lyrics_box.Add(
+            self.lyrics_translation_language,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            8,
+        )
+        outer.Add(
+            lyrics_box,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            12,
+        )
         buttons = self.CreateSeparatedButtonSizer(wx.OK | wx.CANCEL)
         if buttons:
             outer.Add(buttons, 0, wx.EXPAND | wx.ALL, 12)
@@ -1462,6 +1638,10 @@ class PreferencesDialog(wx.Dialog):
             wx.EVT_BUTTON,
             lambda event: webbrowser.open(TICKETMASTER_DEVELOPER_URL),
         )
+        self.get_deepl_key_button.Bind(
+            wx.EVT_BUTTON,
+            lambda event: webbrowser.open(DEEPL_DEVELOPER_URL),
+        )
         self.announce_track_changes.SetFocus()
 
     def get_logging_level(self) -> str:
@@ -1476,6 +1656,12 @@ class PreferencesDialog(wx.Dialog):
     def get_lastfm_api_key(self) -> str:
         return self.lastfm_api_key.GetValue().strip()
 
+    def get_deepl_api_key(self) -> str:
+        return self.deepl_api_key.GetValue().strip()
+
+    def get_lyrics_translation_language(self) -> str:
+        return self.lyrics_translation_codes[self.lyrics_translation_language.GetSelection()]
+
     def on_open_logs_folder(self, event: wx.Event) -> None:
         if self.open_logs_folder_callback:
             self.open_logs_folder_callback()
@@ -1487,8 +1673,213 @@ class PreferencesDialog(wx.Dialog):
     def get_announce_track_changes(self) -> bool:
         return self.announce_track_changes.GetValue()
 
+    def get_announce_lyric_sections(self) -> bool:
+        return self.announce_lyric_sections.GetValue()
+
+    def get_announce_volume_changes(self) -> bool:
+        return self.announce_volume_changes.GetValue()
+
+    def get_announce_cart_names(self) -> bool:
+        return self.announce_cart_names.GetValue()
+
+    def get_check_followed_on_start(self) -> bool:
+        return self.check_followed_on_start.GetValue()
+
     def get_resume_mode(self) -> str:
         return RESUME_MODES[self.resume_mode.GetSelection()]
+
+TRANSPORT_KEY_ACTIONS: dict[str, tuple[str, tuple[object, ...]]] = {
+    "seek_backward": ("seek", (-5000,)),
+    "seek_forward": ("seek", (5000,)),
+    "next_verse": ("jump_lyric_section", (1,)),
+    "previous_verse": ("jump_lyric_section", (-1,)),
+    "previous_track": ("previous_track", ()),
+    "pause_resume": ("toggle_pause_resume", ()),
+    "next_track": ("next_track", ()),
+    "toggle_mute": ("toggle_mute", ()),
+    "volume_down": ("adjust_volume", (-5,)),
+    "volume_up": ("adjust_volume", (5,)),
+}
+
+
+class HostedPanelDialog(wx.Dialog):
+    """A modal window holding a panel that used to be a main-window tab.
+
+    The labels are painted but hidden from screen readers, which would
+    otherwise read every one of them aloud when the dialog opens. Playback keys
+    still work here, so music can be controlled while browsing.
+    """
+
+    def __init__(
+        self,
+        frame: "MainFrame",
+        title: str,
+        make_panel: Callable[[wx.Window], wx.Panel],
+    ) -> None:
+        super().__init__(
+            frame,
+            title=title,
+            size=(760, 640),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        self.frame = frame
+        self.panel = make_panel(self)
+        self.panel.hosted_in = self
+        silence_labels(self.panel, keep=(getattr(self.panel, "status", None),))
+        outer = wx.BoxSizer(wx.VERTICAL)
+        outer.Add(self.panel, 1, wx.EXPAND)
+        buttons = self.CreateSeparatedButtonSizer(wx.CLOSE)
+        if buttons:
+            outer.Add(buttons, 0, wx.EXPAND | wx.ALL, 12)
+        self.SetSizer(outer)
+        self.SetEscapeId(wx.ID_CLOSE)
+        self.Bind(wx.EVT_BUTTON, self.on_close_button, id=wx.ID_CLOSE)
+        self.Bind(wx.EVT_CHAR_HOOK, self.on_char_hook)
+
+    def on_close_button(self, event: wx.Event) -> None:
+        self.EndModal(wx.ID_CLOSE)
+
+    def present(self, focus: wx.Window) -> None:
+        wx.CallAfter(focus.SetFocus)
+        self.ShowModal()
+
+    def handle_key(self, event: wx.KeyEvent) -> bool:
+        action = self.frame.keymap_action_for_event(event, ("Main",))
+        if action == "play_focused":
+            self.panel.on_open()
+            return True
+        if action not in TRANSPORT_KEY_ACTIONS:
+            return False
+        if (
+            action == "pause_resume"
+            and event.GetKeyCode() == wx.WXK_SPACE
+            and space_belongs_to_control(event.GetEventObject())
+        ):
+            return False
+        method, arguments = TRANSPORT_KEY_ACTIONS[action]
+        getattr(self.frame, method)(*arguments)
+        return True
+
+    def on_char_hook(self, event: wx.KeyEvent) -> None:
+        if not self.handle_key(event):
+            event.Skip()
+
+
+class SongStoryDialog(wx.Dialog):
+    """A song's Wikipedia article in a read-only box, with a link to open it."""
+
+    def __init__(
+        self,
+        parent: wx.Window,
+        item: SpotifyItem,
+        story: SongStory,
+    ) -> None:
+        super().__init__(
+            parent,
+            title=tr("{name} on Wikipedia").format(name=item.name),
+            size=(700, 600),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        self.url = story.url
+        outer = wx.BoxSizer(wx.VERTICAL)
+        body = (story.text or story.summary) + "\n\n" + tr(
+            "Source: Wikipedia, licensed CC BY-SA."
+        )
+        self.text = wx.TextCtrl(
+            self,
+            value=body,
+            style=wx.TE_MULTILINE | wx.TE_READONLY,
+        )
+        self.text.SetName(tr("About {name}").format(name=item.name))
+        outer.Add(self.text, 1, wx.EXPAND | wx.ALL, 12)
+        buttons = wx.BoxSizer(wx.HORIZONTAL)
+        self.open_button = wx.Button(self, label=tr("Open on &Wikipedia"))
+        close_button = wx.Button(self, wx.ID_CLOSE)
+        buttons.Add(self.open_button, 0, wx.RIGHT, 8)
+        buttons.Add(close_button, 0)
+        outer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+        self.SetSizer(outer)
+        self.SetEscapeId(wx.ID_CLOSE)
+        self.open_button.Bind(wx.EVT_BUTTON, self.on_open)
+        close_button.Bind(
+            wx.EVT_BUTTON,
+            lambda event: self.EndModal(wx.ID_CLOSE),
+        )
+        self.text.SetFocus()
+
+    def on_open(self, event: wx.Event) -> None:
+        webbrowser.open(self.url)
+
+
+class MusicDetailsDialog(wx.Dialog):
+    def __init__(self, parent: wx.Window, title: str, text: str) -> None:
+        super().__init__(
+            parent,
+            title=tr("Information about {name}").format(name=title),
+            size=(700, 600),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        outer = wx.BoxSizer(wx.VERTICAL)
+        self.text = wx.TextCtrl(
+            self,
+            value=text,
+            style=wx.TE_MULTILINE | wx.TE_READONLY,
+        )
+        self.text.SetName(tr("Album and recording information"))
+        outer.Add(self.text, 1, wx.EXPAND | wx.ALL, 12)
+        buttons = self.CreateSeparatedButtonSizer(wx.CLOSE)
+        if buttons:
+            outer.Add(buttons, 0, wx.EXPAND | wx.ALL, 12)
+        self.SetSizer(outer)
+        self.SetEscapeId(wx.ID_CLOSE)
+        self.text.SetInsertionPoint(0)
+        self.text.SetFocus()
+
+
+def music_details_text(details: dict) -> str:
+    track = details.get("track") or {}
+    album = details.get("album") or track.get("album") or {}
+    lines: list[str] = []
+
+    def add(label: str, value: object) -> None:
+        if value not in (None, "", [], {}):
+            lines.append(f"{tr(label)}: {value}")
+
+    if track:
+        lines.append(tr("Recording"))
+        add("Title", track.get("name"))
+        add("Artist", ", ".join(
+            str(artist.get("name") or "")
+            for artist in track.get("artists") or []
+            if artist.get("name")
+        ))
+        add("Track number", track.get("track_number"))
+        add("Disc number", track.get("disc_number"))
+        duration_ms = int(track.get("duration_ms") or 0)
+        if duration_ms:
+            minutes, seconds = divmod(duration_ms // 1000, 60)
+            add("Duration", msg.minutes_seconds(minutes, seconds))
+        add("ISRC", (track.get("external_ids") or {}).get("isrc"))
+        add("Explicit", tr("Yes") if track.get("explicit") else tr("No"))
+        lines.append("")
+    if album:
+        lines.append(tr("Album"))
+        add("Title", album.get("name"))
+        add("Album artist", ", ".join(
+            str(artist.get("name") or "")
+            for artist in album.get("artists") or []
+            if artist.get("name")
+        ))
+        add("Release type", str(album.get("album_type") or "").title())
+        add("Release date", album.get("release_date"))
+        add("Total tracks", album.get("total_tracks"))
+        add("Record label", album.get("label"))
+        add("UPC", (album.get("external_ids") or {}).get("upc"))
+        add("Genres", ", ".join(album.get("genres") or []))
+        for copyright_value in album.get("copyrights") or []:
+            add("Copyright", copyright_value.get("text"))
+    return "\n".join(lines).strip()
+
 
 class LyricsDialog(wx.Dialog):
     def __init__(
@@ -1505,6 +1896,9 @@ class LyricsDialog(wx.Dialog):
             size=(650, 600),
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
+        self.frame = parent
+        self.lyrics_data = lyrics
+        self.closing = False
         outer = wx.BoxSizer(wx.VERTICAL)
         heading = lyrics.track_name
         if lyrics.artist_name:
@@ -1551,6 +1945,40 @@ class LyricsDialog(wx.Dialog):
             wx.LEFT | wx.RIGHT | wx.BOTTOM,
             12,
         )
+        self.find_panel = wx.Panel(self)
+        find_layout = wx.BoxSizer(wx.HORIZONTAL)
+        find_label = wx.StaticText(self.find_panel, label=tr("&Find"))
+        self.find_text = wx.TextCtrl(
+            self.find_panel,
+            style=wx.TE_PROCESS_ENTER,
+        )
+        find_label.SetToolTip(tr("Find in lyrics"))
+        self.find_text.SetName(tr("Find in lyrics"))
+        self.find_previous = wx.Button(
+            self.find_panel,
+            label=tr("&Previous"),
+        )
+        self.find_next = wx.Button(
+            self.find_panel,
+            label=tr("&Next"),
+        )
+        self.find_close = wx.Button(
+            self.find_panel,
+            label=tr("&Close find"),
+        )
+        find_layout.Add(find_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        find_layout.Add(self.find_text, 1, wx.RIGHT, 6)
+        find_layout.Add(self.find_previous, 0, wx.RIGHT, 6)
+        find_layout.Add(self.find_next, 0, wx.RIGHT, 6)
+        find_layout.Add(self.find_close, 0)
+        self.find_panel.SetSizer(find_layout)
+        self.find_panel.Hide()
+        outer.Add(
+            self.find_panel,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            12,
+        )
         self.text = wx.TextCtrl(
             self,
             value=lyrics.text,
@@ -1563,11 +1991,57 @@ class LyricsDialog(wx.Dialog):
             wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
             12,
         )
+        self.translation_view = None
+        self.fetch_translation = None
+        translation_enabled = bool(
+            parent.deepl.api_key and parent.deepl.target_language
+        )
+        if translation_enabled or lyrics.translated_text:
+            self.translation_view = wx.Choice(
+                self,
+                choices=[tr("Original")]
+                + ([tr("Translation")] if lyrics.translated_text else []),
+            )
+            self.translation_view.SetName(tr("Lyrics view"))
+            self.translation_view.SetSelection(0)
+            outer.Detach(self.text)
+            outer.Add(
+                self.translation_view,
+                0,
+                wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+                12,
+            )
+            outer.Add(
+                self.text,
+                1,
+                wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+                12,
+            )
+            if not lyrics.translated_text:
+                self.fetch_translation = wx.Button(
+                    self,
+                    label=tr("&Fetch translation"),
+                )
+                outer.Add(
+                    self.fetch_translation,
+                    0,
+                    wx.LEFT | wx.RIGHT | wx.BOTTOM,
+                    12,
+                )
         buttons = self.CreateSeparatedButtonSizer(wx.CLOSE)
         if buttons:
             outer.Add(buttons, 0, wx.EXPAND | wx.ALL, 12)
         self.SetSizer(outer)
-        self.frame = parent
+        self.SetEscapeId(wx.ID_CLOSE)
+        close_button = self.FindWindow(wx.ID_CLOSE)
+        if self.translation_view:
+            self.translation_view.MoveBeforeInTabOrder(self.text)
+        if self.fetch_translation:
+            self.fetch_translation.MoveAfterInTabOrder(self.text)
+            if close_button:
+                close_button.MoveAfterInTabOrder(self.fetch_translation)
+        elif close_button:
+            close_button.MoveAfterInTabOrder(self.text)
         self.item = item
         self.track_id = lyrics.track_id
         self.synced_lines = lyrics.synced_lines
@@ -1594,11 +2068,83 @@ class LyricsDialog(wx.Dialog):
         self.Bind(wx.EVT_BUTTON, self.on_close_button, id=wx.ID_CLOSE)
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.text.Bind(wx.EVT_KEY_DOWN, self.on_text_key)
+        self.find_text.Bind(wx.EVT_KEY_DOWN, self.on_find_key)
+        self.find_previous.Bind(
+            wx.EVT_BUTTON,
+            lambda event: self.find_lyrics(-1),
+        )
+        self.find_next.Bind(
+            wx.EVT_BUTTON,
+            lambda event: self.find_lyrics(1),
+        )
+        self.find_close.Bind(wx.EVT_BUTTON, self.on_close_find)
+        if self.translation_view:
+            self.translation_view.Bind(
+                wx.EVT_CHOICE,
+                self.on_translation_view,
+            )
+        if self.fetch_translation:
+            self.fetch_translation.Bind(
+                wx.EVT_BUTTON,
+                self.on_fetch_translation,
+            )
         self.text.SetInsertionPoint(0)
         self.text.SetFocus()
         if self.follow_braille.GetValue():
             self.braille_timer.Start(BRAILLE_LYRICS_TIMER_MS)
             self.update_braille_line()
+
+    def on_translation_view(self, event: wx.CommandEvent | None = None) -> None:
+        translated = bool(
+            self.translation_view
+            and self.translation_view.GetSelection() == 1
+            and self.lyrics_data.translated_text
+        )
+        value = (
+            self.lyrics_data.translated_text
+            if translated
+            else self.lyrics_data.text
+        )
+        self.text.SetValue(value)
+        self.text.SetName(
+            tr("Translated lyrics") if translated else tr("Original lyrics")
+        )
+        self.text.SetInsertionPoint(0)
+
+    def on_fetch_translation(self, event: wx.CommandEvent) -> None:
+        if not self.fetch_translation:
+            return
+        logger.debug("Lyrics Fetch translation command received")
+        self.fetch_translation.Disable()
+        self.fetch_translation.SetLabel(tr("Fetching translation..."))
+        self.frame.run_task(
+            tr("Fetching lyrics translation"),
+            lambda: self.frame.translate_lyrics(self.lyrics_data),
+            self.finish_fetch_translation,
+            failure=self.fail_fetch_translation,
+            error_parent=self,
+            requires_spotify=False,
+        )
+
+    def finish_fetch_translation(self, lyrics: Lyrics) -> None:
+        if self.closing:
+            return
+        if self.translation_view and self.translation_view.GetCount() == 1:
+            self.translation_view.Append(tr("Translation"))
+        if self.fetch_translation:
+            self.fetch_translation.Hide()
+        self.Layout()
+        if self.translation_view:
+            self.translation_view.SetSelection(1)
+            self.on_translation_view()
+            self.text.SetFocus()
+
+    def fail_fetch_translation(self) -> None:
+        if self.closing:
+            return
+        if self.fetch_translation:
+            self.fetch_translation.Enable()
+            self.fetch_translation.SetLabel(tr("&Fetch translation"))
 
     @staticmethod
     def _synced_line_positions(
@@ -1647,6 +2193,19 @@ class LyricsDialog(wx.Dialog):
 
     def on_text_key(self, event: wx.KeyEvent) -> None:
         if (
+            event.GetKeyCode() in (ord("N"), ord("n"), ord("P"), ord("p"))
+            and not event.AltDown()
+            and not event.ShiftDown()
+            and not physical_control_down(event)
+            and getattr(self, "find_panel", None)
+            and self.find_panel.IsShown()
+            and self.find_text.GetValue()
+        ):
+            self.find_lyrics(
+                -1 if event.GetKeyCode() in (ord("P"), ord("p")) else 1
+            )
+            return
+        if (
             event.GetKeyCode() == wx.WXK_SPACE
             and not event.AltDown()
             and event.ShiftDown()
@@ -1662,17 +2221,16 @@ class LyricsDialog(wx.Dialog):
             LyricsDialog.cancel_phrase(self)
             self.frame.toggle_pause_resume()
             return
-        if not physical_control_down(event):
-            event.Skip()
-            return
         key = event.GetKeyCode()
         if (
             key in (wx.WXK_UP, wx.WXK_DOWN)
-            and not event.AltDown()
-            and not event.ShiftDown()
+            and lyric_navigation_modifier_down(event)
         ):
             direction = -1 if key == wx.WXK_UP else 1
             LyricsDialog.playback_from_adjacent_lyric(self, direction)
+            return
+        if not physical_control_down(event):
+            event.Skip()
             return
         if event.ShiftDown() and key in (ord(","), ord("<")):
             self.adjust_lyric_timing(500)
@@ -1682,7 +2240,145 @@ class LyricsDialog(wx.Dialog):
             return
         event.Skip()
 
+    @staticmethod
+    def find_shortcut_down(event: wx.KeyEvent) -> bool:
+        if sys.platform == "darwin":
+            return event.ControlDown() and not physical_control_down(event)
+        return physical_control_down(event)
+
+    def show_find(self) -> None:
+        if not self.find_panel.IsShown():
+            self.find_paused_braille = bool(self.follow_braille.GetValue())
+            if self.find_paused_braille:
+                self.braille_timer.Stop()
+            self.find_panel.Show()
+            self.Layout()
+        self.find_text.SetFocus()
+        self.find_text.SelectAll()
+
+    def close_find(self) -> None:
+        self.find_panel.Hide()
+        self.Layout()
+        self.text.SetFocus()
+        if (
+            getattr(self, "find_paused_braille", False)
+            and self.follow_braille.GetValue()
+        ):
+            self.last_braille_line = -1
+            self.braille_timer.Start(BRAILLE_LYRICS_TIMER_MS)
+        self.find_paused_braille = False
+
+    def on_close_find(self, event: wx.CommandEvent) -> None:
+        self.close_find()
+
+    def on_find_key(self, event: wx.KeyEvent) -> None:
+        key = event.GetKeyCode()
+        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+            self.find_lyrics(-1 if event.ShiftDown() else 1)
+            return
+        if key == wx.WXK_ESCAPE:
+            self.close_find()
+            return
+        event.Skip()
+
+    def find_lyrics(self, direction: int) -> None:
+        query = self.find_text.GetValue()
+        if not query:
+            self.frame.say(tr("Enter text to find."))
+            return
+        value = self.text.GetValue()
+        if sys.platform == "win32":
+            value = value.replace("\n", "\r\n")
+        searchable = value.casefold()
+        wanted = query.casefold()
+        selection_start, selection_end = self.text.GetSelection()
+        same_query = getattr(self, "last_find_query", None) == wanted
+        previous_match = getattr(self, "last_find_match", None)
+        if direction < 0:
+            before = (
+                previous_match[0]
+                if same_query and previous_match
+                else selection_start
+            )
+            position = searchable.rfind(wanted, 0, before)
+        else:
+            after = (
+                previous_match[1]
+                if same_query and previous_match
+                else selection_end
+            )
+            position = searchable.find(wanted, after)
+        self.last_find_query = wanted
+        if position < 0:
+            self.frame.say(tr("Not found."))
+            return
+        end = position + len(query)
+        self.last_find_match = (position, end)
+        self.text.SetFocus()
+        self.text.SetInsertionPoint(position)
+        self.text.ShowPosition(position)
+        line_start = value.rfind("\n", 0, position) + 1
+        line_end = value.find("\n", end)
+        if line_end < 0:
+            line_end = len(value)
+        found_line = value[line_start:line_end].strip()
+        if found_line:
+            self.frame.say(found_line)
+        logger.debug(
+            "Lyrics find moved caret position=%d length=%d direction=%d",
+            position,
+            len(query),
+            direction,
+        )
+
     def on_dialog_key(self, event: wx.KeyEvent) -> None:
+        key = event.GetKeyCode()
+        if key == wx.WXK_F4 and event.AltDown():
+            logger.debug("Lyrics Alt+F4 closing dialog")
+            self.on_close_button(event)
+            return
+        if (
+            key == wx.WXK_TAB
+            and not event.AltDown()
+            and not physical_control_down(event)
+        ):
+            self.move_tab_focus(-1 if event.ShiftDown() else 1)
+            return
+        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER, wx.WXK_SPACE):
+            focused = event.GetEventObject()
+            find_window = getattr(self, "FindWindow", None)
+            close_button = find_window(wx.ID_CLOSE) if find_window else None
+            if focused is close_button:
+                logger.debug("Lyrics Close activated from keyboard")
+                self.on_close_button(event)
+                return
+            fetch = getattr(self, "fetch_translation", None)
+            if fetch and focused is fetch:
+                logger.debug("Lyrics Fetch translation activated from keyboard")
+                self.on_fetch_translation(event)
+                return
+        if key == wx.WXK_ESCAPE and not self.find_panel.IsShown():
+            logger.debug("Lyrics Escape closing dialog")
+            self.on_close_button(event)
+            return
+        if (
+            key in (ord("F"), ord("f"))
+            and LyricsDialog.find_shortcut_down(event)
+            and not event.AltDown()
+            and not event.ShiftDown()
+        ):
+            self.show_find()
+            return
+        if (
+            event.GetKeyCode() == wx.WXK_ESCAPE
+            and getattr(self, "find_panel", None)
+            and self.find_panel.IsShown()
+            and window_is_or_descendant(
+                event.GetEventObject(), self.find_panel
+            )
+        ):
+            self.close_find()
+            return
         if LyricsDialog.dispatch_mapped_key(self, event):
             return
         frame_keymap = getattr(getattr(self, "frame", None), "keymap", None)
@@ -1693,7 +2389,6 @@ class LyricsDialog(wx.Dialog):
                 ("Lyrics", "Main"),
             ):
                 return
-        key = event.GetKeyCode()
         if (
             key in (wx.WXK_UP, wx.WXK_DOWN)
             and lyric_navigation_modifier_down(event)
@@ -1719,7 +2414,7 @@ class LyricsDialog(wx.Dialog):
             self.frame.toggle_pause_resume()
             return
         if (
-            key == wx.WXK_F4
+            key == wx.WXK_F7
             and playback_adjustment_modifier_down(event)
         ):
             self.frame.toggle_mute()
@@ -1734,13 +2429,13 @@ class LyricsDialog(wx.Dialog):
             self.frame.play(self.item, announce=False)
             return
         if (
-            key == wx.WXK_F5
+            key == wx.WXK_F4
             and playback_adjustment_modifier_down(event)
         ):
             self.frame.adjust_volume(-5)
             return
         if (
-            key == wx.WXK_F6
+            key == wx.WXK_F5
             and playback_adjustment_modifier_down(event)
         ):
             self.frame.adjust_volume(5)
@@ -1792,6 +2487,42 @@ class LyricsDialog(wx.Dialog):
             return
         event.Skip()
 
+    def tab_controls(self) -> list[wx.Window]:
+        controls = [self.follow_braille, self.phrase_mode]
+        if self.find_panel.IsShown():
+            controls.extend(
+                [
+                    self.find_text,
+                    self.find_previous,
+                    self.find_next,
+                    self.find_close,
+                ]
+            )
+        if self.translation_view:
+            controls.append(self.translation_view)
+        controls.append(self.text)
+        if self.fetch_translation and self.fetch_translation.IsShown():
+            controls.append(self.fetch_translation)
+        close_button = self.FindWindow(wx.ID_CLOSE)
+        if close_button:
+            controls.append(close_button)
+        return [
+            control
+            for control in controls
+            if control.IsShown() and control.IsEnabled()
+        ]
+
+    def move_tab_focus(self, direction: int) -> None:
+        controls = self.tab_controls()
+        if not controls:
+            return
+        focused = wx.Window.FindFocus()
+        try:
+            current = controls.index(focused)
+        except ValueError:
+            current = -1 if direction > 0 else 0
+        controls[(current + direction) % len(controls)].SetFocus()
+
     def dispatch_mapped_key(self, event: wx.KeyEvent) -> bool:
         frame = getattr(self, "frame", None)
         if not frame or not hasattr(frame, "keymap_action_for_event"):
@@ -1825,6 +2556,9 @@ class LyricsDialog(wx.Dialog):
         elif action == "seek_forward":
             LyricsDialog.cancel_phrase(self)
             frame.seek(5000)
+        elif action in {"next_verse", "previous_verse"}:
+            LyricsDialog.cancel_phrase(self)
+            frame.jump_lyric_section(1 if action == "next_verse" else -1)
         elif action == "previous_track":
             LyricsDialog.cancel_phrase(self)
             frame.previous_track()
@@ -1983,17 +2717,23 @@ class LyricsDialog(wx.Dialog):
             self.braille_timer.Stop()
 
     def on_close_button(self, event: wx.CommandEvent) -> None:
-        self.braille_timer.Stop()
-        LyricsDialog.cancel_phrase(self)
-        self.EndModal(wx.ID_CLOSE)
-
-    def on_close(self, event: wx.CloseEvent) -> None:
+        logger.debug("Lyrics modal close requested is_modal=%s", self.IsModal())
+        self.closing = True
         self.braille_timer.Stop()
         LyricsDialog.cancel_phrase(self)
         if self.IsModal():
             self.EndModal(wx.ID_CLOSE)
         else:
-            event.Skip()
+            self.Destroy()
+
+    def on_close(self, event: wx.CloseEvent) -> None:
+        self.closing = True
+        self.braille_timer.Stop()
+        LyricsDialog.cancel_phrase(self)
+        if self.IsModal():
+            self.EndModal(wx.ID_CLOSE)
+        else:
+            self.Destroy()
 
 
 class AlternateVersionsDialog(wx.Dialog):
@@ -2212,6 +2952,13 @@ class ItemList(ItemListBase):
             frame = getattr(panel, "frame", None)
             if frame:
                 frame.paste_playlist_clipboard()
+            return
+        host = getattr(panel, "hosted_in", None)
+        if host:
+            if not host.handle_key(event) and not ItemList.select_by_typed_letter(
+                self, event
+            ):
+                event.Skip()
             return
         panel_handler = getattr(panel, "on_item_list_char_hook", None)
         if panel_handler:
@@ -2995,6 +3742,7 @@ class CollectionPanel(wx.Panel):
     ) -> None:
         super().__init__(parent)
         self.frame = frame
+        self.hosted_in: wx.Window | None = None
         self.title = title
         self.loader = loader
         self.removable = removable
@@ -3128,7 +3876,9 @@ class CollectionPanel(wx.Panel):
 
     def on_key(self, event: wx.KeyEvent) -> None:
         key = event.GetKeyCode()
-        if key == wx.WXK_TAB and not event.ShiftDown():
+        if key == wx.WXK_TAB and self.hosted_in:
+            event.Skip()
+        elif key == wx.WXK_TAB and not event.ShiftDown():
             self.frame.focus_tab_bar()
         elif (
             key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER)
@@ -3180,7 +3930,9 @@ class CollectionPanel(wx.Panel):
         self.items.SetFocus()
 
     def on_navigation(self, event: wx.NavigationKeyEvent) -> None:
-        if event.IsFromTab() and event.GetDirection():
+        if self.hosted_in:
+            event.Skip()
+        elif event.IsFromTab() and event.GetDirection():
             logger.debug(
                 "Forward navigation from %s list to main tab bar",
                 self.title,
@@ -3211,20 +3963,6 @@ class SavedAlbumsPanel(CollectionPanel):
             lambda: self.frame.spotify.children(album),
             lambda tracks: self.frame.finish_open_album(album, tracks),
         )
-
-
-def new_album_label(album: SpotifyItem) -> str:
-    parts = [album.name]
-    if album.artist:
-        parts.append(album.artist)
-    release_date = str(album.raw.get("release_date") or "")
-    if release_date:
-        parts.append(tr(
-            "released {release_date}"
-        ).format(release_date=release_date))
-    if album.total is not None:
-        parts.append(msg.song_count(album.total))
-    return " — ".join(parts)
 
 
 NEW_MUSIC_LANGUAGE_SUFFIXES = {
@@ -3260,8 +3998,9 @@ def new_album_identity(album: SpotifyItem) -> tuple[str, str, int | None]:
     )
 
 
-NEW_MUSIC_RELEASE_TYPES = ("album", "single", "compilation")
-DISCOVER_SOURCES = ("releases", "songs", "albums", "historical_us")
+DISCOVER_SOURCES = ("releases", "followed", "charts", "historical")
+# How far back the start-up check looks for releases by followed artists.
+FOLLOWED_CHECK_DAYS = 30
 # Apple's feed allows up to 100 entries. Rows are built from Apple's own data
 # and only looked up on Spotify when someone acts on them, because every lookup
 # is a separate Spotify search and a burst of them earns an hours-long penalty.
@@ -3284,6 +4023,7 @@ class ChartResults(NamedTuple):
     loaded_at: float = 0.0
     media_type: str = "songs"
     chart_date: str = ""
+    detail: str = ""
 
 
 FIELDS_FROM_SPOTIFY = (
@@ -3358,6 +4098,23 @@ def chart_provenance(result: ChartResults) -> str:
                 "disappear. Songs are looked up on Spotify only when you "
                 "act on them."
             ).format(chart_date=result.chart_date, PROJECT_URL=PROJECT_URL)
+    if result.media_type == "number_ones":
+        return tr(
+            "{detail}. From Wikipedia's lists of number ones (licensed "
+            "CC BY-SA), compiled from each country's official charts. Only "
+            "number ones are listed. Songs are looked up on Spotify only "
+            "when you play, queue or save them."
+        ).format(detail=result.detail)
+    if result.media_type == "new_releases":
+        source = result.detail
+        stamp = loaded_label(result.loaded_at)
+        if stamp:
+            source += tr(", loaded {stamp}").format(stamp=stamp)
+        return tr(
+            "{source}. Releases are looked up on Spotify only when you "
+            "play, queue or save them, so a few may turn out to be "
+            "unavailable."
+        ).format(source=source)
     source = (
         tr(
             "Most played albums on Apple Music in {country_name}"
@@ -3391,10 +4148,9 @@ class NewMusicPanel(CollectionPanel):
             parent,
             frame,
             tr("Discover"),
-            lambda: frame.spotify.new_music(self.release_type()),
+            list,
             silent_load=True,
         )
-        self.pending_marker: SpotifyItem | None = None
         self.result_mode = "releases"
         self.chart_note = ""
         self.country_touched = False
@@ -3404,20 +4160,50 @@ class NewMusicPanel(CollectionPanel):
             label=tr("Discover"),
             choices=[
                 tr("New releases"),
-                tr("Top songs"),
-                tr("Top albums"),
-                tr("Historical US Hot 100 (experimental)"),
+                tr("Followed artists and authors"),
+                tr("Top charts"),
+                tr("Historical charts"),
             ],
             majorDimension=1,
             style=wx.RA_SPECIFY_ROWS,
         )
         self.release_types = wx.RadioBox(
             self,
-            label=tr("Release type"),
-            choices=[tr("Albums"), tr("Singles and EPs"), tr("Compilations")],
+            label=tr("Show"),
+            choices=[tr("Songs"), tr("Albums")],
             majorDimension=1,
             style=wx.RA_SPECIFY_ROWS,
         )
+        self.genre_label = wx.StaticText(self, label=tr("Genre"))
+        self.genre = wx.Choice(
+            self,
+            choices=[tr(name) for _code, name in GENRES],
+        )
+        self.genre.SetSelection(0)
+        self.genre.SetName(tr("Genre"))
+        self.release_window_label = wx.StaticText(
+            self,
+            label=tr("Released within"),
+        )
+        self.release_window = wx.Choice(
+            self,
+            choices=[tr(name) for _days, name in RELEASE_WINDOWS],
+        )
+        self.release_window.SetSelection(
+            next(
+                index
+                for index, (days, _name) in enumerate(RELEASE_WINDOWS)
+                if days == DEFAULT_RELEASE_WINDOW
+            )
+        )
+        self.release_window.SetName(tr("Released within"))
+        self.keyword_label = wx.StaticText(
+            self,
+            label=tr("Artist or title (optional)"),
+        )
+        self.keyword = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
+        self.keyword.SetName(tr("Artist or title, optional"))
+        self.keyword.Bind(wx.EVT_TEXT_ENTER, self.on_search)
         self.chart_country = wx.Choice(
             self,
             choices=[tr(name) for _code, name in CHART_COUNTRIES],
@@ -3430,20 +4216,66 @@ class NewMusicPanel(CollectionPanel):
             )
         )
         self.chart_country.SetName(tr("Chart country"))
+        self.history_chart_label = wx.StaticText(self, label=tr("Chart"))
+        self.history_chart = wx.Choice(
+            self,
+            choices=[
+                tr("US Billboard Hot 100 (experimental)"),
+                tr("Number ones by country"),
+            ],
+        )
+        self.history_chart.SetSelection(0)
+        self.history_chart.SetName(tr("Historical chart"))
+        self.number_ones_country_label = wx.StaticText(
+            self, label=tr("Number ones country")
+        )
+        self.number_ones_country = wx.Choice(
+            self,
+            choices=[country_name(code) for code in NUMBER_ONE_COUNTRIES],
+        )
+        self.number_ones_country.SetSelection(0)
+        self.number_ones_country.SetName(tr("Number ones country"))
+        self.number_ones_order_label = wx.StaticText(self, label=tr("Order"))
+        self.number_ones_order = wx.Choice(
+            self,
+            choices=[tr("By date"), tr("Most weeks at number one")],
+        )
+        self.number_ones_order.SetSelection(1)
+        self.number_ones_order.SetName(tr("Order of number ones"))
         self.chart_date_label = wx.StaticText(
             self,
             label=tr("Historical chart date (YYYY-MM-DD)"),
         )
-        self.chart_date = wx.TextCtrl(self, value=date.today().isoformat())
+        self.chart_date = wx.TextCtrl(
+            self,
+            value=date.today().isoformat(),
+            style=wx.TE_PROCESS_ENTER,
+        )
         self.chart_date.SetName(tr("Chart date, year-month-day"))
+        self.chart_date.Bind(wx.EVT_TEXT_ENTER, self.on_search)
         self.search_button = wx.Button(self, label=tr("&Search"))
         sizer = self.GetSizer()
         sizer.Insert(1, self.discovery_source, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(2, self.release_types, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(3, self.chart_country, 0, wx.EXPAND | wx.ALL, 10)
-        sizer.Insert(4, self.chart_date_label, 0, wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(5, self.chart_date, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(6, self.search_button, 0, wx.ALL, 10)
+        # Reading and Tab order follow the order of choices: the chart is
+        # picked first, then Songs or Albums, then the options that follow.
+        sizer.Insert(2, self.history_chart_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(3, self.history_chart, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(4, self.number_ones_country_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(5, self.number_ones_country, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(6, self.release_types, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(7, self.number_ones_order_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(8, self.number_ones_order, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(9, self.genre_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(10, self.genre, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(11, self.release_window_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(12, self.release_window, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(13, self.keyword_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(14, self.keyword, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(15, self.chart_country, 0, wx.EXPAND | wx.ALL, 10)
+        sizer.Insert(16, self.chart_date_label, 0, wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(17, self.chart_date, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(18, self.search_button, 0, wx.ALL, 10)
+        self.history_chart.Bind(wx.EVT_CHOICE, self.on_history_chart_changed)
         self.discovery_source.Bind(wx.EVT_RADIOBOX, self.on_source_changed)
         self.chart_country.Bind(wx.EVT_CHOICE, self.on_country_chosen)
         self.search_button.Bind(wx.EVT_BUTTON, self.on_search)
@@ -3452,7 +4284,7 @@ class NewMusicPanel(CollectionPanel):
 
     def on_source_changed(self, event: wx.Event | None = None) -> None:
         self.update_source_controls()
-        if self.source() in {"songs", "albums"}:
+        if self.source() in {"releases", "followed", "charts"}:
             self.resolve_account_country()
 
     def on_country_chosen(self, event: wx.Event | None = None) -> None:
@@ -3490,17 +4322,44 @@ class NewMusicPanel(CollectionPanel):
 
     def update_source_controls(self) -> None:
         source = self.source()
-        self.release_types.Enable(source == "releases")
-        self.chart_country.Enable(source in {"songs", "albums"})
+        releases = source == "releases"
+        for control in (self.genre, self.keyword):
+            control.Enable(releases)
+        historical = source == "historical"
+        history_chart = getattr(self, "history_chart", None)
+        numbers = bool(
+            historical and history_chart and history_chart.GetSelection() == 1
+        )
+        self.release_types.Enable(source in {"releases", "charts"} or numbers)
+        self.release_window.Enable(source in {"releases", "followed"})
+        self.chart_country.Enable(
+            source in {"releases", "followed", "charts"}
+        )
+        if history_chart:
+            history_chart.Enable(historical)
+        for name in ("number_ones_country", "number_ones_order"):
+            control = getattr(self, name, None)
+            if control:
+                control.Enable(numbers)
         chart_date = getattr(self, "chart_date", None)
         if chart_date:
-            chart_date.Enable(source == "historical_us")
+            chart_date.Enable(historical)
+            label = getattr(self, "chart_date_label", None)
+            if label:
+                label.SetLabel(
+                    tr("Year or date (YYYY or YYYY-MM-DD)")
+                    if numbers
+                    else tr("Historical chart date (YYYY-MM-DD)")
+                )
+
+    def on_history_chart_changed(self, event: wx.Event | None = None) -> None:
+        self.update_source_controls()
 
     def source(self) -> str:
         return DISCOVER_SOURCES[self.discovery_source.GetSelection()]
 
-    def release_type(self) -> str:
-        return NEW_MUSIC_RELEASE_TYPES[self.release_types.GetSelection()]
+    def release_media(self) -> str:
+        return ("songs", "albums")[self.release_types.GetSelection()]
 
     def chart_country_code(self) -> str:
         return CHART_COUNTRIES[self.chart_country.GetSelection()][0]
@@ -3509,9 +4368,9 @@ class NewMusicPanel(CollectionPanel):
         if self.loading:
             return
         self.loading = True
-        if self.source() in {"songs", "albums"}:
+        if self.source() == "charts":
             country = self.chart_country_code()
-            media_type = self.source()
+            media_type = self.release_media()
             self.frame.run_task(
                 msg.LOADING_MUSIC_CHART,
                 lambda: self.frame.chart_results(country, media_type),
@@ -3519,7 +4378,10 @@ class NewMusicPanel(CollectionPanel):
                 failure=self.finish_load_error,
             )
             return
-        if self.source() == "historical_us":
+        if self.source() == "historical" and self.history_chart.GetSelection() == 1:
+            self.search_number_ones()
+            return
+        if self.source() == "historical":
             try:
                 requested = parse_chart_date(self.chart_date.GetValue())
             except ValueError:
@@ -3534,28 +4396,72 @@ class NewMusicPanel(CollectionPanel):
                 failure=self.finish_load_error,
             )
             return
-        release_type = self.release_type()
+        if self.source() == "followed":
+            country = self.chart_country_code()
+            days = RELEASE_WINDOWS[self.release_window.GetSelection()][0]
+            if not self.frame.followed.artists:
+                self.loading = False
+                self.frame.say(
+                    tr(
+                        "You are not following any artists yet. Right-click an "
+                        "artist or song and choose Follow for new releases."
+                    )
+                )
+                return
+            self.frame.run_task(
+                msg.LOADING_NEW_RELEASES,
+                lambda: self.frame.followed_release_results(country, days),
+                self.show_chart_items,
+                failure=self.finish_load_error,
+            )
+            return
+        country = self.chart_country_code()
+        media_type = self.release_media()
+        genre = GENRES[self.genre.GetSelection()][0]
+        days = RELEASE_WINDOWS[self.release_window.GetSelection()][0]
+        keyword = self.keyword.GetValue().strip()
         self.frame.run_task(
-            msg.SEARCHING_SPOTIFY,
-            lambda: self.frame.spotify.new_music(release_type),
-            self.show_items,
+            msg.LOADING_NEW_RELEASES,
+            lambda: self.frame.new_release_results(
+                country, media_type, genre, days, keyword
+            ),
+            self.show_chart_items,
+            failure=self.finish_load_error,
+        )
+
+    def search_number_ones(self) -> None:
+        text = self.chart_date.GetValue().strip()
+        year: int | None = None
+        day: date | None = None
+        if len(text) == 4 and text.isdigit():
+            year = int(text)
+        else:
+            try:
+                day = parse_chart_date(text)
+            except ValueError:
+                self.loading = False
+                self.frame.say(
+                    tr(
+                        "Enter a year, such as 1985, or a date as "
+                        "year-month-day."
+                    )
+                )
+                self.chart_date.SetFocus()
+                return
+        kind = UK_SINGLES if self.release_media() == "songs" else UK_ALBUMS
+        by_weeks = self.number_ones_order.GetSelection() == 1
+        country = NUMBER_ONE_COUNTRIES[self.number_ones_country.GetSelection()]
+        self.frame.run_task(
+            tr("Loading number ones"),
+            lambda: self.frame.number_ones_results(
+                country, kind, year, day, by_weeks
+            ),
+            self.show_chart_items,
             failure=self.finish_load_error,
         )
 
     def refresh(self) -> None:
         self.on_search()
-
-    def show_items(self, items: list[SpotifyItem]) -> None:
-        self.loading = False
-        self.loaded_once = True
-        releases, loader = self.prepare_items(items)
-        self.result_mode = "releases"
-        self.all_items = releases
-        self.pending_marker = loader
-        self.frame.update_title_for_page(self, self.title)
-        self.render_results()
-        if self.items.items:
-            self.items.SetFocus()
 
     def show_chart_items(self, result: ChartResults) -> None:
         self.loading = False
@@ -3563,23 +4469,12 @@ class NewMusicPanel(CollectionPanel):
         self.result_mode = "chart"
         self.chart_note = chart_provenance(result)
         self.all_items = list(result.items)
-        # The whole chart arrives at once, so there is no next page.
-        self.pending_marker = None
         self.frame.update_title_for_page(self, self.title)
         self.render_results()
         if self.items.items:
             self.items.SetFocus()
-
-    def item_labels(self, items: list[SpotifyItem]) -> list[str] | None:
-        """Label releases by release date; chart rows label themselves."""
-        if self.result_mode != "releases":
-            return None
-        return [
-            item.accessible_label()
-            if item.raw.get("load_more")
-            else new_album_label(item)
-            for item in items
-        ]
+        else:
+            self.frame.say(tr("No matching releases were found."))
 
     def apply_filter(self, *, preferred: SpotifyItem | None = None) -> None:
         if preferred is None:
@@ -3593,15 +4488,9 @@ class NewMusicPanel(CollectionPanel):
             self.sort_key,
             self.sort_descending,
         )
-        rendered = matches + (
-            [self.pending_marker] if self.pending_marker else []
-        )
+        rendered = matches
         selected = rendered.index(preferred) if preferred in rendered else 0
-        self.items.set_items(
-            rendered,
-            selected,
-            labels=self.item_labels(rendered),
-        )
+        self.items.set_items(rendered, selected)
         self.status.SetLabel(self.result_status(len(matches)))
 
     def result_status(self, shown: int) -> str:
@@ -3635,44 +4524,14 @@ class NewMusicPanel(CollectionPanel):
             )
         return status
 
-    def prepare_items(
-        self,
-        items: list[SpotifyItem],
-    ) -> tuple[list[SpotifyItem], SpotifyItem | None]:
-        loader = next(
-            (item for item in items if item.raw.get("load_more")),
-            None,
-        )
-        unique: dict[tuple[str, str, int | None], SpotifyItem] = {}
-        seen_ids: set[str] = set()
-        albums = sorted(
-            (item for item in items if not item.raw.get("load_more")),
-            key=lambda album: str(album.raw.get("release_date") or ""),
-            reverse=True,
-        )
-        for album in albums:
-            spotify_id = album.uri or album.id
-            identity = new_album_identity(album)
-            if (spotify_id and spotify_id in seen_ids) or identity in unique:
-                continue
-            if spotify_id:
-                seen_ids.add(spotify_id)
-            unique[identity] = album
-        releases = sorted(
-            unique.values(),
-            key=lambda album: str(album.raw.get("release_date") or ""),
-            reverse=True,
-        )
-        return releases, loader
-
     def on_open(self, event: wx.Event | None = None) -> None:
         item = self.items.selected_item()
         if not item:
             return
         if self.frame.resolve_then([item], lambda: self.on_open()):
             return
-        if item.raw.get("load_more"):
-            self.load_more(item)
+        if item.kind == ItemKind.AUDIOBOOK:
+            self.frame.open_audiobook(item)
             return
         if item.kind == ItemKind.TRACK:
             self.frame.play_playable_item(item)
@@ -3684,39 +4543,12 @@ class NewMusicPanel(CollectionPanel):
             lambda tracks: self.frame.finish_open_album(album, tracks),
         )
 
-    def load_more(self, loader: SpotifyItem) -> None:
-        offset = int(loader.raw.get("next_offset") or 0)
-        release_type = str(
-            loader.raw.get("release_type") or self.release_type()
-        )
-        self.frame.run_task(
-            msg.LOADING_MORE_RESULTS,
-            lambda: self.frame.spotify.new_music(release_type, offset),
-            self.append_items,
-        )
-
-    def append_items(self, items: list[SpotifyItem]) -> None:
-        existing_keys = {new_album_identity(item) for item in self.all_items}
-        page_releases, loader = self.prepare_items(items)
-        new_releases = [
-            item
-            for item in page_releases
-            if new_album_identity(item) not in existing_keys
-        ]
-        self.all_items = self.all_items + new_releases
-        self.pending_marker = loader if new_releases else None
-        self.render_results(new_releases[0] if new_releases else None)
-        self.items.SetFocus()
-        if not new_releases:
-            self.frame.say(msg.NO_MORE_RESULTS)
-
-
-
 class ConcertsPanel(wx.Panel):
     def __init__(self, parent: wx.Window, frame: "MainFrame") -> None:
         super().__init__(parent)
         self.SetName(tr("Concerts"))
         self.frame = frame
+        self.hosted_in: wx.Window | None = None
         self.page = 0
         self.loading = False
         self.classifications_loading = False
@@ -5787,6 +6619,18 @@ class MainFrame(wx.Frame):
         self.announce_track_changes = bool(
             settings.get("announce_track_changes", False)
         )
+        self.announce_lyric_sections = bool(
+            settings.get("announce_lyric_sections", False)
+        )
+        self.announce_volume_changes = bool(
+            settings.get("announce_volume_changes", True)
+        )
+        self.announce_cart_names = bool(
+            settings.get("announce_cart_names", True)
+        )
+        self.check_followed_on_start = bool(
+            settings.get("check_followed_on_start", True)
+        )
         self.resume_mode = resume_mode_from_settings(settings)
         self.playback_volume_percent = volume_percent_from_settings(settings)
         self.global_shortcuts = normalized_global_shortcuts(
@@ -5800,6 +6644,15 @@ class MainFrame(wx.Frame):
         self.suppress_track_announcement_id: str | None = None
         self.current_player_state: dict = {}
         self.playback_state_updated_at = time.monotonic()
+        self.lyric_sections: tuple[str, list[int]] | None = None
+        self.carts = load_carts(self.store.read("carts.json", []))
+        self.followed = FollowedArtists(self.store)
+        self.cart_start: tuple[SpotifyItem, int] | None = None
+        self.pending_cart: tuple[SpotifyItem, int, int] | None = None
+        self.playing_cart: Cart | None = None
+        self.playing_cart_armed = False
+        self.cart_timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self.on_cart_timer, self.cart_timer)
         self.pending_previous_restart: wx.CallLater | None = None
         self.shuffle_enabled: bool | None = None
         self.repeat_state: str | None = None
@@ -5825,6 +6678,10 @@ class MainFrame(wx.Frame):
         self.pending_play_context: SpotifyItem | None = None
         self.pending_play_position_ms = 0
         self.lyrics = LRCLibClient()
+        self.deepl = DeepLClient(
+            str(settings.get("deepl_api_key") or ""),
+            str(settings.get("lyrics_translation_language") or ""),
+        )
         self.ticketmaster = TicketmasterClient(
             str(settings.get("ticketmaster_api_key") or "")
         )
@@ -5833,7 +6690,9 @@ class MainFrame(wx.Frame):
         )
         self.applemusic = AppleMusicClient()
         self.historical_charts = HistoricalHot100Client()
+        self.numberones = NumberOnesClient()
         self.musicbrainz = MusicBrainzClient()
+        self.wikipedia = WikipediaClient()
         self.last_error: diagnostics.ErrorDetails | None = None
         self.remote_device_id: str | None = None
         self.remote_device_name = ""
@@ -5889,24 +6748,22 @@ class MainFrame(wx.Frame):
             silent_load=True,
             load_on_first_focus=True,
         )
-        self.bookmarks = BookmarksPanel(self.notebook, self)
         self.audiobooks = AudiobooksPanel(self.notebook, self)
         self.podcasts = PodcastsPanel(self.notebook, self)
         self.saved_albums = SavedAlbumsPanel(self.notebook, self)
         self.new_music = NewMusicPanel(self.notebook, self)
-        self.concerts = ConcertsPanel(self.notebook, self)
+        self.bookmarks_dialog: HostedPanelDialog | None = None
+        self.concerts_dialog: HostedPanelDialog | None = None
         for panel, label in (
             (self.search, tr("Search")),
             (self.liked, tr("Liked Songs")),
             (self.queue, tr("Queue")),
             (self.playlists, tr("Playlists")),
             (self.recently_played, tr("Recently Played")),
-            (self.bookmarks, tr("Bookmarks")),
             (self.audiobooks, tr("Audiobooks")),
             (self.podcasts, tr("Podcasts")),
             (self.saved_albums, tr("Saved Albums")),
             (self.new_music, tr("Discover")),
-            (self.concerts, tr("Concerts")),
         ):
             set_windows_accessible(panel, _NamedPageAccessible, label)
             self.notebook.AddPage(panel, label)
@@ -5923,6 +6780,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.Centre()
         self._create_web_player()
+        wx.CallLater(4000, self.check_followed_releases)
         wx.CallAfter(self.apply_global_hotkey_setting)
         wx.CallAfter(self.initial_focus)
         wx.CallAfter(self.check_for_updates, False)
@@ -5953,7 +6811,7 @@ class MainFrame(wx.Frame):
         records = self.store.read("lyrics.json", {}) or {}
         source = (records.get(item.id) or {}).get("source")
         if source:
-            return Lyrics(
+            lyrics = Lyrics(
                 track_name=str(source.get("track_name") or item.name),
                 artist_name=str(source.get("artist_name") or ""),
                 text=str(source.get("text") or ""),
@@ -5964,19 +6822,96 @@ class MainFrame(wx.Frame):
                     for line in source.get("synced_lines") or []
                 ],
                 substitute=True,
+                synced_breaks=[
+                    int(stop) for stop in source.get("synced_breaks") or []
+                ],
             )
-        lyrics = self.lyrics.lyrics_for(item)
-        if lyrics.substitute:
-            record = records.get(item.id) or {}
-            record["source"] = {
-                "track_name": lyrics.track_name,
-                "artist_name": lyrics.artist_name,
-                "text": lyrics.text,
-                "synced": lyrics.synced,
-                "synced_lines": lyrics.synced_lines,
-            }
-            records[item.id] = record
-            self.store.write("lyrics.json", records)
+        else:
+            recent = getattr(self, "recent_lyrics", None)
+            if recent and recent[0] == item.id:
+                lyrics = recent[1]
+            else:
+                lyrics = self.lyrics.lyrics_for(item)
+                self.recent_lyrics = (item.id, lyrics)
+                if lyrics.substitute:
+                    record = records.get(item.id) or {}
+                    record["source"] = {
+                        "track_name": lyrics.track_name,
+                        "artist_name": lyrics.artist_name,
+                        "text": lyrics.text,
+                        "synced": lyrics.synced,
+                        "synced_lines": lyrics.synced_lines,
+                        "synced_breaks": lyrics.synced_breaks,
+                    }
+                    records[item.id] = record
+                    self.store.write("lyrics.json", records)
+        lyrics = self.cached_translation(lyrics, records)
+        # The Lyrics dialog and lyric-section shortcuts share this copy.  Keep
+        # it even when the original lyrics came from the persistent cache so
+        # Shift+F6/Shift+F8 never need to perform another lyrics lookup.
+        self.recent_lyrics = (item.id, lyrics)
+        return lyrics
+
+    def cached_translation(self, lyrics: Lyrics, records: dict) -> Lyrics:
+        target = self.deepl.target_language
+        if not self.deepl.api_key or not target or not lyrics.text:
+            logger.debug(
+                "Lyrics translation unavailable configured=%s target=%s text=%s",
+                bool(self.deepl.api_key),
+                bool(target),
+                bool(lyrics.text),
+            )
+            lyrics.translated_text = ""
+            lyrics.translated_language = ""
+            return lyrics
+        record = records.get(lyrics.track_id) or {}
+        cached = record.get("translation") or {}
+        if (
+            cached.get("target_language") == target
+            and cached.get("source_text") == lyrics.text
+            and cached.get("text")
+        ):
+            logger.info(
+                "Lyrics translation served from cache track=%s target=%s",
+                lyrics.track_id,
+                target,
+            )
+            lyrics.translated_text = str(cached["text"])
+            lyrics.translated_language = target
+        else:
+            logger.debug(
+                "Lyrics translation not cached track=%s target=%s",
+                lyrics.track_id,
+                target,
+            )
+            lyrics.translated_text = ""
+            lyrics.translated_language = ""
+        return lyrics
+
+    def translate_lyrics(self, lyrics: Lyrics) -> Lyrics:
+        logger.info(
+            "DeepL translation requested by user track=%s target=%s",
+            lyrics.track_id,
+            self.deepl.target_language,
+        )
+        translated = self.deepl.translate(lyrics.text)
+        records = self.store.read("lyrics.json", {}) or {}
+        record = records.get(lyrics.track_id) or {}
+        record["translation"] = {
+            "target_language": self.deepl.target_language,
+            "source_text": lyrics.text,
+            "text": translated,
+        }
+        records[lyrics.track_id] = record
+        self.store.write("lyrics.json", records)
+        lyrics.translated_text = translated
+        lyrics.translated_language = self.deepl.target_language
+        logger.info(
+            "DeepL translation completed track=%s target=%s characters=%d",
+            lyrics.track_id,
+            self.deepl.target_language,
+            len(lyrics.text),
+        )
         return lyrics
 
     def _create_web_player(self) -> None:
@@ -6002,6 +6937,49 @@ class MainFrame(wx.Frame):
         menu_bar = wx.MenuBar()
         file_menu = wx.Menu()
         export_list = file_menu.Append(wx.ID_ANY, tr("&Export list..."))
+        manage_carts = file_menu.Append(wx.ID_ANY, tr("Manage &carts..."))
+        followed_artists = file_menu.Append(
+            wx.ID_ANY, tr("Followed &artists and authors...")
+        )
+        open_bookmarks = file_menu.Append(
+            wx.ID_ANY,
+            tr("&Bookmarks...") + menu_function_shortcut(f"{ctrl}+B"),
+        )
+        search_concerts = file_menu.Append(
+            wx.ID_ANY,
+            (
+                tr("Search for c&oncerts...")
+                + menu_function_shortcut(f"{ctrl}+Shift+G")
+            ),
+        )
+        create_playlist = file_menu.Append(
+            wx.ID_ANY,
+            (
+                tr("&New playlist...") + menu_function_shortcut(f'{ctrl}+Shift+N')
+            ),
+        )
+        file_menu.AppendSeparator()
+        preferences = file_menu.Append(
+            wx.ID_PREFERENCES,
+            tr("&Preferences...") + menu_function_shortcut(f'{ctrl}+,'),
+        )
+        account = wx.Menu()
+        connect = account.Append(
+            wx.ID_ANY,
+            (
+                tr("&Connect to Spotify...") + menu_function_shortcut(f'{ctrl}+Shift+C')
+            ),
+        )
+        refresh_permissions = account.Append(
+            wx.ID_ANY,
+            tr("&Refresh Spotify permissions..."),
+        )
+        sign_out = account.Append(wx.ID_ANY, tr(
+            "Sign &out and erase credentials"
+        ))
+        file_menu.AppendSubMenu(account, tr("Accoun&t"))
+        file_menu.AppendSeparator()
+        close = file_menu.Append(wx.ID_EXIT, tr("E&xit\tAlt+F4"))
         menu_bar.Append(file_menu, tr("&File"))
         edit = wx.Menu()
         select_all_label = (
@@ -6034,222 +7012,246 @@ class MainFrame(wx.Frame):
         self.paste_items_menu_item = paste_items
         menu_bar.Append(edit, tr("&Edit"))
         go = wx.Menu()
-        play_selected = go.Append(
-            wx.ID_ANY,
-            tr("&Play focused item") + menu_function_shortcut('F4'),
+        self.keyed_menu_items: list[tuple[wx.MenuItem, str, str]] = []
+
+        def add_item(
+            menu: wx.Menu,
+            label: str,
+            handler: Callable[[], None],
+            action_id: str = "",
+        ) -> wx.MenuItem:
+            menu_item = menu.Append(
+                wx.ID_ANY,
+                MainFrame.menu_label(self, label, action_id),
+            )
+            self.Bind(wx.EVT_MENU, lambda event: handler(), menu_item)
+            if action_id:
+                self.keyed_menu_items.append((menu_item, label, action_id))
+            return menu_item
+
+        add_item(
+            go, tr("&Play focused item"), self.play_selected, "play_focused"
         )
-        play_pause = go.Append(
-            wx.ID_ANY,
-            tr("&Pause or resume") + menu_function_shortcut('F7'),
+        add_item(
+            go,
+            tr("Pause or &resume"),
+            self.toggle_pause_resume,
+            "pause_resume",
         )
-        mute = go.Append(
-            wx.ID_ANY,
-            tr("&Mute or unmute"),
+        add_item(
+            go, tr("Pre&vious track"), self.previous_track, "previous_track"
         )
-        open_album = go.Append(
-            wx.ID_ANY,
-            (
-                tr("Open focused track's &album") + menu_function_shortcut(f'{ctrl}+RETURN')
-            ),
-        )
-        play_on_device = go.Append(
-            wx.ID_ANY,
-            (
-                tr("Choose playback &device...") + menu_function_shortcut(f'{ctrl}+Shift+D')
-            ),
-        )
-        sleep_menu = wx.Menu()
-        sleep_after_track = sleep_menu.Append(
-            wx.ID_ANY,
-            tr("After current &track"),
-        )
-        sleep_15 = sleep_menu.Append(wx.ID_ANY, tr("After &15 minutes"))
-        sleep_30 = sleep_menu.Append(wx.ID_ANY, tr("After &30 minutes"))
-        sleep_60 = sleep_menu.Append(wx.ID_ANY, tr("After &60 minutes"))
-        sleep_menu.AppendSeparator()
-        cancel_sleep = sleep_menu.Append(wx.ID_ANY, tr("&Cancel sleep timer"))
-        go.AppendSubMenu(
-            sleep_menu,
-            (
-                tr("Sleep ti&mer...") + menu_function_shortcut(f'{ctrl}+Shift+J')
-            ),
-        )
-        bookmark_position = go.Append(
-            wx.ID_ANY,
-            (
-                tr("Bookmark current &position") + menu_function_shortcut(f'{ctrl}+Shift+B')
-            ),
-        )
+        add_item(go, tr("&Next track"), self.next_track, "next_track")
         go.AppendSeparator()
-        previous_track = go.Append(
-            wx.ID_ANY,
-            tr("Pre&vious track") + menu_function_shortcut('F5'),
+
+        seek_menu = wx.Menu()
+        add_item(
+            seek_menu,
+            tr("Seek &backward 5 seconds"),
+            lambda: self.seek(-5000),
+            "seek_backward",
         )
-        next_track = go.Append(
-            wx.ID_ANY,
-            tr("&Next track") + menu_function_shortcut('F9'),
+        add_item(
+            seek_menu,
+            tr("Seek &forward 5 seconds"),
+            lambda: self.seek(5000),
+            "seek_forward",
         )
-        seek_backward = go.Append(
-            wx.ID_ANY,
-            tr("Seek &backward 5 seconds (F6)"),
+        add_item(
+            seek_menu,
+            tr("&Previous lyric section"),
+            lambda: self.jump_lyric_section(-1),
+            "previous_verse",
         )
-        seek_forward = go.Append(
-            wx.ID_ANY,
-            tr("Seek &forward 5 seconds (F8)"),
+        add_item(
+            seek_menu,
+            tr("&Next lyric section"),
+            lambda: self.jump_lyric_section(1),
+            "next_verse",
         )
-        speak_total = go.Append(
-            wx.ID_ANY,
-            (
-                tr("Speak &total time") + menu_function_shortcut(f'{ctrl}+Shift+T')
-            ),
+        add_item(
+            seek_menu,
+            tr("&Jump to time..."),
+            self.jump_to_time,
+            "jump_time",
         )
-        speak_elapsed = go.Append(
-            wx.ID_ANY,
-            (
-                tr("Speak &elapsed time") + menu_function_shortcut(f'{ctrl}+Shift+E')
-            ),
+        add_item(
+            seek_menu,
+            tr("Bookmark current p&osition"),
+            self.save_current_bookmark,
+            "bookmark_current",
         )
-        speak_remaining = go.Append(
-            wx.ID_ANY,
-            (
-                tr("Speak &remaining time") + menu_function_shortcut(f'{ctrl}+Shift+R')
-            ),
-        )
-        jump_to_time = go.Append(
-            wx.ID_ANY,
-            tr("&Jump to time...") + menu_function_shortcut(f'{ctrl}+J'),
-        )
-        speak_current = go.Append(
-            wx.ID_ANY,
-            (
-                tr("Speak current track") + menu_function_shortcut(f'{ctrl}+Shift+I')
-            ),
-        )
-        speak_up_next = go.Append(
-            wx.ID_ANY,
-            (
-                tr("Speak &up next") + menu_function_shortcut(f'{ctrl}+Shift+U')
-            ),
-        )
-        lyrics = go.Append(
-            wx.ID_ANY,
-            tr("L&yrics...") + menu_function_shortcut(f'{ctrl}+Y'),
-        )
-        repeat = go.Append(
-            wx.ID_ANY,
-            tr("&Repeat") + menu_function_shortcut(f'{ctrl}+R'),
-        )
-        shuffle = go.Append(
-            wx.ID_ANY,
-            tr("&Shuffle") + menu_function_shortcut(f'{ctrl}+S'),
-        )
-        volume_down = go.Append(
-            wx.ID_ANY,
+        go.AppendSubMenu(seek_menu, tr("S&eek and jump"))
+
+        volume_menu = wx.Menu()
+        add_item(
+            volume_menu,
             tr("Volume &down 5 percent"),
+            lambda: self.adjust_volume(-5),
+            "volume_down",
         )
-        volume_up = go.Append(
-            wx.ID_ANY,
+        add_item(
+            volume_menu,
             tr("Volume &up 5 percent"),
+            lambda: self.adjust_volume(5),
+            "volume_up",
         )
-        go.AppendSeparator()
-        queue_selected = go.Append(
-            wx.ID_ANY,
-            (
-                tr("Add marked items to &queue") + menu_function_shortcut(f'{ctrl}+Q')
-            ),
+        add_item(
+            volume_menu,
+            tr("&Mute or unmute"),
+            self.toggle_mute,
+            "toggle_mute",
         )
-        like_selected = go.Append(
-            wx.ID_ANY,
-            (
-                tr("&Like/unlike selected item") + menu_function_shortcut(f'{ctrl}+L')
-            ),
+        go.AppendSubMenu(volume_menu, tr("Vol&ume"))
+
+        speak_menu = wx.Menu()
+        add_item(
+            speak_menu,
+            tr("Speak &total time"),
+            lambda: self.announce_time("total"),
+            "speak_total",
         )
-        like_current = go.Append(
-            wx.ID_ANY,
-            (
-                tr("Like/unlike &now playing") + menu_function_shortcut(f'{ctrl}+Shift+L')
-            ),
+        add_item(
+            speak_menu,
+            tr("Speak &elapsed time"),
+            lambda: self.announce_time("elapsed"),
+            "speak_elapsed",
+        )
+        add_item(
+            speak_menu,
+            tr("Speak &remaining time"),
+            lambda: self.announce_time("remaining"),
+            "speak_remaining",
+        )
+        add_item(
+            speak_menu,
+            tr("Speak &current track"),
+            self.speak_current_track,
+            "speak_current",
+        )
+        add_item(
+            speak_menu,
+            tr("Speak &up next"),
+            self.speak_up_next,
+            "speak_up_next",
+        )
+        go.AppendSubMenu(speak_menu, tr("Spea&k"))
+
+        now_playing_menu = wx.Menu()
+        add_item(
+            now_playing_menu,
+            tr("What's this song &about?"),
+            self.show_current_song_story,
+            "song_story",
+        )
+        add_item(
+            now_playing_menu,
+            tr("Album and recording &information..."),
+            self.show_current_music_details,
+        )
+        add_item(
+            now_playing_menu,
+            tr("&Open album"),
+            self.open_current_album,
+            "open_current_album",
+        )
+        add_item(
+            now_playing_menu,
+            tr("&Lyrics..."),
+            self.show_lyrics,
+            "show_lyrics",
+        )
+        add_item(
+            now_playing_menu,
+            tr("Albums by a&rtist"),
+            self.show_current_artist_albums,
+        )
+        add_item(
+            now_playing_menu,
+            tr("Find &covers (MusicBrainz)"),
+            self.find_covers_for_current,
         )
         current_mix_menu = wx.Menu()
-        open_similar_current = current_mix_menu.Append(
-            wx.ID_ANY, tr("&Open for inspection")
-        )
-        start_similar_current = current_mix_menu.Append(
-            wx.ID_ANY, tr("Start &now")
-        )
-        queue_similar_current = current_mix_menu.Append(
-            wx.ID_ANY, tr("Add after current &queue")
-        )
-        go.AppendSubMenu(
+        add_item(
             current_mix_menu,
-            tr("Last.fm mix for now &playing"),
+            tr("&Open for inspection"),
+            self.open_similar_mix_for_current_track,
         )
-        add_to_playlist = go.Append(
-            wx.ID_ANY,
-            (
-                tr("Add selected to a pl&aylist...") + menu_function_shortcut(f'{ctrl}+Shift+A')
-            ),
+        add_item(
+            current_mix_menu,
+            tr("Start &now"),
+            self.start_similar_mix_for_current_track,
         )
-        selected_actions = go.Append(
-            wx.ID_ANY,
-            tr("Selected item &actions..."),
+        add_item(
+            current_mix_menu,
+            tr("Add after current &queue"),
+            self.queue_similar_mix_for_current_track,
         )
-        create_playlist = go.Append(
-            wx.ID_ANY,
-            (
-                tr("&New playlist...") + menu_function_shortcut(f'{ctrl}+Shift+N')
-            ),
+        now_playing_menu.AppendSubMenu(
+            current_mix_menu,
+            tr("Similar-track &mix (Last.fm)"),
         )
-        refresh_view = go.Append(
-            wx.ID_REFRESH,
-            (
-                tr("Refresh current &view") + menu_function_shortcut(f'{ctrl}+Shift+F')
-            ),
+        add_item(
+            now_playing_menu,
+            tr("Browse &genres (Last.fm)..."),
+            self.browse_genres_for_current,
         )
+        add_item(
+            now_playing_menu,
+            tr("Add to &playlist..."),
+            self.add_current_to_playlist,
+        )
+        add_item(
+            now_playing_menu,
+            tr("&Follow artist or author for new releases"),
+            self.follow_current_artist,
+        )
+        add_item(
+            now_playing_menu,
+            tr("Like or unlike &now playing"),
+            self.toggle_like_current_track,
+            "like_current",
+        )
+        go.AppendSubMenu(now_playing_menu, tr("Now pla&ying"))
         go.AppendSeparator()
-        open_liked = go.Append(
-            wx.ID_ANY,
-            tr("Open &Liked Songs") + menu_function_shortcut(f'{ctrl}+2'),
+
+        add_item(go, tr("Repea&t"), self.cycle_repeat, "cycle_repeat")
+        add_item(go, tr("&Shuffle"), self.toggle_shuffle, "toggle_shuffle")
+        add_item(
+            go,
+            tr("Choose playback &device..."),
+            self.choose_playback_device,
+            "choose_device",
         )
-        open_queue = go.Append(
-            wx.ID_ANY,
-            tr("Open &Queue") + menu_function_shortcut(f'{ctrl}+3'),
+        sleep_menu = wx.Menu()
+        add_item(
+            sleep_menu,
+            tr("After current &track"),
+            self.set_sleep_after_current_track,
         )
-        open_playlists = go.Append(
-            wx.ID_ANY,
-            tr("Open Playlists") + menu_function_shortcut(f'{ctrl}+4'),
+        add_item(
+            sleep_menu,
+            tr("After &15 minutes"),
+            lambda: self.set_sleep_timer(15),
         )
-        open_recent = go.Append(
-            wx.ID_ANY,
-            tr("Open Recently Played") + menu_function_shortcut(f'{ctrl}+5'),
+        add_item(
+            sleep_menu,
+            tr("After &30 minutes"),
+            lambda: self.set_sleep_timer(30),
         )
-        open_bookmarks = go.Append(
-            wx.ID_ANY,
-            tr("Open &Bookmarks") + menu_function_shortcut(f'{ctrl}+6'),
+        add_item(
+            sleep_menu,
+            tr("After &60 minutes"),
+            lambda: self.set_sleep_timer(60),
         )
-        open_audiobooks = go.Append(
-            wx.ID_ANY,
-            tr("Open &Audiobooks") + menu_function_shortcut(f'{ctrl}+7'),
+        sleep_menu.AppendSeparator()
+        add_item(
+            sleep_menu,
+            tr("&Cancel sleep timer"),
+            self.cancel_sleep_timer,
         )
-        open_podcasts = go.Append(
-            wx.ID_ANY,
-            tr("Open Pod&casts") + menu_function_shortcut(f'{ctrl}+8'),
-        )
-        open_saved_albums = go.Append(
-            wx.ID_ANY,
-            tr("Open Saved &Albums") + menu_function_shortcut(f'{ctrl}+9'),
-        )
-        open_new_music = go.Append(
-            wx.ID_ANY,
-            tr("Open &Discover") + menu_function_shortcut(f'{ctrl}+0'),
-        )
-        open_concerts = go.Append(
-            wx.ID_ANY,
-            (
-                tr("Open &Concerts") + menu_function_shortcut(f'{ctrl}+Shift+G')
-            ),
-        )
-        menu_bar.Append(go, tr("&Go"))
+        go.AppendSubMenu(sleep_menu, tr("S&leep timer..."))
+        menu_bar.Append(go, tr("&Playback"))
 
         view = wx.Menu()
         sort_menu = wx.Menu()
@@ -6284,32 +7286,15 @@ class MainFrame(wx.Frame):
             ),
             self.sort_descending_item,
         )
-        self.view_menu = view
-        menu_bar.Append(view, tr("&View"))
-
-        options = wx.Menu()
-        preferences = options.Append(
-            wx.ID_PREFERENCES,
-            tr("&Preferences...") + menu_function_shortcut(f'{ctrl}+,'),
-        )
-        account = wx.Menu()
-        connect = account.Append(
-            wx.ID_ANY,
+        view.AppendSeparator()
+        refresh_view = view.Append(
+            wx.ID_REFRESH,
             (
-                tr("&Connect to Spotify...") + menu_function_shortcut(f'{ctrl}+Shift+C')
+                tr("&Refresh current view") + menu_function_shortcut(f'{ctrl}+Shift+F')
             ),
         )
-        refresh_permissions = account.Append(
-            wx.ID_ANY,
-            tr("&Refresh Spotify permissions..."),
-        )
-        sign_out = account.Append(wx.ID_ANY, tr(
-            "Sign &out and erase credentials"
-        ))
-        options.AppendSubMenu(account, tr("&Account"))
-        options.AppendSeparator()
-        close = options.Append(wx.ID_EXIT, tr("E&xit\tAlt+F4"))
-        menu_bar.Append(options, tr("&Options"))
+        self.view_menu = view
+        menu_bar.Append(view, tr("&View"))
 
         help_menu = wx.Menu()
         manual = help_menu.Append(wx.ID_HELP, tr("&Manual"))
@@ -6350,158 +7335,6 @@ class MainFrame(wx.Frame):
             lambda event: self.paste_playlist_clipboard(),
             paste_items,
         )
-        self.Bind(wx.EVT_MENU, lambda event: self.play_selected(), play_selected)
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.toggle_pause_resume(),
-            play_pause,
-        )
-        self.Bind(wx.EVT_MENU, lambda event: self.toggle_mute(), mute)
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.open_selected_track_album(
-                self.current_selected_item()
-            ),
-            open_album,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.choose_playback_device(),
-            play_on_device,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.set_sleep_after_current_track(),
-            sleep_after_track,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.set_sleep_timer(15),
-            sleep_15,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.set_sleep_timer(30),
-            sleep_30,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.set_sleep_timer(60),
-            sleep_60,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.cancel_sleep_timer(),
-            cancel_sleep,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.save_current_bookmark(),
-            bookmark_position,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.previous_track(),
-            previous_track,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.next_track(),
-            next_track,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.seek(-5000),
-            seek_backward,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.seek(5000),
-            seek_forward,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.announce_time("total"),
-            speak_total,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.announce_time("elapsed"),
-            speak_elapsed,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.announce_time("remaining"),
-            speak_remaining,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.jump_to_time(),
-            jump_to_time,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.speak_current_track(),
-            speak_current,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.speak_up_next(),
-            speak_up_next,
-        )
-        self.Bind(wx.EVT_MENU, lambda event: self.show_lyrics(), lyrics)
-        self.Bind(wx.EVT_MENU, lambda event: self.cycle_repeat(), repeat)
-        self.Bind(wx.EVT_MENU, lambda event: self.toggle_shuffle(), shuffle)
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.adjust_volume(-5),
-            volume_down,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.adjust_volume(5),
-            volume_up,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.queue_command(),
-            queue_selected,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.toggle_like_selected(),
-            like_selected,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.toggle_like_current_track(),
-            like_current,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.open_similar_mix_for_current_track(),
-            open_similar_current,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.start_similar_mix_for_current_track(),
-            start_similar_current,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.queue_similar_mix_for_current_track(),
-            queue_similar_current,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.choose_playlist_for_selected(),
-            add_to_playlist,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.show_selected_actions(),
-            selected_actions,
-        )
         self.Bind(
             wx.EVT_MENU,
             lambda event: self.create_playlist(),
@@ -6512,27 +7345,15 @@ class MainFrame(wx.Frame):
             lambda event: self.refresh_current_view(),
             refresh_view,
         )
-        self.Bind(wx.EVT_MENU, lambda event: self.open_tab(1), open_liked)
-        self.Bind(wx.EVT_MENU, lambda event: self.open_tab(2), open_queue)
-        self.Bind(wx.EVT_MENU, lambda event: self.open_tab(3), open_playlists)
-        self.Bind(wx.EVT_MENU, lambda event: self.open_tab(4), open_recent)
-        self.Bind(wx.EVT_MENU, lambda event: self.open_tab(5), open_bookmarks)
-        self.Bind(wx.EVT_MENU, lambda event: self.open_tab(6), open_audiobooks)
-        self.Bind(wx.EVT_MENU, lambda event: self.open_tab(7), open_podcasts)
         self.Bind(
             wx.EVT_MENU,
-            lambda event: self.open_tab(8),
-            open_saved_albums,
+            lambda event: self.open_bookmarks_window(),
+            open_bookmarks,
         )
         self.Bind(
             wx.EVT_MENU,
-            lambda event: self.open_new_music_tab(),
-            open_new_music,
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            lambda event: self.open_concerts_tab(),
-            open_concerts,
+            lambda event: self.open_concerts_window(),
+            search_concerts,
         )
         self.Bind(wx.EVT_MENU, self.on_preferences, preferences)
         self.Bind(wx.EVT_MENU, self.on_connect, connect)
@@ -6548,6 +7369,12 @@ class MainFrame(wx.Frame):
             wx.EVT_MENU,
             lambda event: self.export_list_command(),
             export_list,
+        )
+        self.Bind(wx.EVT_MENU, lambda event: self.manage_carts(), manage_carts)
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.manage_followed_artists(),
+            followed_artists,
         )
         self.Bind(
             wx.EVT_MENU,
@@ -6605,21 +7432,35 @@ class MainFrame(wx.Frame):
         panel_names = {
             1: "liked",
             3: "playlists",
-            5: "bookmarks",
-            6: "audiobooks",
-            7: "podcasts",
-            8: "saved_albums",
-            9: "new_music",
+            5: "audiobooks",
+            6: "podcasts",
+            7: "saved_albums",
+            8: "new_music",
         }
         name = panel_names.get(self.notebook.GetSelection())
         return getattr(self, name, None) if name else None
 
+    def menu_label(self, label: str, action_id: str = "") -> str:
+        """A menu label followed by the action's current key, if it has one."""
+        keymap = getattr(self, "keymap", None)
+        if not action_id or not keymap:
+            return label
+        keys = [chord_display(chord) for chord in keymap.bindings(action_id)]
+        return f"{label} ({tr(' or ').join(keys)})" if keys else label
+
+    def refresh_menu_key_labels(self) -> None:
+        for menu_item, label, action_id in getattr(
+            self, "keyed_menu_items", ()
+        ):
+            menu_item.SetItemLabel(MainFrame.menu_label(self, label, action_id))
+
     def on_menu_open(self, event: wx.MenuEvent) -> None:
         event.Skip()
+        MainFrame.refresh_menu_key_labels(self)
         if event.GetMenu() is self.edit_menu:
             page = self.notebook.GetSelection()
             self.select_all_item.Enable(
-                page != 9 or self.new_music.result_mode == "chart"
+                page != 8 or self.new_music.result_mode == "chart"
             )
             current_list = self.current_item_list()
             self.copy_items_menu_item.Enable(current_list is not None)
@@ -6690,8 +7531,10 @@ class MainFrame(wx.Frame):
         success: Callable[[object], None],
         *,
         failure: Callable[[], None] | None = None,
+        error_parent: wx.Window | None = None,
+        requires_spotify: bool = True,
     ) -> None:
-        if not self.spotify.connected:
+        if requires_spotify and not self.spotify.connected:
             if failure:
                 failure()
             self.say(msg.CONNECT_FIRST)
@@ -6707,6 +7550,8 @@ class MainFrame(wx.Frame):
                     PlaylistContentsUnavailable,
                     LyricsUnavailable,
                     CoversUnavailable,
+                    SongStoryUnavailable,
+                    UKChartError,
                 )
                 if isinstance(error, expected_unavailable):
                     logger.info(
@@ -6740,11 +7585,16 @@ class MainFrame(wx.Frame):
                             PlaylistContentsUnavailable,
                             LyricsUnavailable,
                             CoversUnavailable,
+                            SongStoryUnavailable,
+                            UKChartError,
                         ),
                     ):
                         self.say(caught_message)
                     else:
-                        self.show_error(caught_message)
+                        if error_parent is None:
+                            self.show_error(caught_message)
+                        else:
+                            self.show_error(caught_message, error_parent)
 
                 wx.CallAfter(report_error)
             else:
@@ -6795,6 +7645,7 @@ class MainFrame(wx.Frame):
             token.get("client_id"),
             settings.get("ticketmaster_api_key"),
             settings.get("lastfm_api_key"),
+            settings.get("deepl_api_key"),
         ]
         return [str(value) for value in values if value]
 
@@ -6831,6 +7682,9 @@ class MainFrame(wx.Frame):
                 ),
                 "Last.fm key": (
                     "custom" if settings.get("lastfm_api_key") else "built-in default"
+                ),
+                "DeepL key": (
+                    "set" if settings.get("deepl_api_key") else "not set"
                 ),
             },
             connected=bool(self.spotify.connected),
@@ -7059,6 +7913,22 @@ class MainFrame(wx.Frame):
             language=str(
                 settings.get("language") or i18n.DEFAULT_LANGUAGE_SETTING
             ),
+            announce_lyric_sections=bool(
+                settings.get("announce_lyric_sections", False)
+            ),
+            announce_volume_changes=bool(
+                settings.get("announce_volume_changes", True)
+            ),
+            announce_cart_names=bool(
+                settings.get("announce_cart_names", True)
+            ),
+            check_followed_on_start=bool(
+                settings.get("check_followed_on_start", True)
+            ),
+            deepl_api_key=str(settings.get("deepl_api_key") or ""),
+            lyrics_translation_language=str(
+                settings.get("lyrics_translation_language") or ""
+            ),
         )
         if dialog.ShowModal() == wx.ID_OK:
             # Keyboard Manager can save globals while Preferences is open.
@@ -7077,6 +7947,22 @@ class MainFrame(wx.Frame):
             settings["announce_track_changes"] = (
                 self.announce_track_changes
             )
+            self.announce_lyric_sections = (
+                dialog.get_announce_lyric_sections()
+            )
+            settings["announce_lyric_sections"] = (
+                self.announce_lyric_sections
+            )
+            self.announce_volume_changes = (
+                dialog.get_announce_volume_changes()
+            )
+            settings["announce_volume_changes"] = (
+                self.announce_volume_changes
+            )
+            self.announce_cart_names = dialog.get_announce_cart_names()
+            settings["announce_cart_names"] = self.announce_cart_names
+            self.check_followed_on_start = dialog.get_check_followed_on_start()
+            settings["check_followed_on_start"] = self.check_followed_on_start
             self.resume_mode = dialog.get_resume_mode()
             settings["resume_mode"] = self.resume_mode
             ticketmaster_api_key = dialog.get_ticketmaster_api_key()
@@ -7085,10 +7971,16 @@ class MainFrame(wx.Frame):
             lastfm_api_key = dialog.get_lastfm_api_key()
             settings["lastfm_api_key"] = lastfm_api_key
             self.lastfm.api_key = lastfm_api_key
-            self.concerts.classifications_loaded = False
-            self.concerts.update_api_key_status()
-            if self.notebook.GetSelection() == 10:
-                self.concerts.ensure_classifications()
+            deepl_api_key = dialog.get_deepl_api_key()
+            translation_language = dialog.get_lyrics_translation_language()
+            settings["deepl_api_key"] = deepl_api_key
+            settings["lyrics_translation_language"] = translation_language
+            self.deepl.api_key = deepl_api_key
+            self.deepl.target_language = translation_language
+            concerts = getattr(self.concerts_dialog, "panel", None)
+            if concerts:
+                concerts.classifications_loaded = False
+                concerts.update_api_key_status()
             settings.pop("resume_last_track", None)
             self.store.write("settings.json", settings)
             if self.resume_mode == "none":
@@ -7302,8 +8194,6 @@ class MainFrame(wx.Frame):
         selection = getattr(event, "GetSelection", lambda: -1)()
         if old_selection == 0 and selection != 0:
             self.discard_transient_open_album()
-        if selection == 10:
-            wx.CallAfter(self.concerts.ensure_classifications)
         if selection >= 0:
             self.set_view_title(self.title_for_page(selection))
         else:
@@ -7347,15 +8237,8 @@ class MainFrame(wx.Frame):
         ):
             return False
         simple_actions = {
+            **TRANSPORT_KEY_ACTIONS,
             "show_manual": ("on_manual", ()),
-            "seek_backward": ("seek", (-5000,)),
-            "seek_forward": ("seek", (5000,)),
-            "previous_track": ("previous_track", ()),
-            "pause_resume": ("toggle_pause_resume", ()),
-            "next_track": ("next_track", ()),
-            "toggle_mute": ("toggle_mute", ()),
-            "volume_down": ("adjust_volume", (-5,)),
-            "volume_up": ("adjust_volume", (5,)),
             "preferences": ("on_preferences", ()),
             "speak_total": ("announce_time", ("total",)),
             "speak_elapsed": ("announce_time", ("elapsed",)),
@@ -7370,6 +8253,8 @@ class MainFrame(wx.Frame):
             "cycle_repeat": ("cycle_repeat", ()),
             "toggle_shuffle": ("toggle_shuffle", ()),
             "like_current": ("toggle_like_current_track", ()),
+            "song_story": ("show_current_song_story", ()),
+            "open_current_album": ("open_current_album", ()),
             "bookmark_current": ("save_current_bookmark", ()),
             "new_playlist": ("create_playlist", ()),
             "item_actions": ("show_selected_actions", ()),
@@ -7387,10 +8272,7 @@ class MainFrame(wx.Frame):
             getattr(self, method_name)(*arguments)
             return True
         if action == "play_focused":
-            if focused_list:
-                self.play_selected()
-            else:
-                self.say(msg.NO_SONG_SELECTED)
+            self.play_focused_or_remembered(focused_list)
             return True
         if action in {"cycle_tabs", "cycle_tabs_backward"}:
             direction = -1 if action == "cycle_tabs_backward" else 1
@@ -7411,13 +8293,17 @@ class MainFrame(wx.Frame):
             "open_queue": 2,
             "open_playlists": 3,
             "open_recent": 4,
-            "open_bookmarks": 5,
-            "open_audiobooks": 6,
-            "open_podcasts": 7,
-            "open_saved_albums": 8,
-            "open_new_music": 9,
-            "open_concerts": 10,
+            "open_audiobooks": 5,
+            "open_podcasts": 6,
+            "open_saved_albums": 7,
+            "open_new_music": 8,
         }
+        if action == "open_bookmarks":
+            self.open_bookmarks_window()
+            return True
+        if action == "open_concerts":
+            self.open_concerts_window()
+            return True
         if action in tab_actions:
             page = tab_actions[action]
             if page == 0:
@@ -7425,10 +8311,8 @@ class MainFrame(wx.Frame):
             self.notebook.SetSelection(page)
             if page == 0:
                 self.search.focus_query()
-            elif page == 9:
+            elif page == 8:
                 self.new_music.discovery_source.SetFocus()
-            elif page == 10:
-                self.concerts.keyword.SetFocus()
             return True
         if not focused_list:
             return False
@@ -7441,7 +8325,7 @@ class MainFrame(wx.Frame):
             )
             if (
                 notebook is None
-                or notebook.GetSelection() != 9
+                or notebook.GetSelection() != 8
                 or discover_allows_selection
             ):
                 focused_list.select_all_items()
@@ -7465,6 +8349,26 @@ class MainFrame(wx.Frame):
         key = event.GetKeyCode()
         focused = wx.Window.FindFocus()
         focused_list = item_list_ancestor(focused)
+        if (
+            event.AltDown()
+            and not event.ShiftDown()
+            and not physical_control_down(event)
+            and ord("1") <= key <= ord("9")
+        ):
+            self.use_cart_number(key - ord("0"))
+            return
+        if (
+            not event.AltDown()
+            and not event.ShiftDown()
+            and not physical_control_down(event)
+            and key in (ord("["), ord("]"))
+            and self.current_player_item
+        ):
+            if key == ord("["):
+                self.mark_cart_start()
+            else:
+                self.mark_cart_end()
+            return
         if MainFrame.dispatch_mapped_key(self, event, focused, focused_list):
             return
         keymap = getattr(self, "keymap", None)
@@ -7489,7 +8393,7 @@ class MainFrame(wx.Frame):
         if key == wx.WXK_F1:
             self.on_manual()
         elif (
-            key == wx.WXK_F4
+            key == wx.WXK_F7
             and playback_adjustment_modifier_down(event)
         ):
             self.toggle_mute()
@@ -7499,17 +8403,14 @@ class MainFrame(wx.Frame):
             and not event.ShiftDown()
             and not physical_control_down(event)
         ):
-            if focused_list:
-                self.play_selected()
-            else:
-                self.say(msg.NO_SONG_SELECTED)
+            self.play_focused_or_remembered(focused_list)
         elif (
-            key == wx.WXK_F5
+            key == wx.WXK_F4
             and playback_adjustment_modifier_down(event)
         ):
             self.adjust_volume(-5)
         elif (
-            key == wx.WXK_F6
+            key == wx.WXK_F5
             and playback_adjustment_modifier_down(event)
         ):
             self.adjust_volume(5)
@@ -7667,8 +8568,6 @@ class MainFrame(wx.Frame):
                 self.playlists.on_open()
             elif focused_list is self.recently_played.items:
                 self.recently_played.on_open()
-            elif focused_list is self.bookmarks.items:
-                self.bookmarks.on_open()
             elif focused_list is self.audiobooks.items:
                 self.audiobooks.on_open()
             elif focused_list is self.podcasts.items:
@@ -7677,8 +8576,6 @@ class MainFrame(wx.Frame):
                 self.saved_albums.on_open()
             elif focused_list is self.new_music.items:
                 self.new_music.on_open()
-            elif focused_list is self.concerts.items:
-                self.concerts.on_open()
             else:
                 event.Skip()
         elif physical_control_down(event) and key in (ord("F"), ord("f")):
@@ -7692,17 +8589,23 @@ class MainFrame(wx.Frame):
             and event.ShiftDown()
             and key in (ord("G"), ord("g"))
         ):
-            self.open_concerts_tab()
-        elif physical_control_down(event) and not event.ShiftDown() and (
-            key == ord("0") or ord("1") <= key <= ord("9")
+            self.open_concerts_window()
+        elif (
+            physical_control_down(event)
+            and not event.ShiftDown()
+            and key in (ord("B"), ord("b"))
         ):
-            page = 9 if key == ord("0") else key - ord("1")
+            self.open_bookmarks_window()
+        elif physical_control_down(event) and not event.ShiftDown() and (
+            ord("1") <= key <= ord("9")
+        ):
+            page = key - ord("1")
             if page == 0:
                 self.discard_transient_open_album()
             self.notebook.SetSelection(page)
             if page == 0:
                 self.search.focus_query()
-            elif page == 9:
+            elif page == 8:
                 self.new_music.discovery_source.SetFocus()
         elif event.AltDown() and key == wx.WXK_LEFT:
             if self.notebook.GetSelection() == 0 and self.search.go_back():
@@ -7830,16 +8733,10 @@ class MainFrame(wx.Frame):
         elif page == 5:
             controls = [
                 self.notebook,
-                self.bookmarks.items,
-                getattr(self.bookmarks, "filter", None),
-            ]
-        elif page == 6:
-            controls = [
-                self.notebook,
                 self.audiobooks.items,
                 getattr(self.audiobooks, "filter", None),
             ]
-        elif page == 7:
+        elif page == 6:
             controls = [
                 self.notebook,
                 self.podcasts.browse_category,
@@ -7850,17 +8747,23 @@ class MainFrame(wx.Frame):
                 getattr(self.podcasts, "filter", None),
                 getattr(self.podcasts, "listening_status_filter", None),
             ]
-        elif page == 8:
+        elif page == 7:
             controls = [
                 self.notebook,
                 self.saved_albums.items,
                 getattr(self.saved_albums, "filter", None),
             ]
-        elif page == 9:
+        elif page == 8:
             controls = [
                 self.notebook,
                 self.new_music.discovery_source,
+                getattr(self.new_music, "history_chart", None),
+                getattr(self.new_music, "number_ones_country", None),
                 self.new_music.release_types,
+                getattr(self.new_music, "number_ones_order", None),
+                getattr(self.new_music, "genre", None),
+                getattr(self.new_music, "release_window", None),
+                getattr(self.new_music, "keyword", None),
                 self.new_music.chart_country,
                 getattr(self.new_music, "chart_date", None),
                 self.new_music.search_button,
@@ -7868,19 +8771,7 @@ class MainFrame(wx.Frame):
                 getattr(self.new_music, "filter", None),
             ]
         else:
-            controls = [
-                self.notebook,
-                self.concerts.keyword,
-                self.concerts.country,
-                self.concerts.state,
-                self.concerts.city,
-                self.concerts.category,
-                self.concerts.genre,
-                self.concerts.start_date,
-                self.concerts.end_date,
-                self.concerts.search_button,
-                self.concerts.items,
-            ]
+            controls = [self.notebook]
         now_playing = getattr(self, "now_playing", None)
         if now_playing:
             controls.append(now_playing.items)
@@ -7932,6 +8823,238 @@ class MainFrame(wx.Frame):
         if item.duration_ms:
             position_ms = min(position_ms, item.duration_ms)
         return max(0, position_ms)
+
+    def mark_cart_start(self) -> None:
+        item = self.current_player_item
+        if not item or item.kind != ItemKind.TRACK:
+            self.say(tr("Play a song before marking a cart."))
+            return
+        self.request_cart_position(item, self.finish_mark_cart_start)
+
+    def request_cart_position(
+        self,
+        item: SpotifyItem,
+        callback: Callable[[SpotifyItem, int], None],
+    ) -> None:
+        """Ask the player for its position now instead of extrapolating.
+
+        The extrapolated position trails the real one by however long the last
+        state report took to arrive, so cart marks would land early.
+        """
+        estimate = self.playback_position_ms(item.id)
+
+        def finish(state: object) -> None:
+            position = estimate
+            reported = self.item_from_player_state(state) if state else None
+            if (
+                isinstance(state, dict)
+                and reported
+                and reported.id == item.id
+                and state.get("progress_ms") is not None
+            ):
+                position = max(0, int(state["progress_ms"]))
+                if item.duration_ms:
+                    position = min(position, item.duration_ms)
+                logger.info(
+                    "Cart position fresh_ms=%s estimated_ms=%s",
+                    position,
+                    estimate,
+                )
+            if position is not None:
+                callback(item, position)
+
+        if self.using_local_player():
+            self.player.request_playback_state(finish)
+        else:
+            self.run_task(None, self.spotify.playback_state, finish)
+
+    def finish_mark_cart_start(self, item: SpotifyItem, position: int) -> None:
+        self.cart_start = (item, position)
+        self.pending_cart = None
+        self.say(tr("Cart start {position}.").format(position=self.format_time(position)))
+
+    def mark_cart_end(self) -> None:
+        item = self.current_player_item
+        if not self.cart_start:
+            self.say(tr("Mark the cart start with left bracket first."))
+            return
+        start_item, start_ms = self.cart_start
+        if not item or item.id != start_item.id:
+            self.cart_start = None
+            self.say(tr("The song changed. Mark the cart start again."))
+            return
+        self.request_cart_position(
+            item,
+            lambda item, end_ms: self.finish_mark_cart_end(
+                start_item, start_ms, end_ms
+            ),
+        )
+
+    def finish_mark_cart_end(
+        self,
+        start_item: SpotifyItem,
+        start_ms: int,
+        end_ms: int,
+    ) -> None:
+        if end_ms <= start_ms:
+            self.say(tr("The cart end must be after its start."))
+            return
+        self.pending_cart = (start_item, start_ms, end_ms)
+        self.say(tr("Cart end {position}. Press Alt plus 1 through 9 to assign it.").format(position=self.format_time(end_ms)))
+
+    def use_cart_number(self, number: int) -> None:
+        if self.pending_cart:
+            item, start_ms, end_ms = self.pending_cart
+            self.carts[number] = Cart(
+                number, item.id, item.uri, item.name, item.artist, item.album,
+                item.duration_ms, start_ms, end_ms,
+            )
+            self.store.write("carts.json", dump_carts(self.carts))
+            self.cart_start = None
+            self.pending_cart = None
+            self.say(tr("Cart {number} assigned to {name}, {duration}.").format(
+                number=number, name=item.name,
+                duration=self.format_time(end_ms - start_ms),
+            ))
+            return
+        self.play_cart(number)
+
+    def play_cart(self, number: int) -> None:
+        cart = self.carts.get(number)
+        if not cart:
+            self.say(tr("Cart {number} is empty.").format(number=number))
+            return
+        self.playing_cart = cart
+        self.playing_cart_armed = False
+        self.cart_timer.Start(25)
+        if (
+            self.using_local_player()
+            and self.player.ready
+            and not getattr(self, "pending_transfer_device", None)
+            and not getattr(self, "pending_resume", None)
+        ):
+            # Ask the player what it really has loaded: the song shown as
+            # current may only be a remembered one, which nothing can seek.
+            self.player.request_playback_state(
+                lambda state: self.start_cart_playback(cart, state)
+            )
+        else:
+            self.play_from_lyric(cart.item, cart.start_ms)
+        if getattr(self, "announce_cart_names", True):
+            self.say(
+                tr("Playing cart {number}: {name}.").format(
+                    number=number,
+                    name=cart.name,
+                )
+            )
+
+    def start_cart_playback(self, cart: Cart, state: dict) -> None:
+        if self.playing_cart is not cart:
+            return
+        loaded = (state.get("item") or {}).get("id")
+        if loaded == cart.track_id:
+            # The song is already loaded, so seeking in place avoids the
+            # Web API play round trip and track reload that add the lag.
+            self.player.seek_and_play(cart.start_ms)
+        else:
+            self.play_from_lyric(cart.item, cart.start_ms)
+
+    def on_cart_timer(self, event: wx.TimerEvent) -> None:
+        cart = self.playing_cart
+        if not cart:
+            self.cart_timer.Stop()
+            return
+        position = self.playback_position_ms(cart.track_id)
+        if position is None:
+            return
+        self.playing_cart_armed, should_stop = cart_cutoff_state(
+            cart,
+            position,
+            self.playing_cart_armed,
+        )
+        if not should_stop:
+            return
+        if self.repeat_state == "track":
+            self.playing_cart_armed = False
+            self.loop_cart(cart)
+            return
+        if self.repeat_state == "context":
+            next_number = next_cart_number(self.carts, cart.number)
+            if next_number is not None:
+                self.play_cart(next_number)
+                return
+        self.playing_cart = None
+        self.cart_timer.Stop()
+        self.pause_phrase_playback(cart.track_id)
+
+    def loop_cart(self, cart: Cart) -> None:
+        device_id = self.player_device_id()
+        if not device_id:
+            self.playing_cart = None
+            self.cart_timer.Stop()
+            return
+        if self.using_local_player():
+            self.player.seek_to(cart.start_ms)
+            return
+        self.run_task(
+            None,
+            lambda: self.spotify.seek_to(cart.start_ms, device_id),
+            lambda position: logger.info(
+                "Looped cart %d to %d ms",
+                cart.number,
+                position,
+            ),
+        )
+
+    def manage_carts(self) -> None:
+        dialog = wx.Dialog(
+            self,
+            title=tr("Manage Carts"),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        panel = wx.Panel(dialog)
+        layout = wx.BoxSizer(wx.VERTICAL)
+        layout.Add(wx.StaticText(panel, label=tr("Carts 1 through 9")), 0, wx.ALL, 8)
+        choices = []
+        for number in range(1, 10):
+            cart = self.carts.get(number)
+            description = (
+                f"{cart.name} — {self.format_time(cart.start_ms)} to {self.format_time(cart.end_ms)}"
+                if cart else tr("Empty")
+            )
+            choices.append(tr("Cart {number}: {description}").format(number=number, description=description))
+        carts_list = wx.ListBox(panel, choices=choices)
+        carts_list.SetSelection(0)
+        layout.Add(carts_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
+        buttons = wx.BoxSizer(wx.HORIZONTAL)
+        preview = wx.Button(panel, label=tr("&Preview"))
+        clear = wx.Button(panel, label=tr("&Clear"))
+        close = wx.Button(panel, wx.ID_CLOSE, tr("&Close"))
+        for button in (preview, clear, close):
+            buttons.Add(button, 0, wx.ALL, 5)
+        layout.Add(buttons, 0, wx.ALIGN_RIGHT | wx.ALL, 3)
+        panel.SetSizer(layout)
+        outer = wx.BoxSizer(wx.VERTICAL)
+        outer.Add(panel, 1, wx.EXPAND)
+        dialog.SetSizerAndFit(outer)
+        dialog.SetMinSize((520, 330))
+
+        def selected_number() -> int:
+            return carts_list.GetSelection() + 1
+
+        def clear_selected(event: wx.CommandEvent) -> None:
+            number = selected_number()
+            self.carts.pop(number, None)
+            self.store.write("carts.json", dump_carts(self.carts))
+            carts_list.SetString(number - 1, tr("Cart {number}: Empty").format(number=number))
+            self.say(tr("Cart {number} cleared.").format(number=number))
+
+        preview.Bind(wx.EVT_BUTTON, lambda event: self.play_cart(selected_number()))
+        clear.Bind(wx.EVT_BUTTON, clear_selected)
+        close.Bind(wx.EVT_BUTTON, lambda event: dialog.EndModal(wx.ID_CLOSE))
+        carts_list.Bind(wx.EVT_LISTBOX_DCLICK, lambda event: self.play_cart(selected_number()))
+        dialog.ShowModal()
+        dialog.Destroy()
 
     def current_track_is_paused(self, track_id: str) -> bool:
         live_item = self.current_player_state.get("item") or {}
@@ -8542,14 +9665,12 @@ class MainFrame(wx.Frame):
         if page == 4:
             return self.recently_played.items.selected_item()
         if page == 5:
-            return self.bookmarks.items.selected_item()
-        if page == 6:
             return self.audiobooks.items.selected_item()
-        if page == 7:
+        if page == 6:
             return self.podcasts.items.selected_item()
-        if page == 8:
+        if page == 7:
             return self.saved_albums.items.selected_item()
-        if page == 9:
+        if page == 8:
             return self.new_music.items.selected_item()
         return None
 
@@ -8564,11 +9685,10 @@ class MainFrame(wx.Frame):
             2: ("queue", "items"),
             3: ("playlists", "items"),
             4: ("recently_played", "items"),
-            5: ("bookmarks", "items"),
-            6: ("audiobooks", "items"),
-            7: ("podcasts", "items"),
-            8: ("saved_albums", "items"),
-            9: ("new_music", "items"),
+            5: ("audiobooks", "items"),
+            6: ("podcasts", "items"),
+            7: ("saved_albums", "items"),
+            8: ("new_music", "items"),
         }
         names = panel_names.get(page)
         if not names:
@@ -8584,7 +9704,7 @@ class MainFrame(wx.Frame):
         new_music = getattr(self, "new_music", None)
         if (
             notebook is not None
-            and notebook.GetSelection() == 9
+            and notebook.GetSelection() == 8
             and getattr(new_music, "result_mode", "releases") != "chart"
         ):
             return
@@ -8593,6 +9713,15 @@ class MainFrame(wx.Frame):
             return
         target.select_all_items()
         self.say(msg.selected_count(len(target.GetSelections())))
+
+    def play_focused_or_remembered(self, focused_list: ItemList | None) -> None:
+        """F4: play the focused item, else the song remembered from last time."""
+        if focused_list:
+            self.play_selected()
+        elif getattr(self, "pending_resume", None):
+            self.toggle_playback()
+        else:
+            self.say(msg.NO_SONG_SELECTED)
 
     def play_selected(self) -> None:
         item = self.current_selected_item()
@@ -8626,17 +9755,14 @@ class MainFrame(wx.Frame):
             )
         ):
             self.deferred_queue_start_item = item
-        if page == 5:
-            self.resume_bookmark(item)
-            return
         if (
-            page == 6
+            page == 5
             and item.kind == ItemKind.CHAPTER
         ):
             self.play_audiobook_chapter(item)
             return
         if (
-            page == 7
+            page == 6
             and item.kind == ItemKind.EPISODE
         ):
             self.play_playable_item(item)
@@ -8794,7 +9920,8 @@ class MainFrame(wx.Frame):
         settings = self.store.read("settings.json", {}) or {}
         settings["playback_volume_percent"] = volume
         self.store.write("settings.json", settings)
-        self.say(f"{volume}%.")
+        if getattr(self, "announce_volume_changes", True):
+            self.say(f"{volume}%.")
 
     def toggle_mute(self) -> None:
         if self.remote_device_id and self.remote_supports_volume is False:
@@ -8983,6 +10110,83 @@ class MainFrame(wx.Frame):
             completed,
         )
 
+    def jump_lyric_section(self, direction: int) -> None:
+        item = self.current_player_item
+        if not item or item.kind != ItemKind.TRACK:
+            self.say(msg.NOTHING_PLAYING)
+            return
+        cached = self.lyric_sections
+        if cached and cached[0] == item.id:
+            self.finish_jump_lyric_section(item, cached[1], direction)
+            return
+
+        def loaded(lyrics: Lyrics) -> None:
+            starts = section_starts(
+                lyrics.synced_lines,
+                lyrics.synced_breaks,
+                lyrics.text,
+            )
+            self.lyric_sections = (item.id, starts)
+            current = self.current_player_item
+            if current and current.id == item.id:
+                self.finish_jump_lyric_section(item, starts, direction)
+
+        recent = getattr(self, "recent_lyrics", None)
+        if recent and recent[0] == item.id:
+            loaded(recent[1])
+            return
+
+        self.run_task(
+            msg.GETTING_LYRICS,
+            lambda: self.lyrics_for_item(item),
+            loaded,
+        )
+
+    def finish_jump_lyric_section(
+        self,
+        item: SpotifyItem,
+        starts: list[int],
+        direction: int,
+    ) -> None:
+        if not starts:
+            self.say(msg.SYNCED_LYRICS_UNAVAILABLE)
+            return
+        position_ms = self.playback_position_ms(item.id)
+        if position_ms is None:
+            self.say(msg.NOTHING_PLAYING)
+            return
+        adjustment_ms = self.lyric_adjustment_ms(item.id)
+        starts = [max(0, start - adjustment_ms) for start in starts]
+        index = section_target(starts, position_ms, direction)
+        if index is None:
+            self.say(
+                tr("No later section.")
+                if direction > 0
+                else tr("No earlier section.")
+            )
+            return
+        self.seek_to_position(starts[index])
+        if getattr(self, "announce_lyric_sections", False):
+            self.say(
+                tr("Section {number} of {total}.").format(
+                    number=index + 1,
+                    total=len(starts),
+                )
+            )
+
+    def seek_to_position(self, position_ms: int) -> None:
+        device_id = self.player_device_id()
+        if not device_id:
+            return
+        if self.using_local_player():
+            self.player.seek_to(position_ms)
+            return
+        self.run_task(
+            None,
+            lambda: self.spotify.seek_to(position_ms, device_id),
+            lambda position: logger.info("Jumped to %d ms", position),
+        )
+
     def jump_to_time(self) -> None:
         dialog = wx.TextEntryDialog(
             self,
@@ -9073,63 +10277,7 @@ class MainFrame(wx.Frame):
         return items
 
     def load_recently_played(self) -> list[SpotifyItem]:
-        spotify_items = self.spotify.recently_played()
-        records = self.store.read("recently_played.json", []) or []
-        local_items = []
-        if isinstance(records, list):
-            for record in records:
-                if not isinstance(record, dict) or not record.get("id"):
-                    continue
-                try:
-                    kind = ItemKind(record.get("kind", ItemKind.TRACK))
-                except ValueError:
-                    kind = ItemKind.TRACK
-                raw = dict(record.get("raw") or {})
-                raw["played_at_label"] = tr("played recently in BlindSpot")
-                local_items.append(
-                    SpotifyItem(
-                        id=str(record["id"]),
-                        kind=kind,
-                        name=str(record.get("name") or "Untitled"),
-                        artist=str(record.get("artist") or ""),
-                        album=str(record.get("album") or ""),
-                        duration_ms=int(record.get("duration_ms") or 0),
-                        uri=str(record.get("uri") or ""),
-                        raw=raw,
-                    )
-                )
-        merged = []
-        seen = set()
-        for item in [*local_items, *spotify_items]:
-            key = item.uri or f"{item.kind}:{item.id}"
-            if key in seen:
-                continue
-            seen.add(key)
-            merged.append(item)
-        return merged[:50]
-
-    def remember_recently_played(self, item: SpotifyItem) -> None:
-        record = {
-            "id": item.id,
-            "kind": item.kind.value,
-            "name": item.name,
-            "artist": item.artist,
-            "album": item.album,
-            "duration_ms": item.duration_ms,
-            "uri": item.uri,
-            "raw": item.raw,
-        }
-        records = self.store.read("recently_played.json", []) or []
-        if not isinstance(records, list):
-            records = []
-        records = [
-            existing
-            for existing in records
-            if not isinstance(existing, dict)
-            or str(existing.get("uri") or "") != item.uri
-        ]
-        records.insert(0, record)
-        self.store.write("recently_played.json", records[:50])
+        return self.spotify.recently_played()
 
     def save_current_bookmark(self) -> None:
         if self.using_local_player():
@@ -9167,11 +10315,6 @@ class MainFrame(wx.Frame):
             records = []
         records.insert(0, record)
         self.store.write("bookmarks.json", records)
-        bookmarked_item = self.bookmark_item_from_record(record)
-        if self.bookmarks.loaded_once and bookmarked_item:
-            items = [bookmarked_item, *self.bookmarks.items.items]
-            self.bookmarks.items.set_items(items)
-            self.bookmarks.status.SetLabel(msg.item_count(len(items)))
         self.say(msg.bookmark_saved(self.format_time(position_ms)))
 
     def delete_bookmark(self, item: SpotifyItem) -> None:
@@ -9312,18 +10455,27 @@ class MainFrame(wx.Frame):
             lambda position: logger.info("Restarted current track"),
         )
 
-    def open_tab(self, index: int) -> None:
-        self.notebook.SetSelection(index)
-        self.notebook.SetFocus()
+    def open_bookmarks_window(self) -> None:
+        if self.bookmarks_dialog is None:
+            self.bookmarks_dialog = HostedPanelDialog(
+                self,
+                tr("Bookmarks"),
+                lambda parent: BookmarksPanel(parent, self),
+            )
+        panel = self.bookmarks_dialog.panel
+        panel.refresh()
+        self.bookmarks_dialog.present(panel.items)
 
-    def open_new_music_tab(self) -> None:
-        self.notebook.SetSelection(9)
-        self.new_music.discovery_source.SetFocus()
-
-    def open_concerts_tab(self) -> None:
-        self.notebook.SetSelection(10)
-        self.concerts.ensure_classifications()
-        self.concerts.keyword.SetFocus()
+    def open_concerts_window(self) -> None:
+        if self.concerts_dialog is None:
+            self.concerts_dialog = HostedPanelDialog(
+                self,
+                tr("Search for concerts"),
+                lambda parent: ConcertsPanel(parent, self),
+            )
+        panel = self.concerts_dialog.panel
+        panel.ensure_classifications()
+        self.concerts_dialog.present(panel.keyword)
 
     def show_selected_actions(self) -> None:
         now_playing = getattr(self, "now_playing", None)
@@ -9339,12 +10491,10 @@ class MainFrame(wx.Frame):
             self.queue,
             self.playlists,
             self.recently_played,
-            self.bookmarks,
             self.audiobooks,
             self.podcasts,
             self.saved_albums,
             getattr(self, "new_music", None),
-            getattr(self, "concerts", None),
         )
         if 0 <= page < len(panels):
             panels[page].on_context_menu()
@@ -9756,13 +10906,27 @@ class MainFrame(wx.Frame):
             return
         self.apply_playback_update(state)
 
+    @staticmethod
+    def report_transit_seconds(state: dict) -> float:
+        """Time since the web player sampled its position, if it says when."""
+        sent_at_ms = state.get("sent_at_ms")
+        if not isinstance(sent_at_ms, (int, float)):
+            return 0.0
+        return min(2.0, max(0.0, (time.time() * 1000 - sent_at_ms) / 1000))
+
     def apply_playback_update(self, state: dict) -> None:
         state = dict(state)
         if not state.get("context_uri"):
             context = state.get("context") or {}
             state["context_uri"] = context.get("uri", "")
         self.current_player_state = state
-        self.playback_state_updated_at = time.monotonic()
+        logger.debug(
+            "Playback update item=%s playing=%s progress_ms=%s",
+            (state.get("item") or {}).get("id"),
+            state.get("is_playing"),
+            state.get("progress_ms"),
+        )
+        self.playback_state_updated_at = time.monotonic() - self.report_transit_seconds(state)
         self.current_player_item = self.item_from_player_state(state)
         MainFrame.update_now_playing(self, self.current_player_item)
         self.apply_pending_lyric_seek()
@@ -9790,8 +10954,6 @@ class MainFrame(wx.Frame):
             if is_new_track:
                 self.set_view_title(self.current_player_item.name)
                 self.update_continuous_similar_mix(self.current_player_item)
-            if is_new_track and state.get("is_playing"):
-                self.remember_recently_played(self.current_player_item)
             suppress_announcement = (
                 self.current_player_item.id
                 == self.suppress_track_announcement_id
@@ -9923,6 +11085,7 @@ class MainFrame(wx.Frame):
         self.unregister_global_hotkeys()
         self.remote_refresh_timer.Stop()
         self.sleep_timer.Stop()
+        self.cart_timer.Stop()
         if self.player:
             self.player.close()
             self.player = None
@@ -10177,12 +11340,10 @@ class MainFrame(wx.Frame):
             self.queue,
             self.playlists,
             self.recently_played,
-            self.bookmarks,
             self.audiobooks,
             self.podcasts,
             self.saved_albums,
             getattr(self, "new_music", None),
-            getattr(self, "concerts", None),
         )
         panels[page].items.SetFocus()
         return True
@@ -10384,6 +11545,52 @@ class MainFrame(wx.Frame):
                 (
                     menu.Append(wx.ID_ANY, tr("Find &covers (MusicBrainz)")),
                     lambda: self.find_covers_for(item),
+                )
+            )
+            actions.append(
+                (
+                    menu.Append(wx.ID_ANY, tr("&What's this song about?")),
+                    lambda: self.show_song_story(item),
+                )
+            )
+        if (
+            item.kind in (ItemKind.TRACK, ItemKind.ALBUM)
+            and not item.raw.get("unresolved")
+        ):
+            actions.append(
+                (
+                    menu.Append(
+                        wx.ID_ANY,
+                        tr("Album and recording &information..."),
+                    ),
+                    lambda: self.show_music_details(item),
+                )
+            )
+        follow_name, follow_kind = MainFrame.follow_target(item)
+        if follow_name and item.kind in (
+            ItemKind.TRACK,
+            ItemKind.ALBUM,
+            ItemKind.ARTIST,
+            ItemKind.AUDIOBOOK,
+            ItemKind.CHAPTER,
+        ):
+            following = self.followed.is_following(follow_name, follow_kind)
+            if follow_kind == AUTHOR:
+                label = (
+                    tr("Stop following author {artist} for &new releases")
+                    if following
+                    else tr("Follow author {artist} for &new releases")
+                )
+            else:
+                label = (
+                    tr("Stop following {artist} for &new releases")
+                    if following
+                    else tr("Follow {artist} for &new releases")
+                )
+            actions.append(
+                (
+                    menu.Append(wx.ID_ANY, label.format(artist=follow_name)),
+                    lambda: self.toggle_follow_artist(follow_name, follow_kind),
                 )
             )
         if item.raw.get("lastfm_url"):
@@ -10686,6 +11893,436 @@ class MainFrame(wx.Frame):
         )
         return ChartResults(items, feed.country, feed.fetched_at, media_type)
 
+    @staticmethod
+    def apple_release_rows(
+        entries: list, kind: ItemKind
+    ) -> list[SpotifyItem]:
+        items = []
+        for position, entry in enumerate(entries, start=1):
+            released = released_on(entry.release_date)
+            note = (
+                tr("released {release_date}").format(
+                    release_date=msg.long_date(released)
+                )
+                if released
+                else ""
+            )
+            items.append(
+                SpotifyItem(
+                    f"apple:{entry.apple_id or position}",
+                    (
+                        ItemKind.AUDIOBOOK
+                        if getattr(entry, "kind", "album") == "audiobook"
+                        else kind
+                    ),
+                    entry.name,
+                    artist=entry.artist,
+                    raw={
+                        "unresolved": True,
+                        "list_note": note,
+                        "chart_url": entry.url,
+                    },
+                )
+            )
+        return items
+
+    def followed_pairs(self, kind: str) -> list[tuple[str, str]]:
+        return [(a.name, a.apple_id) for a in self.followed.of_kind(kind)]
+
+    def followed_release_results(self, country: str, days: int) -> ChartResults:
+        """Recent Apple releases by followed artists and authors."""
+        feed, artist_ids, author_ids = self.applemusic.followed_releases(
+            country,
+            self.followed_pairs(ARTIST),
+            self.followed_pairs(AUTHOR),
+            days=days,
+        )
+        self.followed.remember_apple_ids(artist_ids, ARTIST)
+        self.followed.remember_apple_ids(author_ids, AUTHOR)
+        window = (
+            ntr(
+                "released in the last {days} day",
+                "released in the last {days} days",
+                days,
+            ).format(days=days)
+            if days
+            else tr("of any age")
+        )
+        detail = tr(
+            "Releases by followed artists and authors in {country}, "
+            "{window}, newest first"
+        ).format(country=country_name(feed.country), window=window)
+        return ChartResults(
+            self.apple_release_rows(feed.entries, ItemKind.ALBUM),
+            feed.country,
+            feed.fetched_at,
+            "new_releases",
+            detail=detail,
+        )
+
+    @staticmethod
+    def follow_target(item: SpotifyItem) -> tuple[str, str]:
+        """The name to follow for an item, and whether it is an artist or author."""
+        if item.kind in (ItemKind.AUDIOBOOK, ItemKind.CHAPTER):
+            return primary_artist(item.artist), AUTHOR
+        if item.kind == ItemKind.ARTIST:
+            return item.name.strip(), ARTIST
+        return primary_artist(item.artist), ARTIST
+
+    @staticmethod
+    def item_artist_name(item: SpotifyItem) -> str:
+        return MainFrame.follow_target(item)[0]
+
+    def toggle_follow_artist(self, name: str, kind: str = ARTIST) -> None:
+        name = primary_artist(name)
+        if not name:
+            self.say(tr("This item has no artist to follow."))
+        elif self.followed.is_following(name, kind):
+            self.followed.unfollow(name, kind)
+            self.say(tr("Stopped following {artist}.").format(artist=name))
+        else:
+            self.followed.follow(name, kind)
+            self.say(
+                (
+                    tr(
+                        "Following author {artist} for new releases. Find "
+                        "them under Discover, Followed artists and authors."
+                    )
+                    if kind == AUTHOR
+                    else tr(
+                        "Following {artist} for new releases. Find them "
+                        "under Discover, Followed artists and authors."
+                    )
+                ).format(artist=name)
+            )
+
+    def follow_current_artist(self) -> None:
+        item = self.current_player_item
+        if not item or not item.artist:
+            self.say(msg.NOTHING_PLAYING)
+            return
+        name, kind = MainFrame.follow_target(item)
+        self.toggle_follow_artist(name, kind)
+
+    def check_followed_releases(self) -> None:
+        """At start-up, quietly look for releases by followed artists."""
+        if not (
+            self.check_followed_on_start
+            and self.followed.artists
+            and self.spotify.connected
+        ):
+            return
+        artists = self.followed_pairs(ARTIST)
+        authors = self.followed_pairs(AUTHOR)
+
+        def look() -> None:
+            try:
+                try:
+                    country = (
+                        self.spotify.account_country()
+                        or DEFAULT_CHART_COUNTRY
+                    )
+                except Exception:
+                    country = DEFAULT_CHART_COUNTRY
+                feed, artist_ids, author_ids = (
+                    self.applemusic.followed_releases(
+                        country, artists, authors, days=FOLLOWED_CHECK_DAYS
+                    )
+                )
+            except Exception:
+                logger.exception("Followed artists check failed")
+                return
+            wx.CallAfter(
+                self.finish_followed_check, feed, artist_ids, author_ids
+            )
+
+        threading.Thread(
+            target=look, name="BlindSpotFollowedCheck", daemon=True
+        ).start()
+
+    def finish_followed_check(
+        self,
+        feed,
+        artist_ids: dict[str, str],
+        author_ids: dict[str, str] | None = None,
+    ) -> None:
+        self.followed.remember_apple_ids(artist_ids, ARTIST)
+        self.followed.remember_apple_ids(author_ids or {}, AUTHOR)
+        fresh_ids = set(
+            self.followed.unseen([entry.apple_id for entry in feed.entries])
+        )
+        fresh = [entry for entry in feed.entries if entry.apple_id in fresh_ids]
+        logger.info(
+            "Followed artists check releases=%d new=%d",
+            len(feed.entries),
+            len(fresh),
+        )
+        if not fresh:
+            return
+        self.followed.mark_seen([entry.apple_id for entry in fresh])
+        first = fresh[0]
+        self.say(
+            ntr(
+                "{count} new release from followed artists and authors: "
+                "{name} by {artist}. Open Discover, Followed artists and "
+                "authors to see it.",
+                "{count} new releases from followed artists and authors, "
+                "including {name} by {artist}. Open Discover, Followed "
+                "artists and authors to see them.",
+                len(fresh),
+            ).format(count=len(fresh), name=first.name, artist=first.artist)
+        )
+
+    def manage_followed_artists(self) -> None:
+        dialog = wx.Dialog(
+            self,
+            title=tr("Followed artists and authors"),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        panel = wx.Panel(dialog)
+        layout = wx.BoxSizer(wx.VERTICAL)
+        layout.Add(
+            wx.StaticText(
+                panel,
+                label=tr("Checked for new releases"),
+            ),
+            0,
+            wx.ALL,
+            8,
+        )
+        entries = list(self.followed.artists)
+
+        def label(artist) -> str:
+            return (
+                tr("{name}, author").format(name=artist.name)
+                if artist.kind == AUTHOR
+                else artist.name
+            )
+
+        artists_list = wx.ListBox(
+            panel, choices=[label(artist) for artist in entries]
+        )
+        artists_list.SetName(tr("Followed artists and authors"))
+        if entries:
+            artists_list.SetSelection(0)
+        layout.Add(artists_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
+        buttons = wx.BoxSizer(wx.HORIZONTAL)
+        remove = wx.Button(panel, label=tr("&Stop following"))
+        close = wx.Button(panel, wx.ID_CLOSE, tr("&Close"))
+        for button in (remove, close):
+            buttons.Add(button, 0, wx.ALL, 5)
+        layout.Add(buttons, 0, wx.ALIGN_RIGHT | wx.ALL, 3)
+        panel.SetSizer(layout)
+        outer = wx.BoxSizer(wx.VERTICAL)
+        outer.Add(panel, 1, wx.EXPAND)
+        dialog.SetSizerAndFit(outer)
+        dialog.SetMinSize((460, 320))
+        silence_labels(panel, keep=())
+
+        def remove_selected(event: wx.CommandEvent) -> None:
+            index = artists_list.GetSelection()
+            if index == wx.NOT_FOUND:
+                return
+            artist = entries.pop(index)
+            self.followed.unfollow(artist.name, artist.kind)
+            artists_list.Delete(index)
+            if artists_list.GetCount():
+                artists_list.SetSelection(min(index, artists_list.GetCount() - 1))
+            self.say(tr("Stopped following {artist}.").format(artist=artist.name))
+
+        remove.Bind(wx.EVT_BUTTON, remove_selected)
+        close.Bind(wx.EVT_BUTTON, lambda event: dialog.EndModal(wx.ID_CLOSE))
+        dialog.SetEscapeId(wx.ID_CLOSE)
+        wx.CallAfter(artists_list.SetFocus)
+        dialog.ShowModal()
+        dialog.Destroy()
+
+    def open_audiobook(self, item: SpotifyItem) -> None:
+        """Show an audiobook's chapters in the Audiobooks tab."""
+        self.notebook.SetSelection(5)
+        self.audiobooks.loading = True
+        self.run_task(
+            None,
+            lambda: self.spotify.audiobook_chapters(item),
+            lambda chapters: self.finish_open_audiobook(item, chapters),
+            failure=self.audiobooks.finish_load_error,
+        )
+
+    def finish_open_audiobook(
+        self, item: SpotifyItem, chapters: list[SpotifyItem]
+    ) -> None:
+        self.audiobooks.show_chapters(item, chapters)
+        self.audiobooks.items.SetFocus()
+
+    def new_release_results(
+        self,
+        country: str,
+        media_type: str,
+        genre: str,
+        days: int,
+        keyword: str,
+    ) -> ChartResults:
+        """Recent Apple releases as rows, with no Spotify lookups."""
+        feed = self.applemusic.new_releases(
+            country,
+            media_type=media_type,
+            genre=genre,
+            days=days,
+            keyword=keyword,
+        )
+        # A keyword lists releases (singles included), so its rows are albums.
+        kind = (
+            ItemKind.TRACK
+            if media_type == "songs" and not keyword
+            else ItemKind.ALBUM
+        )
+        items = self.apple_release_rows(feed.entries, kind)
+        place = country_name(feed.country)
+        window = (
+            ntr(
+                "released in the last {days} day",
+                "released in the last {days} days",
+                days,
+            ).format(days=days)
+            if days
+            else tr("of any age")
+        )
+        if keyword:
+            detail = tr(
+                "Apple Music releases matching {keyword} in {country}, "
+                "{window}, newest first"
+            ).format(keyword=keyword, country=place, window=window)
+        else:
+            genre_name = tr(
+                next(name for code, name in GENRES if code == genre)
+            )
+            detail = tr(
+                "{genre} {media} in {country} from Apple's iTunes Store "
+                "chart, {window}, newest first"
+            ).format(
+                genre=genre_name if genre else tr("Any genre"),
+                media=tr("songs") if media_type == "songs" else tr("albums"),
+                country=place,
+                window=window,
+            )
+        logger.info(
+            "Apple Music new releases country=%s media=%s genre=%s days=%s "
+            "keyword=%r entries=%d",
+            feed.country,
+            media_type,
+            genre,
+            days,
+            keyword,
+            len(items),
+        )
+        return ChartResults(
+            items,
+            feed.country,
+            feed.fetched_at,
+            "new_releases",
+            detail=detail,
+        )
+
+    def number_ones_results(
+        self,
+        country: str,
+        kind: str,
+        year: int | None,
+        day: date | None,
+        by_weeks: bool,
+    ) -> ChartResults:
+        """Number ones for a year, or for the week containing a date."""
+        songs = kind == UK_SINGLES
+        item_kind = ItemKind.TRACK if songs else ItemKind.ALBUM
+        which = tr("singles") if songs else tr("albums")
+        rows: list[SpotifyItem] = []
+        if year is not None:
+            for position, entry in enumerate(
+                self.numberones.year(country, kind, year, by_weeks=by_weeks),
+                start=1,
+            ):
+                in_year = ntr(
+                    "{weeks} week at number one in {year}",
+                    "{weeks} weeks at number one in {year}",
+                    MainFrame.week_count(entry.weeks_in_year),
+                ).format(weeks=weeks_text(entry.weeks_in_year), year=year)
+                if entry.total_weeks != entry.weeks_in_year:
+                    in_year += tr(", {weeks} in total").format(
+                        weeks=weeks_text(entry.total_weeks)
+                    )
+                rows.append(
+                    SpotifyItem(
+                        f"{country.lower()}:{kind}:{year}:{position}",
+                        item_kind,
+                        entry.title,
+                        artist=entry.artist,
+                        raw={
+                            "unresolved": True,
+                            "list_note": in_year,
+                            "resolve_artists": artist_candidates(entry.artist),
+                            "resolve_titles": title_candidates(entry.title),
+                        },
+                    )
+                )
+            detail = tr(
+                "{country} number one {which} of {year}, {order}"
+            ).format(
+                country=country_name(country),
+                which=which,
+                year=year,
+                order=(
+                    tr("most weeks at number one first")
+                    if by_weeks
+                    else tr("in date order")
+                ),
+            )
+        else:
+            run = self.numberones.week(country, kind, day)
+            if run:
+                note = ntr(
+                    "{weeks} week at number one from {date}",
+                    "{weeks} weeks at number one from {date}",
+                    MainFrame.week_count(run.weeks),
+                ).format(
+                    weeks=weeks_text(run.weeks),
+                    date=msg.long_date(run.first_week),
+                )
+                rows.append(
+                    SpotifyItem(
+                        f"{country.lower()}:{kind}:{run.first_week.isoformat()}",
+                        item_kind,
+                        run.title,
+                        artist=run.artist,
+                        raw={
+                            "unresolved": True,
+                            "list_note": note,
+                            "resolve_artists": artist_candidates(run.artist),
+                            "resolve_titles": title_candidates(run.title),
+                        },
+                    )
+                )
+            detail = tr(
+                "{country} number one {which} for the week of {date}"
+            ).format(
+                country=country_name(country),
+                which=which,
+                date=msg.long_date(day),
+            )
+        logger.info(
+            "Number ones country=%s kind=%s year=%s day=%s rows=%d",
+            country,
+            kind,
+            year,
+            day,
+            len(rows),
+        )
+        return ChartResults(rows, country, 0.0, "number_ones", detail=detail)
+
+    @staticmethod
+    def week_count(weeks: float) -> int:
+        """A count that picks the right plural form for whole or half weeks."""
+        return int(weeks) if weeks == int(weeks) else 2
+
     def historical_chart_results(self, requested: date) -> ChartResults:
         chart = self.historical_charts.chart_for_date(requested)
         items = [
@@ -10711,9 +12348,19 @@ class MainFrame(wx.Frame):
         )
 
     def resolve_track_row(self, row: SpotifyItem) -> SpotifyItem | None:
-        if row.kind == ItemKind.ALBUM:
-            return self.spotify.find_album(row.name, row.artist)
-        return self.spotify.find_track(row.name, row.artist)
+        if row.kind == ItemKind.AUDIOBOOK:
+            return self.spotify.find_audiobook(row.name, row.artist)
+        find = (
+            self.spotify.find_album
+            if row.kind == ItemKind.ALBUM
+            else self.spotify.find_track
+        )
+        for title in row.raw.get("resolve_titles") or [row.name]:
+            for artist in row.raw.get("resolve_artists") or [row.artist]:
+                found = find(title, artist)
+                if found:
+                    return found
+        return None
 
     def resolve_then(
         self,
@@ -11271,6 +12918,88 @@ class MainFrame(wx.Frame):
         item = self.current_track_for_similar_mix()
         if item:
             self.queue_similar_mix(item)
+
+    def current_track(self) -> SpotifyItem | None:
+        item = self.current_player_item
+        if not item or item.kind != ItemKind.TRACK:
+            self.say(msg.NOTHING_PLAYING)
+            return None
+        return item
+
+    def show_current_song_story(self) -> None:
+        item = self.current_track()
+        if item:
+            self.show_song_story(item)
+
+    def open_current_album(self) -> None:
+        item = self.current_track()
+        if item:
+            self.open_album_for_track(item)
+
+    def show_current_artist_albums(self) -> None:
+        item = self.current_track()
+        if not item:
+            return
+        for artist in item.raw.get("artists") or []:
+            artist_id = str(artist.get("id") or "")
+            artist_name = str(artist.get("name") or "")
+            if artist_id and artist_name:
+                self.show_artist_albums(artist_id, artist_name)
+                return
+        self.say(tr("This track has no artist to show."))
+
+    def find_covers_for_current(self) -> None:
+        item = self.current_track()
+        if item:
+            self.find_covers_for(item)
+
+    def browse_genres_for_current(self) -> None:
+        item = self.current_track()
+        if item:
+            self.browse_genres_for(item)
+
+    def add_current_to_playlist(self) -> None:
+        item = self.current_track()
+        if item:
+            self.choose_playlist_for_item(item)
+
+    def show_song_story(self, item: SpotifyItem) -> None:
+        """Explain a track using its English Wikipedia article, if it has one."""
+        self.run_task(
+            tr("Looking up {name} on Wikipedia.").format(name=item.name),
+            lambda: self.wikipedia.song_story(item.name, item.artist),
+            lambda story: self.finish_song_story(item, story),
+        )
+
+    def show_current_music_details(self) -> None:
+        item = self.current_track()
+        if item:
+            self.show_music_details(item)
+
+    def show_music_details(self, item: SpotifyItem) -> None:
+        self.run_task(
+            tr("Loading album and recording information for {name}").format(
+                name=item.name
+            ),
+            lambda: self.spotify.music_details(item),
+            lambda details: self.finish_music_details(item, details),
+        )
+
+    def finish_music_details(self, item: SpotifyItem, details: dict) -> None:
+        text = music_details_text(details)
+        if not text:
+            self.say(
+                tr("No additional album or recording information was found.")
+            )
+            return
+        dialog = MusicDetailsDialog(self, item.name, text)
+        dialog.ShowModal()
+        dialog.Destroy()
+
+    def finish_song_story(self, item: SpotifyItem, story: SongStory) -> None:
+        dialog = SongStoryDialog(self, item, story)
+        dialog.ShowModal()
+        dialog.Destroy()
 
     def find_covers_for(self, item: SpotifyItem) -> None:
         """List other artists' versions of a track, using MusicBrainz."""

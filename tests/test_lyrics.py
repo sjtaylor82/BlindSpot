@@ -4,7 +4,7 @@ import unittest
 import urllib.error
 from unittest.mock import patch
 
-from blindspot.lyrics import LRCLibClient, LyricsUnavailable
+from blindspot.lyrics import LRCLibClient, LyricsError, LyricsUnavailable
 from blindspot.models import ItemKind, SpotifyItem
 
 
@@ -239,6 +239,45 @@ class LRCLibClientTests(unittest.TestCase):
         self.assertEqual(lyrics.track_name, "Example Song")
         self.assertEqual(lyrics.synced_lines, [(1_000, "First line")])
         self.assertIn("track_name=Example+Song", urlopen.call_args.args[0].full_url)
+
+
+class LRCLibRetryTests(unittest.TestCase):
+    @patch("blindspot.lyrics.time.sleep")
+    def test_503_waits_and_retries_once(self, sleep):
+        error = urllib.error.HTTPError(
+            "https://lrclib.net/api/search",
+            503,
+            "busy",
+            {"Retry-After": "3"},
+            io.BytesIO(),
+        )
+        client = LRCLibClient()
+        with patch.object(
+            client,
+            "_fetch",
+            side_effect=[error, [{"trackName": "Song"}]],
+        ) as fetch:
+            result = client._request("/search", {"track_name": "Song"})
+
+        self.assertEqual(result, [{"trackName": "Song"}])
+        self.assertEqual(fetch.call_count, 2)
+        sleep.assert_called_once_with(3.0)
+
+    @patch("blindspot.lyrics.time.sleep")
+    def test_a_second_503_is_reported_without_more_retries(self, sleep):
+        error = urllib.error.HTTPError(
+            "https://lrclib.net/api/search",
+            503,
+            "busy",
+            {},
+            io.BytesIO(),
+        )
+        client = LRCLibClient()
+        with patch.object(client, "_fetch", side_effect=[error, error]):
+            with self.assertRaisesRegex(LyricsError, "503"):
+                client._request("/search", {"track_name": "Song"})
+
+        sleep.assert_called_once_with(2.0)
 
 
 if __name__ == "__main__":

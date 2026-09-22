@@ -1,19 +1,25 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
+import threading
+import time
 import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
+from statistics import median
 from typing import Any
 
 from . import __version__
 from .models import SpotifyItem
 from . import messages as msg
 from .network import TLS_CONTEXT
+
+logger = logging.getLogger(__name__)
 
 API_ROOT = "https://lrclib.net/api"
 USER_AGENT = f"BlindSpot/{__version__} (accessible Spotify client)"
@@ -42,6 +48,10 @@ INSTRUMENTAL_SUFFIX = re.compile(
 TITLE_DIVIDER = re.compile(r"\s*(?::|[,;]|[–—]|\s+-\s+)\s*")
 TITLE_WORD = re.compile(r"[^\W_]+|\d+", re.UNICODE)
 MOVEMENT_TITLE_SIMILARITY = 0.88
+SECTION_SILENCE_MS = 4_000
+SECTION_UNMARKED_GAP_MS = 8_000
+SECTION_NEAR_MS = 250
+SECTION_RESTART_MS = 2_000
 
 
 class LyricsError(RuntimeError):
@@ -62,9 +72,15 @@ class Lyrics:
     track_id: str = ""
     synced_lines: list[tuple[int, str]] = field(default_factory=list)
     substitute: bool = False
+    synced_breaks: list[int] = field(default_factory=list)
+    translated_text: str = ""
+    translated_language: str = ""
 
 
 class LRCLibClient:
+    def __init__(self) -> None:
+        self._request_lock = threading.Lock()
+
     def lyrics_for(self, item: SpotifyItem) -> Lyrics:
         if not item.name or not item.artist:
             raise LyricsUnavailable(msg.NOT_ENOUGH_LYRIC_INFO)
@@ -163,12 +179,32 @@ class LRCLibClient:
             },
         )
         try:
-            with urllib.request.urlopen(
-                request,
-                timeout=15,
-                context=TLS_CONTEXT,
-            ) as response:
-                return json.loads(response.read().decode("utf-8"))
+            with self._request_lock:
+                for attempt in range(2):
+                    try:
+                        return self._fetch(request)
+                    except TimeoutError:
+                        if attempt == 0:
+                            continue
+                        raise
+                    except urllib.error.HTTPError as error:
+                        if error.code != 503 or attempt != 0:
+                            raise
+                        retry_after = (
+                            error.headers.get("Retry-After")
+                            if error.headers
+                            else None
+                        )
+                        try:
+                            delay = float(retry_after) if retry_after else 2.0
+                        except ValueError:
+                            delay = 2.0
+                        delay = max(0.5, min(delay, 5.0))
+                        logger.info(
+                            "LRCLIB returned 503; retrying once in %.1f seconds",
+                            delay,
+                        )
+                        time.sleep(delay)
         except urllib.error.HTTPError as error:
             if error.code == 404 and missing_ok:
                 return None
@@ -183,6 +219,15 @@ class LRCLibClient:
             raise LyricsError(msg.lrclib_error(error.code)) from error
         except (OSError, ValueError) as error:
             raise LyricsError(msg.LYRICS_RETRIEVAL_FAILED) from error
+
+    @staticmethod
+    def _fetch(request: urllib.request.Request) -> Any:
+        with urllib.request.urlopen(
+            request,
+            timeout=15,
+            context=TLS_CONTEXT,
+        ) as response:
+            return json.loads(response.read().decode("utf-8"))
 
     @staticmethod
     def _best_match(
@@ -236,6 +281,7 @@ class LRCLibClient:
             synced=bool(synced),
             instrumental=instrumental,
             synced_lines=_synced_lines(synced),
+            synced_breaks=_synced_breaks(synced),
         )
 
 
@@ -306,17 +352,113 @@ def _plain_from_synced(value: str) -> str:
     return "\n".join(lines)
 
 
-def _synced_lines(value: str) -> list[tuple[int, str]]:
+def _timed_lines(value: str) -> list[tuple[int, str]]:
     lines = []
     for line in value.splitlines():
         match = SYNCED_LINE.match(line)
         if not match:
             continue
         minutes, seconds, fraction, text = match.groups()
-        if not text.strip():
-            continue
         milliseconds = (int(minutes) * 60 + int(seconds)) * 1000
         if fraction:
             milliseconds += int((fraction + "000")[:3])
         lines.append((milliseconds, text.strip()))
     return lines
+
+
+def _synced_lines(value: str) -> list[tuple[int, str]]:
+    return [(ms, text) for ms, text in _timed_lines(value) if text]
+
+
+def _synced_breaks(value: str) -> list[int]:
+    """Timestamps of empty timed lines, which mark where the singing stops."""
+    return [ms for ms, text in _timed_lines(value) if not text]
+
+
+def section_starts(
+    lines: list[tuple[int, str]],
+    breaks: list[int] | tuple[int, ...] = (),
+    text: str = "",
+) -> list[int]:
+    """Start times of the lyric sections (verses, choruses) in a song.
+
+    When the plain lyrics separate stanzas with blank lines, those stanzas are
+    matched to the timed lines. Otherwise a section begins after a gap in the
+    vocals. When the lyrics mark where a
+    line stops singing, the silence before the next line is measured directly.
+    Otherwise a section begins where the spacing between two lines is much
+    longer than the song's usual line spacing.
+    """
+    if not lines:
+        return []
+    stanzas = _stanza_starts(lines, text)
+    if stanzas:
+        return stanzas
+    starts = [lines[0][0]]
+    spacings = [later[0] - earlier[0] for earlier, later in zip(lines, lines[1:])]
+    typical = median(spacings) if spacings else 0
+    unmarked_gap = max(SECTION_UNMARKED_GAP_MS, 2 * typical)
+    for (previous_ms, _), (start_ms, _) in zip(lines, lines[1:]):
+        stops = [stop for stop in breaks if previous_ms < stop < start_ms]
+        if stops:
+            is_break = start_ms - min(stops) >= SECTION_SILENCE_MS
+        else:
+            is_break = start_ms - previous_ms >= unmarked_gap
+        if is_break:
+            starts.append(start_ms)
+    return starts
+
+
+def _stanza_starts(
+    lines: list[tuple[int, str]],
+    text: str,
+) -> list[int] | None:
+    """Section starts from the blank lines between stanzas in ``text``."""
+    entries: list[tuple[str, bool]] = []
+    after_blank = False
+    for row in text.splitlines():
+        if not row.strip():
+            after_blank = bool(entries)
+            continue
+        entries.append((_normalized(row), after_blank))
+        after_blank = False
+    if not any(starts_stanza for _, starts_stanza in entries):
+        return None
+    starts = [lines[0][0]]
+    position = 0
+    matched = 0
+    for wanted, starts_stanza in entries:
+        for index in range(position, min(position + 3, len(lines))):
+            if _normalized(lines[index][1]) != wanted:
+                continue
+            if starts_stanza and index > 0:
+                starts.append(lines[index][0])
+            position = index + 1
+            matched += 1
+            break
+    if matched < 0.8 * min(len(entries), len(lines)):
+        return None
+    return sorted(set(starts))
+
+
+def section_target(
+    starts: list[int],
+    position_ms: int,
+    direction: int,
+) -> int | None:
+    """Index of the section to jump to from ``position_ms``, if there is one."""
+    if direction > 0:
+        return next(
+            (
+                index
+                for index, start in enumerate(starts)
+                if start > position_ms + SECTION_NEAR_MS
+            ),
+            None,
+        )
+    earlier = [
+        index
+        for index, start in enumerate(starts)
+        if start < position_ms - SECTION_RESTART_MS
+    ]
+    return earlier[-1] if earlier else None
