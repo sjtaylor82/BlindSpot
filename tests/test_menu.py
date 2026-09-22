@@ -94,7 +94,14 @@ class MenuBarTests(unittest.TestCase):
         ]
         self.assertIn("Preferences...", file_labels)
         self.assertIn("Account", file_labels)
-        self.assertIn("Exit", file_labels)
+        exit_items = [
+            item
+            for item in titles["File"].GetMenuItems()
+            if item.GetId() == wx.ID_EXIT
+        ]
+        self.assertEqual(len(exit_items), 1)
+        # wx follows the native macOS convention and displays ID_EXIT as Quit.
+        self.assertIn(exit_items[0].GetItemLabelText(), {"Exit", "Quit"})
 
     def test_keys_are_shown_from_the_keymap(self):
         self.assertEqual(

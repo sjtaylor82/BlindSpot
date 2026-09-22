@@ -7675,10 +7675,11 @@ class LyricsKeyboardTests(unittest.TestCase):
             },
         )()
 
-        LyricsDialog.on_text_key(
-            dialog,
-            self.Event(ui.wx.WXK_DOWN, alt=True),
-        )
+        with patch("blindspot.ui.sys.platform", "win32"):
+            LyricsDialog.on_text_key(
+                dialog,
+                self.Event(ui.wx.WXK_DOWN, alt=True),
+            )
 
         self.assertEqual(moved, [("caret", 10), ("show", 10)])
         self.assertEqual(started, [(item, 5_000)])
@@ -7725,10 +7726,11 @@ class LyricsKeyboardTests(unittest.TestCase):
             },
         )()
 
-        LyricsDialog.on_text_key(
-            dialog,
-            self.Event(ui.wx.WXK_UP, alt=True),
-        )
+        with patch("blindspot.ui.sys.platform", "win32"):
+            LyricsDialog.on_text_key(
+                dialog,
+                self.Event(ui.wx.WXK_UP, alt=True),
+            )
 
         self.assertEqual(moved, [("caret", 0), ("show", 0)])
         self.assertEqual(started, [(item, 1_000)])
