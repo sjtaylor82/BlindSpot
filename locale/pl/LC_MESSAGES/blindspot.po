@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: BlindSpot 2026.9.3\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-09-23 07:26+1000\n"
+"POT-Creation-Date: 2026-09-23 14:51+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: BlindSpot contributors\n"
 "Language: pl\n"
@@ -15,6 +15,18 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
+
+#: blindspot/abcclassic.py
+msgid "The ABC Classic 100 archive could not be read."
+msgstr ""
+
+#: blindspot/abcclassic.py
+msgid "That ABC Classic 100 countdown was not found."
+msgstr ""
+
+#: blindspot/abcclassic.py
+msgid "The ABC Classic 100 archive could not be reached."
+msgstr ""
 
 #: blindspot/applemusic.py
 msgid "Indonesia"
@@ -535,8 +547,8 @@ msgid "What's this song about?"
 msgstr "O czym jest ten utwór?"
 
 #: blindspot/keymap.py
-msgid "Open album of current track"
-msgstr "Otwórz album bieżącego utworu"
+msgid "Open album of focused or current track"
+msgstr ""
 
 #: blindspot/keymap.py
 msgid "Retrieve lyrics"
@@ -1967,6 +1979,18 @@ msgstr "Kanał podcastu jest niedostępny."
 msgid "Episode download unavailable."
 msgstr "Pobieranie odcinka jest niedostępne."
 
+#: blindspot/rnbooks.py
+msgid "The ABC Radio National book countdown could not be read."
+msgstr ""
+
+#: blindspot/rnbooks.py
+msgid "The complete ABC Radio National book countdown was not found."
+msgstr ""
+
+#: blindspot/rnbooks.py
+msgid "The ABC Radio National book countdown could not be reached."
+msgstr ""
+
 #: blindspot/spotify.py
 msgid "played recently"
 msgstr "odtworzono niedawno"
@@ -2200,6 +2224,18 @@ msgstr "Wydarzenie bez tytułu"
 #: blindspot/ticketmaster.py
 msgid "Date to be announced"
 msgstr "Data zostanie ogłoszona"
+
+#: blindspot/triplej.py
+msgid "The Triple J Hottest 100 archive could not be read."
+msgstr ""
+
+#: blindspot/triplej.py
+msgid "That Triple J Hottest 100 countdown was not found."
+msgstr ""
+
+#: blindspot/triplej.py
+msgid "The Triple J Hottest 100 archive could not be reached."
+msgstr ""
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -3134,6 +3170,31 @@ msgstr ""
 
 #: blindspot/ui.py
 #, python-brace-format
+msgid ""
+"Triple J Hottest 100 {countdown}, read live from the official ABC archive. "
+"This is an annual listener poll, not an Australian sales chart. Songs are "
+"looked up on Spotify only when you play, queue or save them."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ""
+"ABC Classic 100 {countdown}, from ABC Classic's official listener-poll "
+"archive. A representative Spotify recording is looked up only when you act "
+"on a work; large works may resolve to one movement or excerpt."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid ""
+"ABC Radio National {countdown}, from ABC's official listener-voted book "
+"countdown. Audiobooks are looked up on Spotify only when you act on a book; "
+"browsing the list does not use audiobook listening time. Availability "
+"depends on your Spotify plan and country."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
 msgid ", loaded {stamp}"
 msgstr ", załadowano {stamp}"
 
@@ -3194,12 +3255,12 @@ msgid "Followed artists and authors"
 msgstr "Obserwowani wykonawcy i autorzy"
 
 #: blindspot/ui.py
-msgid "Top charts"
-msgstr "Najpopularniejsze listy"
+msgid "Apple Music most played"
+msgstr ""
 
 #: blindspot/ui.py
-msgid "Historical charts"
-msgstr "Listy historyczne"
+msgid "Charts"
+msgstr ""
 
 #: blindspot/ui.py
 msgid "Show"
@@ -3226,12 +3287,60 @@ msgid "Chart"
 msgstr "Lista"
 
 #: blindspot/ui.py
+msgid "Countdown"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Choose a year or special countdown"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Triple J Hottest 100 year or special countdown"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Classic 100 countdown"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Choose a Classic 100 countdown"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "ABC Classic 100 countdown"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Radio National book countdown"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Choose a Radio National book countdown"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "ABC Radio National book countdown"
+msgstr ""
+
+#: blindspot/ui.py
 msgid "US Billboard Hot 100 (experimental)"
 msgstr "Billboard Hot 100 USA (eksperymentalne)"
 
 #: blindspot/ui.py
 msgid "Number ones by country"
 msgstr "Numery jeden według kraju"
+
+#: blindspot/ui.py
+msgid "Triple J Hottest 100"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "ABC Classic 100"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "ABC Radio National Top Books"
+msgstr ""
 
 #: blindspot/ui.py
 msgid "Historical chart"
@@ -3268,6 +3377,30 @@ msgstr "Data listy: rok-miesiąc-dzień"
 #: blindspot/ui.py
 msgid "Year or date (YYYY or YYYY-MM-DD)"
 msgstr "Rok lub data (RRRR lub RRRR-MM-DD)"
+
+#: blindspot/ui.py
+msgid "Choose an ABC Radio National book countdown."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Loading ABC Radio National Top Books"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Choose an ABC Classic 100 countdown."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Loading ABC Classic 100"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Choose a Triple J Hottest 100 year or special countdown."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Loading Triple J Hottest 100"
+msgstr ""
 
 #: blindspot/ui.py
 msgid "Enter the chart date as year-month-day."
@@ -3912,6 +4045,10 @@ msgid "&Open album"
 msgstr "&Otwórz album"
 
 #: blindspot/ui.py
+msgid "Find alternate &versions..."
+msgstr ""
+
+#: blindspot/ui.py
 msgid "&Lyrics..."
 msgstr "&Tekst utworu..."
 
@@ -4374,6 +4511,11 @@ msgstr "Miks podobnych utworów (Last.&fm)"
 #: blindspot/ui.py
 msgid "Find similar &artists (Last.fm)"
 msgstr "Znajdź podobnych &wykonawców (Last.fm)"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "&About {artist}..."
+msgstr ""
 
 #: blindspot/ui.py
 msgid "&What's this song about?"
@@ -4971,3 +5113,15 @@ msgstr "Brytyjskie numery jeden są dostępne od {first} do {last}."
 
 #~ msgid "Translated lyrics for {heading}"
 #~ msgstr ""
+
+#~ msgid "Historical charts"
+#~ msgstr "Listy historyczne"
+
+#~ msgid "Triple J Hottest 100 countdown"
+#~ msgstr ""
+
+#~ msgid "Top charts"
+#~ msgstr "Najpopularniejsze listy"
+
+#~ msgid "Open album of current track"
+#~ msgstr "Otwórz album bieżącego utworu"

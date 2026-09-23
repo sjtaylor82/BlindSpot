@@ -9,6 +9,12 @@ Features implemented:
 - Detailed album and recording information and Wikipedia song stories.
 - New-release searches and notifications for followed artists and authors.
 - Historical number-one singles and albums for several countries.
+- Triple J Hottest 100 annual and special countdown browsing from the official
+  ABC archive.
+- ABC Classic 100 countdown browsing, with complete-album Spotify matching and
+  playback for classical works.
+- ABC Radio National Top Books browsing for the 2025 Top 100, ranks 101–200,
+  and combined Top 200, with on-demand Spotify audiobook matching.
 - Named carts for quickly playing saved tracks.
 - Bookmarks, concerts, account settings and preferences moved into File.
 

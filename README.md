@@ -22,7 +22,7 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
   Saved Albums, and Discover tabs. Bookmarks and concert search open from the
   File menu instead of the tab bar.
 - The Discover tab offers **New releases**, **Followed artists and authors**,
-  **Top charts**, and **Historical charts**. The Apple charts show the most-played
+  **Apple Music most played**, and **Charts**. The Apple charts show the most-played
   songs or albums for one of 45 countries, taken from Apple Music's
   public RSS feed, which reports real play data from Apple Music's whole
   user base and needs no API key. Rows announce their chart position.
@@ -46,7 +46,7 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
   artist or title in its keyword box instead searches Apple's catalogue (the
   genre is ignored, the window still applies), which finds small releases that
   never chart.
-  **Top charts** shows Apple's most-played chart for the chosen country;
+  **Apple Music most played** shows Apple's most-played chart for the chosen country;
   choose Songs or Albums under Show.
   **Followed artists and authors** lists new releases by artists you follow and
   new audiobooks by authors you follow. Right-click an artist, song, album or
@@ -54,7 +54,8 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
   Follow artist or author for new releases for what is playing). Audiobook
   releases come from Apple's catalogue, keep only titles marked Unabridged or
   Abridged to skip translated editions, and open in the Audiobooks tab if
-  Spotify has them.
+  Spotify has them. Followed releases automatically use the Spotify account's
+  country, falling back to Australia, rather than asking for a storefront.
   File, Followed artists and authors lists everyone you follow and lets you
   stop. BlindSpot
   also checks for new releases at start-up and announces any it has not told
@@ -62,11 +63,17 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
   data/followed_artists.json and is separate from following on Spotify.
   Spotify's own new-release search is no longer used, because it returns the
   top 100 worldwide releases and cannot be limited by genre or country.
-  **Historical charts** has two sources. The experimental US Billboard Hot 100
+  **Charts** includes historical and listener-voted sources. The experimental
+  US Billboard Hot 100
   accepts a date, maps it to the latest weekly chart on or before that day,
   and reads the JSON live from the community-maintained
   mhollingshead/billboard-hot-100 project on GitHub. It is unofficial, is not
-  bundled with BlindSpot, and may change or disappear. **Number ones by
+  bundled with BlindSpot, and may change or disappear. **Triple J Hottest
+  100** lets you choose an annual or special countdown from the official ABC
+  archive; choose a year or named special countdown before searching. It is a
+  listener poll rather than an Australian sales chart. The
+  ranked rows are resolved to Spotify only when used; community playlists are
+  not used as chart data. **Number ones by
   country** covers the United Kingdom (singles from 1952, albums from 1956),
   Australia (singles from 1940, albums from 1965) and New Zealand (singles and
   albums from 1980). Choose the country, then Songs or Albums under Show, and
@@ -76,6 +83,17 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
   one for that week. The data comes from Wikipedia's lists of number ones
   (CC BY-SA), compiled from each country's official charts. They list only
   number ones, and Wikipedia is community edited so it can contain mistakes.
+  **ABC Classic 100** covers ABC Classic's themed annual listener polls from
+  2001 through the current countdown. Choose a poll explicitly; rows show the
+  official rank, work and composer. When you act on a work BlindSpot searches
+  Spotify for a representative recording, which may be one movement or excerpt
+  when the ranked work is a symphony, concerto, opera or collection.
+  **ABC Radio National Top Books** offers the official 2025 Top 100, the
+  separately published ranks 101–200, or the complete Top 200. Choose an
+  available countdown rather than entering a historical date. Rows show the
+  official rank, title and author; Spotify audiobook matching happens only
+  when a book is opened or played, so browsing does not consume audiobook
+  listening time. Availability still depends on the Spotify plan and country.
 - Upcoming Ticketmaster live-event search by keyword, country, state, city, and
   genre, with 50 results per page. Add your own Ticketmaster Discovery API key
   in Preferences to use it; a link beneath the key field opens Ticketmaster's
@@ -239,6 +257,8 @@ Register this redirect URI in the Spotify developer dashboard:
 - Ctrl+L: like or unlike the selected item.
 - Ctrl+Shift+L: like or unlike the currently loaded track.
 - Ctrl+Shift+B: bookmark the current playback position.
+- Ctrl+Shift+O: open the focused track's album, or the current track's album
+  when no list item has focus.
 - Ctrl+Shift+D: choose a Spotify Connect playback device.
 - Ctrl+Shift+N: new playlist.
 - Ctrl+Shift+R: speak remaining track time.

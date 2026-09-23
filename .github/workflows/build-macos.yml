@@ -52,6 +52,7 @@ jobs:
         run: |
           test -d dist/BlindSpot.app
           test -x dist/BlindSpot.app/Contents/MacOS/BlindSpot
+          test -f dist/BlindSpot.app/Contents/Resources/CHANGELOG.txt
           test -f dist/BlindSpot.app/Contents/Resources/manual.html
           test -f dist/BlindSpot.app/Contents/Resources/locale/pl/LC_MESSAGES/blindspot.mo
 

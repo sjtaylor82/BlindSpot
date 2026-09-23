@@ -65,6 +65,8 @@
         playlist, preserving their displayed order.</li>
       <li>Ctrl+Shift+N: create playlist.</li>
       <li>Ctrl+Shift+B: bookmark current playback position.</li>
+      <li>Ctrl+Shift+O: open the focused track's album, or the currently
+        playing track's album when no list item has focus.</li>
       <li>Ctrl+Shift+D: choose a Spotify Connect playback device.</li>
       <li>Ctrl+R: cycle repeat mode.</li>
       <li>Ctrl+S: toggle shuffle.</li>
@@ -186,7 +188,9 @@
       suppressing duplicate releases of the same recording. In the results,
       Enter reviews the replacement. Tab to Replace, or use Replace playlist
       track from the candidate's context menu, to substitute it at the
-      original playlist position.</p>
+      original playlist position. Find alternate versions is also available
+      from other track context menus and from Playback, Now Playing. There,
+      Enter plays the selected alternative without changing a playlist.</p>
 
     <h2>Exporting a list</h2>
     <p>Choose File, Export list to save the list you are viewing as a
@@ -219,8 +223,8 @@
 
     <h2>Discover</h2>
     <p>Press Ctrl+9 to open Discover. The Discover radio buttons choose
-      between New releases, Followed artists and authors, Top charts and
-      Historical charts.
+      between New releases, Followed artists and authors, Apple Music most played and
+      Charts.
       Only the control that applies to
       the chosen source stays enabled, and neither source replaces the
       current list until Search is activated again.</p>
@@ -240,12 +244,15 @@
       playing. Audiobook releases come from Apple's catalogue and only titles
       marked Unabridged or Abridged are listed, which skips translated
       editions; an audiobook opens in the Audiobooks tab if Spotify has it.
+      Followed releases automatically use the country from your Spotify
+      account, falling back to Australia when unavailable; the country picker
+      is disabled for this workflow.
       Choose File, Followed artists and authors to review or remove them.
       BlindSpot also checks for new releases a few seconds after it starts and
       announces any it has not mentioned before; turn that off in
       Preferences. Enter opens a release, F4
       plays it, and Ctrl+L saves or removes it from your library.</p>
-    <p>Top charts lists the most played songs or albums, chosen under Show, in
+    <p>Apple Music most played lists the most played songs or albums, chosen under Show, in
       the country chosen under Chart country. The chart comes from Apple
       Music's public feed,
       so it reflects real listening across Apple Music's whole user base
@@ -254,13 +261,35 @@
       title, artist and year.</p>
     <p>With Albums chosen, Enter resolves the album on Spotify and opens its
       tracks; F4 resolves and plays it.</p>
-    <p>Historical charts offers two charts, chosen under Chart. The US
+    <p>Charts offers five sources, chosen under Chart. The US
       Billboard Hot 100 (experimental) accepts a date written as
       year-month-day, with or without hyphens, and
       loads the latest weekly chart on or before that date. BlindSpot reads
       the JSON live from the community-maintained
       mhollingshead/billboard-hot-100 project on GitHub. The source is
       unofficial, is not included with BlindSpot, and may change or disappear.</p>
+    <p>Triple J Hottest 100 enables a Countdown list containing annual polls
+      and special countdowns such as Of Australian Songs, Like A Version and
+      the all-time polls. Choose one explicitly before activating Search;
+      BlindSpot prompts you if none is selected. Results come from the official ABC archive and show
+      the countdown rank, artist, title and release year. It is a listener
+      poll rather than an Australian sales chart, and community playlists are
+      not used as chart data.</p>
+    <p>ABC Classic 100 enables a countdown list covering ABC Classic's themed
+      annual listener polls from 2001 through the current poll. Rows contain
+      the official rank, work and composer. When you play, queue or save a
+      work, BlindSpot searches Spotify for a representative recording. For a
+      symphony, concerto, opera or collection, the match may be one movement
+      or excerpt rather than the complete work.</p>
+    <p>ABC Radio National Top Books enables a countdown list rather than the
+      historical-date edit. It offers the official 2025 Top 100 Books of the
+      21st Century, The Ones That Got Away at ranks 101 to 200, and a combined
+      Top 200. Rows contain the official rank, title and author. BlindSpot
+      searches Spotify for an audiobook only when you open or play a row, so
+      browsing the countdown does not use audiobook listening time. Spotify
+      audiobook availability depends on your plan and country. Future ABC
+      countdowns, including 2026 when published, can be added to this same
+      list.</p>
     <p>Number ones by country covers the United Kingdom, Australia and New
       Zealand, chosen under Number ones country. It accepts a year or a date in
       the same box. Type a year such as 1985 to list every number one that

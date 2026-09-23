@@ -1,6 +1,7 @@
 # Build from the BlindSpot directory with:
 # python -m PyInstaller --noconfirm BlindSpot.spec
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -43,6 +44,7 @@ a = Analysis(
     pathex=["src"],
     binaries=binaries,
     datas=[
+        ("CHANGELOG.txt", "."),
         ("manual.html", "."),
         ("LICENSE", "."),
         ("portable_updater.ps1", "."),
@@ -71,6 +73,15 @@ coll = COLLECT(
     upx=False,
     name="BlindSpot",
 )
+
+# PyInstaller 6 keeps ordinary data under _internal on Windows.  The changelog
+# is a user-facing document, so also put it beside BlindSpot.exe where it can
+# be found without opening an implementation folder.
+if sys.platform == "win32":
+    shutil.copy2(
+        "CHANGELOG.txt",
+        Path(DISTPATH) / "BlindSpot" / "CHANGELOG.txt",
+    )
 
 if sys.platform == "darwin":
     app = BUNDLE(

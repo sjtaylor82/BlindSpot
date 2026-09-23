@@ -53,6 +53,15 @@ jobs:
       - name: Build application
         run: python -m PyInstaller --noconfirm --clean BlindSpot.spec
 
+      - name: Confirm Windows package contents
+        if: runner.os == 'Windows'
+        shell: bash
+        run: test -f dist/BlindSpot/CHANGELOG.txt
+
+      - name: Confirm macOS package contents
+        if: runner.os == 'macOS'
+        run: test -f dist/BlindSpot.app/Contents/Resources/CHANGELOG.txt
+
       - name: Package Windows
         if: runner.os == 'Windows'
         shell: pwsh

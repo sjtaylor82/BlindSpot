@@ -9,6 +9,15 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class ReleaseMetadataTests(unittest.TestCase):
+    def test_changelog_is_included_in_portable_builds(self):
+        spec = (ROOT / "BlindSpot.spec").read_text(encoding="utf-8")
+
+        self.assertIn('(\"CHANGELOG.txt\", \".\")', spec)
+        self.assertIn(
+            'Path(DISTPATH) / "BlindSpot" / "CHANGELOG.txt"',
+            spec,
+        )
+
     def test_version_is_synced_with_package_and_changelog(self):
         project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         changelog = (ROOT / "CHANGELOG.txt").read_text(encoding="utf-8")
