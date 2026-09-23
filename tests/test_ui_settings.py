@@ -5520,6 +5520,35 @@ class BrailleLyricsTests(unittest.TestCase):
 
         self.assertEqual(positions, [0, 14, 29])
 
+    def test_maps_synced_lines_to_corresponding_translated_lines(self):
+        positions = LyricsDialog._corresponding_line_positions(
+            "Short\nA much longer original line\nLast",
+            "Eine viel langere erste Zeile\nKurz\nEnde",
+            [0, 6, 34],
+        )
+
+        self.assertEqual(positions, [0, 30, 35])
+
+    def test_keeps_approximate_caret_position_between_lyric_views(self):
+        position = LyricsDialog._corresponding_text_position(
+            "Short first line\nA much longer second line\nLast",
+            "Eine lange erste Zeile\nKurz\nEnde",
+            29,
+            platform="darwin",
+        )
+
+        self.assertEqual(position, 25)
+
+    def test_keeps_caret_line_with_windows_line_endings(self):
+        position = LyricsDialog._corresponding_text_position(
+            "First\nSecond\nThird",
+            "Erste\nZweite\nDritte",
+            9,
+            platform="win32",
+        )
+
+        self.assertEqual(position, 9)
+
 
 class LyricsPreferenceTests(unittest.TestCase):
     class Store:
@@ -7931,8 +7960,21 @@ class LyricsKeyboardTests(unittest.TestCase):
         self.assertEqual(toggled, [])
         self.assertTrue(event.skipped)
 
-    def test_bare_space_pauses_or_resumes_in_lyrics_text(self):
+    def test_bare_space_plays_continuously_from_selected_lyric(self):
         event = self.Event(ui.wx.WXK_SPACE)
+        dialog = type("Dialog", (), {})()
+
+        with (
+            patch.object(LyricsDialog, "cancel_phrase") as cancel,
+            patch.object(LyricsDialog, "playback_from_selected_lyric") as play,
+        ):
+            LyricsDialog.on_text_key(dialog, event)
+
+        cancel.assert_called_once_with(dialog)
+        play.assert_called_once_with(dialog, False)
+        self.assertFalse(event.skipped)
+
+    def test_enter_pauses_or_resumes_in_lyrics_text(self):
         toggled = []
         dialog = type(
             "Dialog",
@@ -7941,46 +7983,38 @@ class LyricsKeyboardTests(unittest.TestCase):
                 "frame": type(
                     "Frame",
                     (),
-                    {
-                        "toggle_pause_resume": (
-                            lambda self: toggled.append(True)
-                        )
-                    },
-                )()
+                    {"toggle_pause_resume": lambda self: toggled.append(True)},
+                )(),
             },
         )()
 
-        LyricsDialog.on_text_key(dialog, event)
+        with patch.object(LyricsDialog, "cancel_phrase") as cancel:
+            LyricsDialog.on_text_key(dialog, self.Event(ui.wx.WXK_RETURN))
 
+        cancel.assert_called_once_with(dialog)
         self.assertEqual(toggled, [True])
-        self.assertFalse(event.skipped)
 
-    def test_dialog_routes_bare_space_from_lyrics_text(self):
-        toggled = []
+    def test_dialog_routes_bare_space_to_continuous_lyric_playback(self):
         text = object()
         dialog = type(
             "Dialog",
             (),
             {
                 "text": text,
-                "frame": type(
-                    "Frame",
-                    (),
-                    {
-                        "toggle_pause_resume": (
-                            lambda self: toggled.append(True)
-                        )
-                    },
-                )(),
             },
         )()
 
-        LyricsDialog.on_dialog_key(
-            dialog,
-            self.Event(ui.wx.WXK_SPACE, event_object=text),
-        )
+        with (
+            patch.object(LyricsDialog, "cancel_phrase") as cancel,
+            patch.object(LyricsDialog, "playback_from_selected_lyric") as play,
+        ):
+            LyricsDialog.on_dialog_key(
+                dialog,
+                self.Event(ui.wx.WXK_SPACE, event_object=text),
+            )
 
-        self.assertEqual(toggled, [True])
+        cancel.assert_called_once_with(dialog)
+        play.assert_called_once_with(dialog, False)
 
     def test_dialog_routes_shift_space_with_internal_native_focus(self):
         started = []

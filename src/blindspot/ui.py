@@ -2045,13 +2045,9 @@ class LyricsDialog(wx.Dialog):
         self.item = item
         self.track_id = lyrics.track_id
         self.synced_lines = lyrics.synced_lines
-        self.synced_line_positions = self._synced_line_positions(
+        self.synced_line_positions = self._view_synced_line_positions(
             lyrics.text,
-            lyrics.synced_lines,
-        )
-        self.synced_line_positions = native_text_positions(
-            lyrics.text,
-            self.synced_line_positions,
+            translated=False,
         )
         self.lyric_adjustment_ms = parent.lyric_adjustment_ms(lyrics.track_id)
         self.last_braille_line = -1
@@ -2095,6 +2091,8 @@ class LyricsDialog(wx.Dialog):
             self.update_braille_line()
 
     def on_translation_view(self, event: wx.CommandEvent | None = None) -> None:
+        previous_value = self.text.GetValue()
+        previous_position = self.text.GetInsertionPoint()
         translated = bool(
             self.translation_view
             and self.translation_view.GetSelection() == 1
@@ -2105,11 +2103,21 @@ class LyricsDialog(wx.Dialog):
             if translated
             else self.lyrics_data.text
         )
+        position = self._corresponding_text_position(
+            previous_value,
+            value,
+            previous_position,
+        )
         self.text.SetValue(value)
+        self.synced_line_positions = self._view_synced_line_positions(
+            value,
+            translated=translated,
+        )
         self.text.SetName(
             tr("Translated lyrics") if translated else tr("Original lyrics")
         )
-        self.text.SetInsertionPoint(0)
+        self.text.SetInsertionPoint(position)
+        self.text.ShowPosition(position)
 
     def on_fetch_translation(self, event: wx.CommandEvent) -> None:
         if not self.fetch_translation:
@@ -2177,6 +2185,89 @@ class LyricsDialog(wx.Dialog):
                 positions.append(len(lyrics_text))
         return positions
 
+    def _view_synced_line_positions(
+        self,
+        lyrics_text: str,
+        *,
+        translated: bool,
+    ) -> list[int]:
+        original_positions = self._synced_line_positions(
+            self.lyrics_data.text,
+            self.synced_lines,
+        )
+        if translated:
+            positions = self._corresponding_line_positions(
+                self.lyrics_data.text,
+                lyrics_text,
+                original_positions,
+            )
+        else:
+            positions = original_positions
+        return native_text_positions(lyrics_text, positions)
+
+    @staticmethod
+    def _corresponding_line_positions(
+        source_text: str,
+        target_text: str,
+        source_positions: list[int],
+    ) -> list[int]:
+        """Map line starts from source lyrics to the same translated lines."""
+        source_starts = []
+        position = 0
+        for line in source_text.splitlines(keepends=True):
+            source_starts.append(position)
+            position += len(line)
+
+        target_starts = []
+        position = 0
+        for line in target_text.splitlines(keepends=True):
+            target_starts.append(position)
+            position += len(line)
+
+        source_lines = {position: index for index, position in enumerate(source_starts)}
+        return [
+            target_starts[source_lines[position]]
+            if position in source_lines
+            and source_lines[position] < len(target_starts)
+            else len(target_text)
+            for position in source_positions
+        ]
+
+    @staticmethod
+    def _corresponding_text_position(
+        source_text: str,
+        target_text: str,
+        source_position: int,
+        platform: str | None = None,
+    ) -> int:
+        """Keep the caret near the same place when changing lyric views."""
+        platform = sys.platform if platform is None else platform
+        source_lines = source_text.split("\n")
+        target_lines = target_text.split("\n")
+
+        def starts(text: str, lines: list[str]) -> list[int]:
+            logical = []
+            position = 0
+            for line in lines:
+                logical.append(position)
+                position += len(line) + 1
+            return native_text_positions(text, logical, platform)
+
+        source_starts = starts(source_text, source_lines)
+        target_starts = starts(target_text, target_lines)
+        source_line = 0
+        for index, start in enumerate(source_starts):
+            if start > source_position:
+                break
+            source_line = index
+
+        target_line = min(source_line, len(target_lines) - 1)
+        source_length = len(source_lines[source_line])
+        source_column = max(0, source_position - source_starts[source_line])
+        proportion = min(source_column, source_length) / max(source_length, 1)
+        target_column = round(proportion * len(target_lines[target_line]))
+        return target_starts[target_line] + target_column
+
     def on_follow_braille(self, event: wx.CommandEvent) -> None:
         enabled = self.follow_braille.GetValue()
         self.frame.set_follow_braille_lyrics(enabled)
@@ -2218,6 +2309,10 @@ class LyricsDialog(wx.Dialog):
             and not event.AltDown()
             and not event.ShiftDown()
         ):
+            LyricsDialog.cancel_phrase(self)
+            LyricsDialog.playback_from_selected_lyric(self, False)
+            return
+        if event.GetKeyCode() in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
             LyricsDialog.cancel_phrase(self)
             self.frame.toggle_pause_resume()
             return
@@ -2411,6 +2506,13 @@ class LyricsDialog(wx.Dialog):
             and event.GetEventObject() is getattr(self, "text", None)
         ):
             LyricsDialog.cancel_phrase(self)
+            LyricsDialog.playback_from_selected_lyric(self, False)
+            return
+        if (
+            key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER)
+            and event.GetEventObject() is getattr(self, "text", None)
+        ):
+            LyricsDialog.cancel_phrase(self)
             self.frame.toggle_pause_resume()
             return
         if (
@@ -2563,8 +2665,15 @@ class LyricsDialog(wx.Dialog):
             LyricsDialog.cancel_phrase(self)
             frame.previous_track()
         elif action == "pause_resume":
-            LyricsDialog.cancel_phrase(self)
-            frame.toggle_pause_resume()
+            if (
+                event.GetKeyCode() == wx.WXK_SPACE
+                and event.GetEventObject() is getattr(self, "text", None)
+            ):
+                LyricsDialog.cancel_phrase(self)
+                LyricsDialog.playback_from_selected_lyric(self, False)
+            else:
+                LyricsDialog.cancel_phrase(self)
+                frame.toggle_pause_resume()
         elif action == "next_track":
             LyricsDialog.cancel_phrase(self)
             frame.next_track()
@@ -2589,7 +2698,7 @@ class LyricsDialog(wx.Dialog):
             selected = index
         return selected
 
-    def playback_from_selected_lyric(self) -> None:
+    def playback_from_selected_lyric(self, use_phrase_mode: bool = True) -> None:
         if not getattr(self, "synced_lines", None):
             self.frame.say(msg.SYNCED_LYRICS_UNAVAILABLE)
             return
@@ -2597,12 +2706,16 @@ class LyricsDialog(wx.Dialog):
         if line_index is None:
             self.frame.say(msg.MOVE_TO_SYNCED_LINE)
             return
-        LyricsDialog.play_synced_line(self, line_index)
+        LyricsDialog.play_synced_line(self, line_index, use_phrase_mode)
 
-    def play_synced_line(self, line_index: int) -> None:
+    def play_synced_line(
+        self,
+        line_index: int,
+        use_phrase_mode: bool = True,
+    ) -> None:
         timestamp_ms = self.synced_lines[line_index][0]
         phrase_mode = getattr(self, "phrase_mode", None)
-        if phrase_mode and phrase_mode.GetValue():
+        if use_phrase_mode and phrase_mode and phrase_mode.GetValue():
             end_ms = (
                 self.synced_lines[line_index + 1][0]
                 if line_index + 1 < len(self.synced_lines)
