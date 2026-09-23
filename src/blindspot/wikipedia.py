@@ -34,6 +34,11 @@ SONG_WORDS = re.compile(
     r"\b(?:song|single|ballad|track|recording|composition|anthem|hit)\b",
     re.IGNORECASE,
 )
+ARTIST_WORDS = re.compile(
+    r"\b(?:band|composer|conductor|dj|ensemble|group|musician|orchestra|"
+    r"producer|rapper|singer|songwriter)\b",
+    re.IGNORECASE,
+)
 INTRO_SENTENCES = 6
 MAX_ARTICLE_CHARS = 20_000
 HEADING = re.compile(r"^(={2,6})\s*(.+?)\s*\1\s*$", re.MULTILINE)
@@ -131,6 +136,36 @@ def choose_story(
     return None
 
 
+def choose_artist_story(
+    pages: list[dict[str, Any]], name: str
+) -> SongStory | None:
+    """Pick a biographical article for an unambiguous musical artist."""
+    wanted = _plain(name)
+    if not wanted:
+        return None
+    for page in sorted(pages, key=lambda value: value.get("index", 0)):
+        summary = str(page.get("extract") or "").strip()
+        description = str(page.get("description") or "")
+        page_title = str(page.get("title") or "")
+        plain_title = _plain(page_title)
+        if (
+            not summary
+            or "may refer to" in summary[:200]
+            or not (
+                plain_title == wanted
+                or plain_title.startswith(f"{wanted} ")
+            )
+            or not ARTIST_WORDS.search(f"{description} {summary[:400]}")
+        ):
+            continue
+        url = str(page.get("fullurl") or "") or (
+            "https://en.wikipedia.org/wiki/"
+            + urllib.parse.quote(page_title.replace(" ", "_"))
+        )
+        return SongStory(page_title, summary, url)
+    return None
+
+
 class WikipediaClient:
     def __init__(self) -> None:
         self._cache: dict[tuple[str, str], SongStory | None] = {}
@@ -145,6 +180,21 @@ class WikipediaClient:
             story = self._cache.get(key)
         if not cached:
             story = choose_story(self._search(title, primary), title, primary)
+            if story is not None:
+                story = self._with_full_text(story)
+            with self._lock:
+                self._cache[key] = story
+        if story is None:
+            raise SongStoryUnavailable(msg.song_story_unavailable(name))
+        return story
+
+    def artist_story(self, name: str) -> SongStory:
+        key = ("artist", _plain(name))
+        with self._lock:
+            cached = key in self._cache
+            story = self._cache.get(key)
+        if not cached:
+            story = choose_artist_story(self._search_artist(name), name)
             if story is not None:
                 story = self._with_full_text(story)
             with self._lock:
@@ -178,6 +228,24 @@ class WikipediaClient:
             "formatversion": "2",
             "generator": "search",
             "gsrsearch": f"{title} {artist} song",
+            "gsrnamespace": "0",
+            "gsrlimit": "6",
+            "prop": "extracts|description|info",
+            "inprop": "url",
+            "exintro": "1",
+            "explaintext": "1",
+            "exsentences": str(INTRO_SENTENCES),
+            "exlimit": "max",
+        }
+        return list(self._get(query).get("pages") or [])
+
+    def _search_artist(self, name: str) -> list[dict[str, Any]]:
+        query = {
+            "action": "query",
+            "format": "json",
+            "formatversion": "2",
+            "generator": "search",
+            "gsrsearch": f'"{name}" musician OR band OR composer',
             "gsrnamespace": "0",
             "gsrlimit": "6",
             "prop": "extracts|description|info",

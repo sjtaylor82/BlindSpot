@@ -51,6 +51,15 @@ VERSION_SUFFIX = re.compile(
     re.IGNORECASE,
 )
 SEARCH_WORD = re.compile(r"[^\W_]+|\d+", re.UNICODE)
+CLASSICAL_SEARCH_FILLER = {
+    "a", "an", "and", "for", "in", "major", "minor", "no", "of", "op",
+    "the",
+}
+CLASSICAL_REDUCTION_WORDS = (
+    "instrumental", "karaoke", "backing track", "piano version",
+    "version for piano", "piano reduction", "orchestral version",
+    "arrangement", "arranged for", "transcription", "highlights",
+)
 
 
 def _search_normalized(value: str) -> str:
@@ -63,6 +72,13 @@ def _search_normalized(value: str) -> str:
     return " ".join(SEARCH_WORD.findall(value))
 
 
+def _classical_normalized(value: str) -> str:
+    """Normalize catalogue numbers equally with or without spaces."""
+    value = _search_normalized(value)
+    value = re.sub(r"(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])", " ", value)
+    return " ".join(value.split())
+
+
 def _base_track_title(value: str) -> str:
     title = VERSION_QUALIFIER.sub("", value)
     title = VERSION_SUFFIX.sub("", title)
@@ -71,6 +87,70 @@ def _base_track_title(value: str) -> str:
 
 def _primary_track_artist(value: str) -> str:
     return " ".join(value.split(",", 1)[0].split())
+
+
+def _classical_match_score(
+    item: SpotifyItem,
+    work: str,
+    composer: str,
+    *,
+    require_vocal: bool = False,
+    require_complete_album: bool = False,
+) -> tuple[int, int] | None:
+    """Score a Spotify track as a representative recording of a work."""
+    wanted = _classical_normalized(work)
+    wanted_words = {
+        word for word in wanted.split()
+        if word not in CLASSICAL_SEARCH_FILLER and len(word) > 1
+    }
+    title = _classical_normalized(item.name)
+    album = _classical_normalized(item.album)
+    artists = _classical_normalized(item.artist)
+    searchable = f"{title} {album} {artists}"
+    if (
+        require_complete_album
+        and item.kind == ItemKind.ALBUM
+        and (item.total or 0) < 4
+    ):
+        return None
+    if require_vocal and any(
+        phrase in searchable for phrase in CLASSICAL_REDUCTION_WORDS
+    ):
+        return None
+    matched = sum(word in searchable.split() for word in wanted_words)
+    if wanted_words and matched / len(wanted_words) < 0.6:
+        return None
+
+    composer_words = _classical_normalized(composer).split()
+    surname = composer_words[-1] if composer_words else ""
+    if surname and surname not in searchable.split():
+        return None
+
+    score = matched * 30
+    if title == wanted:
+        score += 120
+    elif title.startswith(wanted):
+        score += 50
+    if wanted and wanted in album:
+        score += 35
+    if composer_words and " ".join(composer_words) in searchable:
+        score += 30
+    elif surname:
+        score += 15
+    track_number = int(item.raw.get("track_number") or 0)
+    disc_number = int(item.raw.get("disc_number") or 0)
+    if track_number == 1:
+        score += 18
+    if disc_number in (0, 1):
+        score += 3
+    if "complete" in searchable.split():
+        score += 8
+    if item.kind == ItemKind.ALBUM and (item.total or 0) > 1:
+        score += min(item.total or 0, 20)
+    # Prefer a substantial recording when metadata otherwise ties. The cap
+    # prevents duration from overwhelming title and composer accuracy.
+    duration_bonus = min(item.duration_ms // 300000, 12)
+    return score, duration_bonus
 
 
 def _played_at_label(value: str) -> str:
@@ -851,6 +931,161 @@ class SpotifyClient:
             ),
             candidates[0] if candidates else None,
         )
+
+    def find_classical_work(
+        self, work: str, composer: str, *, require_vocal: bool = False
+    ) -> SpotifyItem | None:
+        """Find the strongest representative recording of a classical work."""
+        natural_composer = " ".join(
+            reversed([part.strip() for part in composer.split(",", 1)])
+        ) if "," in composer else composer
+        data = self._request(
+            "GET",
+            "/search",
+            query={
+                "q": (
+                    f'"{work}" "{natural_composer}"'
+                    + (" vocal" if require_vocal else "")
+                ),
+                "type": "track",
+                "limit": 10,
+                "offset": 0,
+                "include_external": "audio",
+            },
+        )
+        candidates = [
+            self._map_item(value, ItemKind.TRACK)
+            for value in (data.get("tracks") or {}).get("items", [])
+            if value
+        ]
+        ranked = [
+            (score, -index, item)
+            for index, item in enumerate(candidates)
+            if (score := _classical_match_score(
+                item,
+                work,
+                natural_composer,
+                require_vocal=require_vocal,
+                require_complete_album=True,
+            ))
+            is not None
+        ]
+        result = max(
+            ranked, default=(None, None, None), key=lambda row: row[:2]
+        )[2]
+        logger.info(
+            "Classical track match work=%r composer=%r vocal=%s result=%r",
+            work,
+            natural_composer,
+            require_vocal,
+            result.name if result else None,
+        )
+        return result
+
+    def find_classical_album(
+        self, work: str, composer: str, *, require_vocal: bool = False
+    ) -> SpotifyItem | None:
+        """Find a complete album recording for a classical chart entry."""
+        natural_composer = " ".join(
+            reversed([part.strip() for part in composer.split(",", 1)])
+        ) if "," in composer else composer
+        data = self._request(
+            "GET",
+            "/search",
+            query={
+                "q": (
+                    f'"{work}" "{natural_composer}"'
+                    + (" vocal" if require_vocal else "")
+                ),
+                "type": "album",
+                "limit": 10,
+                "offset": 0,
+            },
+        )
+        candidates = [
+            self._map_item(value, ItemKind.ALBUM)
+            for value in (data.get("albums") or {}).get("items", [])
+            if value
+        ]
+        ranked = [
+            (score, -index, item)
+            for index, item in enumerate(candidates)
+            if (score := _classical_match_score(
+                item, work, natural_composer, require_vocal=require_vocal
+            ))
+            is not None
+        ]
+        result = max(
+            ranked, default=(None, None, None), key=lambda row: row[:2]
+        )[2]
+        logger.info(
+            "Classical album match work=%r composer=%r vocal=%s result=%r",
+            work,
+            natural_composer,
+            require_vocal,
+            result.name if result else None,
+        )
+        return result
+
+    def alternate_classical_albums(
+        self,
+        work: str,
+        composer: str,
+        *,
+        require_vocal: bool = False,
+        exclude_uri: str = "",
+    ) -> list[SpotifyItem]:
+        """Return other suitable album recordings of a classical work."""
+        natural_composer = " ".join(
+            reversed([part.strip() for part in composer.split(",", 1)])
+        ) if "," in composer else composer
+        query_text = (
+            f'"{work}" "{natural_composer}"'
+            + (" vocal" if require_vocal else "")
+        )
+        payloads = [
+            self._request(
+                "GET",
+                "/search",
+                query={
+                    "q": query_text,
+                    "type": "album",
+                    "limit": 10,
+                    "offset": offset,
+                },
+            )
+            for offset in (0, 10, 20, 30, 40)
+        ]
+        ranked: list[tuple[tuple[int, int], int, SpotifyItem]] = []
+        seen = {exclude_uri} if exclude_uri else set()
+        index = 0
+        for payload in payloads:
+            for value in (payload.get("albums") or {}).get("items", []):
+                if not value:
+                    continue
+                item = self._map_item(value, ItemKind.ALBUM)
+                key = item.uri or item.id
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                score = _classical_match_score(
+                    item,
+                    work,
+                    natural_composer,
+                    require_vocal=require_vocal,
+                    require_complete_album=True,
+                )
+                if score is not None:
+                    ranked.append((score, -index, item))
+                index += 1
+        ranked.sort(key=lambda row: row[:2], reverse=True)
+        logger.info(
+            "Classical alternate albums work=%r composer=%r results=%d",
+            work,
+            natural_composer,
+            len(ranked),
+        )
+        return [item for score, index, item in ranked]
 
     def find_artist(self, name: str) -> SpotifyItem | None:
         data = self._request(

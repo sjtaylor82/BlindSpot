@@ -1577,6 +1577,216 @@ class SearchClient(SpotifyClient):
         return {"tracks": tracks}
 
 
+class ClassicalWorkSearchTests(unittest.TestCase):
+    class Client(SpotifyClient):
+        def __init__(self, items):
+            self.items = items
+            self.query = None
+
+        def _request(self, method, path, *, query=None, **kwargs):
+            self.query = query
+            return {f'{query["type"]}s': {"items": self.items}}
+
+    @staticmethod
+    def track(name, artist, album, number=2, duration=240000):
+        return {
+            "id": name,
+            "name": name,
+            "type": "track",
+            "uri": f"spotify:track:{name}",
+            "artists": [{"name": artist}],
+            "album": {"name": album},
+            "track_number": number,
+            "disc_number": 1,
+            "duration_ms": duration,
+        }
+
+    def test_prefers_matching_opening_recording_over_first_excerpt(self):
+        client = self.Client([
+            self.track(
+                "St. Matthew Passion, BWV 244: Erbarme dich",
+                "Anna Singer",
+                "Bach Arias",
+            ),
+            self.track(
+                "St. Matthew Passion, BWV 244: Part One",
+                "Johann Sebastian Bach, Choir",
+                "Bach: St. Matthew Passion (Complete)",
+                number=1,
+                duration=720000,
+            ),
+        ])
+
+        result = client.find_classical_work(
+            "St Matthew Passion", "Bach, Johann Sebastian"
+        )
+
+        self.assertEqual(result.id, "St. Matthew Passion, BWV 244: Part One")
+        self.assertEqual(
+            client.query["q"],
+            '"St Matthew Passion" "Johann Sebastian Bach"',
+        )
+
+    def test_rejects_results_without_the_composer(self):
+        client = self.Client([
+            self.track(
+                "St Matthew Passion",
+                "Unrelated Ensemble",
+                "Sacred Choral Favourites",
+                number=1,
+            )
+        ])
+
+        self.assertIsNone(
+            client.find_classical_work(
+                "St Matthew Passion", "Bach, Johann Sebastian"
+            )
+        )
+
+    def test_album_search_prefers_complete_multi_track_recording(self):
+        client = self.Client([
+            {
+                **self.track(
+                    "Bach: St Matthew Passion Highlights",
+                    "Johann Sebastian Bach",
+                    "",
+                    number=1,
+                ),
+                "total_tracks": 8,
+            },
+            {
+                **self.track(
+                    "Bach: St Matthew Passion (Complete)",
+                    "Johann Sebastian Bach, Choir",
+                    "",
+                    number=1,
+                ),
+                "total_tracks": 68,
+            },
+        ])
+
+        result = client.find_classical_album(
+            "St Matthew Passion", "Bach, Johann Sebastian"
+        )
+
+        self.assertEqual(result.kind, ItemKind.ALBUM)
+        self.assertEqual(result.name, "Bach: St Matthew Passion (Complete)")
+        self.assertEqual(client.query["type"], "album")
+
+    def test_vocal_album_search_rejects_piano_reduction(self):
+        client = self.Client([
+            {
+                **self.track(
+                    "Fauré: Requiem op. 48 (in a new version for piano)",
+                    "Gabriel Fauré",
+                    "",
+                    number=1,
+                ),
+                "total_tracks": 7,
+            }
+        ])
+
+        result = client.find_classical_album(
+            "Requiem", "Fauré, Gabriel", require_vocal=True
+        )
+
+        self.assertIsNone(result)
+        self.assertTrue(client.query["q"].endswith(" vocal"))
+
+    def test_vocal_track_search_rejects_instrumental_version(self):
+        client = self.Client([
+            self.track(
+                "The Pearl Fishers Duet (Instrumental)",
+                "Georges Bizet, Orchestra",
+                "Opera Favourites",
+                number=1,
+            )
+        ])
+
+        self.assertIsNone(
+            client.find_classical_work(
+                "The Pearl Fishers Duet",
+                "Bizet, Georges",
+                require_vocal=True,
+            )
+        )
+
+    def test_catalogue_number_spacing_does_not_reject_messiah(self):
+        client = self.Client([
+            {
+                **self.track(
+                    "Handel: Messiah, HWV 56",
+                    "George Frideric Handel, Choir",
+                    "",
+                    number=1,
+                ),
+                "total_tracks": 53,
+            }
+        ])
+
+        result = client.find_classical_album(
+            "Messiah, HWV56",
+            "Handel, George Frideric",
+            require_vocal=True,
+        )
+
+        self.assertEqual(result.name, "Handel: Messiah, HWV 56")
+
+    def test_classical_album_alternates_cross_performers_and_exclude_current(self):
+        current = {
+            **self.track(
+                "Handel: Messiah, HWV 56 (1751 Version)",
+                "George Frideric Handel, Choir One",
+                "",
+                number=1,
+            ),
+            "uri": "spotify:album:current",
+            "total_tracks": 53,
+        }
+        other = {
+            **self.track(
+                "Handel: Messiah, HWV 56",
+                "George Frideric Handel, Choir Two",
+                "",
+                number=1,
+            ),
+            "uri": "spotify:album:other",
+            "total_tracks": 51,
+        }
+        client = self.Client([current, other])
+
+        results = client.alternate_classical_albums(
+            "Messiah, HWV56",
+            "Handel, George Frideric",
+            require_vocal=True,
+            exclude_uri="spotify:album:current",
+        )
+
+        self.assertEqual([item.uri for item in results], ["spotify:album:other"])
+
+    def test_classical_album_alternates_exclude_single_track_excerpt_release(self):
+        excerpt = {
+            **self.track(
+                "Handel: Messiah, HWV 56: Hallelujah",
+                "George Frideric Handel, Choir",
+                "",
+                number=1,
+            ),
+            "uri": "spotify:album:hallelujah",
+            "total_tracks": 1,
+        }
+        client = self.Client([excerpt])
+
+        results = client.alternate_classical_albums(
+            "Messiah, HWV 56",
+            "Handel, George Frideric",
+            require_vocal=True,
+        )
+
+        self.assertEqual(results, [])
+        self.assertEqual(client.query["offset"], 40)
+
+
 class SearchBatchTests(unittest.TestCase):
     def test_podcast_search_uses_explicit_fifty_item_pages(self):
         class PodcastSearchClient(SpotifyClient):

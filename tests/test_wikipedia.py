@@ -5,8 +5,31 @@ from blindspot.wikipedia import (
     SongStoryUnavailable,
     WikipediaClient,
     choose_story,
+    choose_artist_story,
     format_article,
 )
+
+
+class ArtistStoryTests(unittest.TestCase):
+    def test_chooses_exact_musician_article(self):
+        pages = [
+            page("Sia (name)", "Sia is a given name.", "given name", 1),
+            page(
+                "Sia",
+                "Sia Kate Isobelle Furler is an Australian singer and songwriter.",
+                "Australian singer-songwriter",
+                2,
+            ),
+        ]
+
+        story = choose_artist_story(pages, "Sia")
+
+        self.assertEqual(story.title, "Sia")
+
+    def test_rejects_non_musical_namesake(self):
+        pages = [page("Phoenix", "Phoenix is a city in Arizona.", "city")]
+
+        self.assertIsNone(choose_artist_story(pages, "Phoenix"))
 
 
 def page(title, extract, description="", index=1):
