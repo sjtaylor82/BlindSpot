@@ -58,6 +58,26 @@ from .lastfm import DEFAULT_API_KEY as DEFAULT_LASTFM_API_KEY, LastfmClient
 from .lastfm import GenreTag, SimilarTrack, TaggedItem
 from .i18n import ntr, tr, tr_noop
 from .historical_charts import HistoricalHot100Client, PROJECT_URL
+from .abcclassic import (
+    ARCHIVE_URL as CLASSIC_100_ARCHIVE_URL,
+    COUNTDOWNS as CLASSIC_100_COUNTDOWNS,
+    CURRENT_URL as CLASSIC_100_CURRENT_URL,
+    Classic100Client,
+    ClassicCountdown,
+)
+from .rnbooks import (
+    COUNTDOWNS as RN_BOOK_COUNTDOWNS,
+    NEXT_100_URL as RN_BOOKS_NEXT_URL,
+    TOP_100_URL as RN_BOOKS_TOP_URL,
+    BookCountdown,
+    RNBooksClient,
+)
+from .triplej import ARCHIVE_URL as TRIPLE_J_ARCHIVE_URL
+from .triplej import (
+    COUNTDOWNS as TRIPLE_J_COUNTDOWNS,
+    Countdown,
+    Hottest100Client,
+)
 from .numberones import COUNTRIES as NUMBER_ONE_COUNTRIES, NumberOnesClient
 from .ukcharts import (
     ALBUMS as UK_ALBUMS,
@@ -2855,7 +2875,8 @@ class AlternateVersionsDialog(wx.Dialog):
         parent: "MainFrame",
         original: SpotifyItem,
         candidates: list[SpotifyItem],
-        replace: Callable[[SpotifyItem, "AlternateVersionsDialog"], None],
+        replace: Callable[[SpotifyItem, "AlternateVersionsDialog"], None]
+        | None = None,
     ) -> None:
         super().__init__(
             parent,
@@ -2883,15 +2904,19 @@ class AlternateVersionsDialog(wx.Dialog):
         self.items.set_items(candidates)
         outer.Add(self.items, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
-        self.replace_button = wx.Button(self, label=tr("&Replace"))
+        self.replace_button = (
+            wx.Button(self, label=tr("&Replace")) if replace else None
+        )
         self.close_button = wx.Button(self, wx.ID_CLOSE, tr("&Close"))
-        buttons.Add(self.replace_button, 0, wx.RIGHT, 8)
+        if self.replace_button:
+            buttons.Add(self.replace_button, 0, wx.RIGHT, 8)
         buttons.Add(self.close_button, 0)
         outer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.ALL, 10)
         self.SetSizer(outer)
         self.items.Bind(self.items.ACTIVATED_EVENT, self.on_review)
         self.items.Bind(wx.EVT_CONTEXT_MENU, self.on_context_menu)
-        self.replace_button.Bind(wx.EVT_BUTTON, self.on_replace)
+        if self.replace_button:
+            self.replace_button.Bind(wx.EVT_BUTTON, self.on_replace)
         self.close_button.Bind(wx.EVT_BUTTON, self.on_close)
         self.Bind(wx.EVT_CHAR_HOOK, self.on_key)
         self.items.SetFocus()
@@ -2913,7 +2938,10 @@ class AlternateVersionsDialog(wx.Dialog):
         ):
             event.Skip()
             return
-        controls = [self.items, self.replace_button, self.close_button]
+        controls = [self.items]
+        if self.replace_button:
+            controls.append(self.replace_button)
+        controls.append(self.close_button)
         focused = wx.Window.FindFocus()
         focused_list = item_list_ancestor(focused)
         if focused_list is self.items:
@@ -2938,7 +2966,7 @@ class AlternateVersionsDialog(wx.Dialog):
 
     def on_replace(self, event: wx.Event | None = None) -> None:
         item = AlternateVersionsDialog.selected_item(self)
-        if item:
+        if item and self.replace:
             self.replace(item, self)
 
     def on_context_menu(self, event: wx.Event | None = None) -> None:
@@ -2947,9 +2975,12 @@ class AlternateVersionsDialog(wx.Dialog):
             return
         menu = wx.Menu()
         review = menu.Append(wx.ID_ANY, tr("&Review"))
-        replace = menu.Append(wx.ID_ANY, tr("&Replace playlist track..."))
         menu.Bind(wx.EVT_MENU, self.on_review, review)
-        menu.Bind(wx.EVT_MENU, self.on_replace, replace)
+        if self.replace:
+            replace = menu.Append(
+                wx.ID_ANY, tr("&Replace playlist track...")
+            )
+            menu.Bind(wx.EVT_MENU, self.on_replace, replace)
         self.items.PopupMenu(menu)
         menu.Destroy()
 
@@ -3493,7 +3524,6 @@ class SearchPanel(wx.Panel):
                 lambda: self.frame.spotify.children(item),
                 lambda items: self.open_children(item, items),
             )
-
     def load_more(self, item: SpotifyItem) -> None:
         state = self.history.current
         offset = int(item.raw.get("next_offset") or 0)
@@ -4111,7 +4141,12 @@ def new_album_identity(album: SpotifyItem) -> tuple[str, str, int | None]:
     )
 
 
-DISCOVER_SOURCES = ("releases", "followed", "charts", "historical")
+DISCOVER_SOURCES = (
+    "releases",
+    "followed",
+    "charts",
+    "historical",
+)
 # How far back the start-up check looks for releases by followed artists.
 FOLLOWED_CHECK_DAYS = 30
 # Apple's feed allows up to 100 entries. Rows are built from Apple's own data
@@ -4155,7 +4190,11 @@ def apply_resolved_row(row: SpotifyItem, real: SpotifyItem) -> None:
         setattr(row, name, getattr(real, name))
     kept = {
         key: row.raw[key]
-        for key in ("list_note", "chart_url", "artist_first")
+        for key in (
+            "list_note", "chart_url", "artist_first", "classical_chart_album",
+            "classical_source_work", "classical_source_composer",
+            "classical_vocal",
+        )
         if key in row.raw
     }
     row.raw = {**real.raw, **kept}
@@ -4218,6 +4257,28 @@ def chart_provenance(result: ChartResults) -> str:
             "number ones are listed. Songs are looked up on Spotify only "
             "when you play, queue or save them."
         ).format(detail=result.detail)
+    if result.media_type == "triple_j":
+        return tr(
+            "Triple J Hottest 100 {countdown}, read live from the official "
+            "ABC archive. This is an annual listener poll, not an Australian "
+            "sales chart. Songs are looked up on Spotify only when you play, "
+            "queue or save them."
+        ).format(countdown=result.detail)
+    if result.media_type == "classic_100":
+        return tr(
+            "ABC Classic 100 {countdown}, from ABC Classic's official "
+            "listener-poll archive. A representative Spotify recording is "
+            "looked up only when you act on a work; large works may resolve "
+            "to one movement or excerpt."
+        ).format(countdown=result.detail)
+    if result.media_type == "rn_books":
+        return tr(
+            "ABC Radio National {countdown}, from ABC's official "
+            "listener-voted book countdown. Audiobooks are looked up on "
+            "Spotify only when you act on a book; browsing the list does "
+            "not use audiobook listening time. Availability depends on "
+            "your Spotify plan and country."
+        ).format(countdown=result.detail)
     if result.media_type == "new_releases":
         source = result.detail
         stamp = loaded_label(result.loaded_at)
@@ -4274,8 +4335,8 @@ class NewMusicPanel(CollectionPanel):
             choices=[
                 tr("New releases"),
                 tr("Followed artists and authors"),
-                tr("Top charts"),
-                tr("Historical charts"),
+                tr("Apple Music most played"),
+                tr("Charts"),
             ],
             majorDimension=1,
             style=wx.RA_SPECIFY_ROWS,
@@ -4330,11 +4391,46 @@ class NewMusicPanel(CollectionPanel):
         )
         self.chart_country.SetName(tr("Chart country"))
         self.history_chart_label = wx.StaticText(self, label=tr("Chart"))
+        self.triple_j_countdown_label = wx.StaticText(
+            self, label=tr("Countdown")
+        )
+        self.triple_j_countdown = wx.Choice(
+            self,
+            choices=[tr("Choose a year or special countdown")]
+            + [tr(value.label) for value in TRIPLE_J_COUNTDOWNS],
+        )
+        self.triple_j_countdown.SetSelection(0)
+        self.triple_j_countdown.SetName(
+            tr("Triple J Hottest 100 year or special countdown")
+        )
+        self.classic_100_countdown_label = wx.StaticText(
+            self, label=tr("Classic 100 countdown")
+        )
+        self.classic_100_countdown = wx.Choice(
+            self,
+            choices=[tr("Choose a Classic 100 countdown")]
+            + [tr(value.label) for value in CLASSIC_100_COUNTDOWNS],
+        )
+        self.classic_100_countdown.SetSelection(0)
+        self.classic_100_countdown.SetName(tr("ABC Classic 100 countdown"))
+        self.rn_books_countdown_label = wx.StaticText(
+            self, label=tr("Radio National book countdown")
+        )
+        self.rn_books_countdown = wx.Choice(
+            self,
+            choices=[tr("Choose a Radio National book countdown")]
+            + [tr(value.label) for value in RN_BOOK_COUNTDOWNS],
+        )
+        self.rn_books_countdown.SetSelection(0)
+        self.rn_books_countdown.SetName(tr("ABC Radio National book countdown"))
         self.history_chart = wx.Choice(
             self,
             choices=[
                 tr("US Billboard Hot 100 (experimental)"),
                 tr("Number ones by country"),
+                tr("Triple J Hottest 100"),
+                tr("ABC Classic 100"),
+                tr("ABC Radio National Top Books"),
             ],
         )
         self.history_chart.SetSelection(0)
@@ -4373,21 +4469,27 @@ class NewMusicPanel(CollectionPanel):
         # picked first, then Songs or Albums, then the options that follow.
         sizer.Insert(2, self.history_chart_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
         sizer.Insert(3, self.history_chart, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(4, self.number_ones_country_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
-        sizer.Insert(5, self.number_ones_country, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(6, self.release_types, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(7, self.number_ones_order_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
-        sizer.Insert(8, self.number_ones_order, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(9, self.genre_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
-        sizer.Insert(10, self.genre, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(11, self.release_window_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
-        sizer.Insert(12, self.release_window, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(13, self.keyword_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
-        sizer.Insert(14, self.keyword, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(15, self.chart_country, 0, wx.EXPAND | wx.ALL, 10)
-        sizer.Insert(16, self.chart_date_label, 0, wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(17, self.chart_date, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        sizer.Insert(18, self.search_button, 0, wx.ALL, 10)
+        sizer.Insert(4, self.triple_j_countdown_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(5, self.triple_j_countdown, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(6, self.classic_100_countdown_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(7, self.classic_100_countdown, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(8, self.rn_books_countdown_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(9, self.rn_books_countdown, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(10, self.number_ones_country_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(11, self.number_ones_country, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(12, self.release_types, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(13, self.number_ones_order_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(14, self.number_ones_order, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(15, self.genre_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(16, self.genre, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(17, self.release_window_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(18, self.release_window, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(19, self.keyword_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Insert(20, self.keyword, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(21, self.chart_country, 0, wx.EXPAND | wx.ALL, 10)
+        sizer.Insert(22, self.chart_date_label, 0, wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(23, self.chart_date, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Insert(24, self.search_button, 0, wx.ALL, 10)
         self.history_chart.Bind(wx.EVT_CHOICE, self.on_history_chart_changed)
         self.discovery_source.Bind(wx.EVT_RADIOBOX, self.on_source_changed)
         self.chart_country.Bind(wx.EVT_CHOICE, self.on_country_chosen)
@@ -4440,23 +4542,40 @@ class NewMusicPanel(CollectionPanel):
             control.Enable(releases)
         historical = source == "historical"
         history_chart = getattr(self, "history_chart", None)
-        numbers = bool(
-            historical and history_chart and history_chart.GetSelection() == 1
+        history_selection = (
+            history_chart.GetSelection() if historical and history_chart else -1
         )
+        numbers = bool(
+            historical and history_selection == 1
+        )
+        triple_j = historical and history_selection == 2
+        classic_100 = historical and history_selection == 3
+        rn_books = historical and history_selection == 4
         self.release_types.Enable(source in {"releases", "charts"} or numbers)
         self.release_window.Enable(source in {"releases", "followed"})
-        self.chart_country.Enable(
-            source in {"releases", "followed", "charts"}
-        )
+        # Followed people use the account storefront automatically. Keeping
+        # this shared picker disabled also removes it from keyboard tab order.
+        self.chart_country.Enable(source in {"releases", "charts"})
         if history_chart:
             history_chart.Enable(historical)
+        triple_j_countdown = getattr(self, "triple_j_countdown", None)
+        if triple_j_countdown:
+            triple_j_countdown.Enable(triple_j)
+        classic_countdown = getattr(self, "classic_100_countdown", None)
+        if classic_countdown:
+            classic_countdown.Enable(classic_100)
+        rn_books_countdown = getattr(self, "rn_books_countdown", None)
+        if rn_books_countdown:
+            rn_books_countdown.Enable(rn_books)
         for name in ("number_ones_country", "number_ones_order"):
             control = getattr(self, name, None)
             if control:
                 control.Enable(numbers)
         chart_date = getattr(self, "chart_date", None)
         if chart_date:
-            chart_date.Enable(historical)
+            chart_date.Enable(
+                historical and not triple_j and not classic_100 and not rn_books
+            )
             label = getattr(self, "chart_date_label", None)
             if label:
                 label.SetLabel(
@@ -4487,6 +4606,66 @@ class NewMusicPanel(CollectionPanel):
             self.frame.run_task(
                 msg.LOADING_MUSIC_CHART,
                 lambda: self.frame.chart_results(country, media_type),
+                self.show_chart_items,
+                failure=self.finish_load_error,
+            )
+            return
+        if (
+            self.source() == "historical"
+            and self.history_chart.GetSelection() == 4
+        ):
+            selection = self.rn_books_countdown.GetSelection()
+            if selection <= 0:
+                self.loading = False
+                self.frame.say(
+                    tr("Choose an ABC Radio National book countdown.")
+                )
+                self.rn_books_countdown.SetFocus()
+                return
+            countdown = RN_BOOK_COUNTDOWNS[selection - 1]
+            self.frame.run_task(
+                tr("Loading ABC Radio National Top Books"),
+                lambda: self.frame.rn_book_results(countdown),
+                self.show_chart_items,
+                failure=self.finish_load_error,
+            )
+            return
+        if (
+            self.source() == "historical"
+            and self.history_chart.GetSelection() == 3
+        ):
+            selection = self.classic_100_countdown.GetSelection()
+            if selection <= 0:
+                self.loading = False
+                self.frame.say(tr("Choose an ABC Classic 100 countdown."))
+                self.classic_100_countdown.SetFocus()
+                return
+            countdown = CLASSIC_100_COUNTDOWNS[selection - 1]
+            self.frame.run_task(
+                tr("Loading ABC Classic 100"),
+                lambda: self.frame.classic_100_results(countdown),
+                self.show_chart_items,
+                failure=self.finish_load_error,
+            )
+            return
+        if (
+            self.source() == "historical"
+            and self.history_chart.GetSelection() == 2
+        ):
+            selection = self.triple_j_countdown.GetSelection()
+            if selection <= 0:
+                self.loading = False
+                self.frame.say(
+                    tr("Choose a Triple J Hottest 100 year or special countdown.")
+                )
+                self.triple_j_countdown.SetFocus()
+                return
+            countdown = TRIPLE_J_COUNTDOWNS[
+                selection - 1
+            ]
+            self.frame.run_task(
+                tr("Loading Triple J Hottest 100"),
+                lambda: self.frame.triple_j_results(countdown),
                 self.show_chart_items,
                 failure=self.finish_load_error,
             )
@@ -4582,8 +4761,17 @@ class NewMusicPanel(CollectionPanel):
         self.result_mode = "chart"
         self.chart_note = chart_provenance(result)
         self.all_items = list(result.items)
+        # A filter from the previously displayed source can otherwise make a
+        # freshly loaded chart appear empty even though its rows arrived.
+        self.filter.SetValue("")
         self.frame.update_title_for_page(self, self.title)
         self.render_results()
+        logger.info(
+            "Displayed Discover chart media_type=%s entries=%d rendered=%d",
+            result.media_type,
+            len(self.all_items),
+            len(self.items.items),
+        )
         if self.items.items:
             self.items.SetFocus()
         else:
@@ -4643,10 +4831,14 @@ class NewMusicPanel(CollectionPanel):
             return
         if self.frame.resolve_then([item], lambda: self.on_open()):
             return
+        if item.kind == ItemKind.ALBUM and item.raw.get("classical_chart_album"):
+            self.frame.current_classical_alternate_source = item
+            self.frame.play(item)
+            return
         if item.kind == ItemKind.AUDIOBOOK:
             self.frame.open_audiobook(item)
             return
-        if item.kind == ItemKind.TRACK:
+        if item.kind == ItemKind.TRACK or item.raw.get("classical_chart_album"):
             self.frame.play_playable_item(item)
             return
         album = item
@@ -6803,6 +6995,9 @@ class MainFrame(wx.Frame):
         )
         self.applemusic = AppleMusicClient()
         self.historical_charts = HistoricalHot100Client()
+        self.triple_j = Hottest100Client()
+        self.classic_100 = Classic100Client()
+        self.rn_books = RNBooksClient()
         self.numberones = NumberOnesClient()
         self.musicbrainz = MusicBrainzClient()
         self.wikipedia = WikipediaClient()
@@ -7267,6 +7462,11 @@ class MainFrame(wx.Frame):
             tr("&Open album"),
             self.open_current_album,
             "open_current_album",
+        )
+        add_item(
+            now_playing_menu,
+            tr("Find alternate &versions..."),
+            self.find_alternate_versions_for_current,
         )
         add_item(
             now_playing_menu,
@@ -8367,7 +8567,7 @@ class MainFrame(wx.Frame):
             "toggle_shuffle": ("toggle_shuffle", ()),
             "like_current": ("toggle_like_current_track", ()),
             "song_story": ("show_current_song_story", ()),
-            "open_current_album": ("open_current_album", ()),
+            "open_current_album": ("open_focused_or_current_album", ()),
             "bookmark_current": ("save_current_bookmark", ()),
             "new_playlist": ("create_playlist", ()),
             "item_actions": ("show_selected_actions", ()),
@@ -8871,6 +9071,9 @@ class MainFrame(wx.Frame):
                 self.notebook,
                 self.new_music.discovery_source,
                 getattr(self.new_music, "history_chart", None),
+                getattr(self.new_music, "triple_j_countdown", None),
+                getattr(self.new_music, "classic_100_countdown", None),
+                getattr(self.new_music, "rn_books_countdown", None),
                 getattr(self.new_music, "number_ones_country", None),
                 self.new_music.release_types,
                 getattr(self.new_music, "number_ones_order", None),
@@ -11528,6 +11731,13 @@ class MainFrame(wx.Frame):
                     ),
                 )
             )
+        if item.kind == ItemKind.TRACK:
+            actions.append(
+                (
+                    menu.Append(wx.ID_ANY, tr("Find &alternate versions...")),
+                    lambda: self.find_alternate_versions_for(item),
+                )
+            )
         if item.kind == ItemKind.ALBUM:
             actions.append(
                 (
@@ -11644,6 +11854,17 @@ class MainFrame(wx.Frame):
                         "Find similar &artists (Last.fm)"
                     )),
                     lambda: self.find_similar_artists(item),
+                )
+            )
+        about_artist = MainFrame.unambiguous_artist_name(item)
+        if about_artist:
+            actions.append(
+                (
+                    menu.Append(
+                        wx.ID_ANY,
+                        tr("&About {artist}...").format(artist=about_artist),
+                    ),
+                    lambda: self.show_artist_story(about_artist),
                 )
             )
         if item.kind in (ItemKind.TRACK, ItemKind.ARTIST):
@@ -12460,9 +12681,107 @@ class MainFrame(wx.Frame):
             chart.chart_date.isoformat(),
         )
 
+    def triple_j_results(self, countdown: Countdown) -> ChartResults:
+        entries = self.triple_j.countdown(countdown)
+        items = [
+            SpotifyItem(
+                f"triplej:{countdown.year}:{int(countdown.special)}:{entry.rank}",
+                ItemKind.TRACK,
+                entry.name,
+                artist=entry.artist,
+                year=entry.release_year,
+                raw={
+                    "unresolved": True,
+                    "list_note": f"countdown rank {entry.rank}",
+                    "chart_url": TRIPLE_J_ARCHIVE_URL,
+                },
+            )
+            for entry in entries
+        ]
+        return ChartResults(
+            items, "AU", 0.0, "triple_j", detail=countdown.label
+        )
+
+    def classic_100_results(self, countdown: ClassicCountdown) -> ChartResults:
+        entries = self.classic_100.countdown(countdown)
+        chart_url = (
+            CLASSIC_100_CURRENT_URL
+            if countdown.current
+            else CLASSIC_100_ARCHIVE_URL
+        )
+        items = [
+            SpotifyItem(
+                f"classic100:{countdown.year}:{countdown.pollname}:{entry.rank}",
+                ItemKind.TRACK,
+                entry.work,
+                artist=entry.composer,
+                raw={
+                    "unresolved": True,
+                    "classical_work": True,
+                    "classical_chart_album": True,
+                    "classical_vocal": countdown.pollname == "voice",
+                    "classical_source_work": entry.work,
+                    "classical_source_composer": entry.composer,
+                    "list_note": f"countdown rank {entry.rank}",
+                    "chart_url": chart_url,
+                },
+            )
+            for entry in entries
+        ]
+        return ChartResults(
+            items, "AU", 0.0, "classic_100", detail=countdown.label
+        )
+
+    def rn_book_results(self, countdown: BookCountdown) -> ChartResults:
+        entries = self.rn_books.countdown(countdown)
+        items = [
+            SpotifyItem(
+                f"rnbooks:{countdown.year}:{entry.rank}",
+                ItemKind.AUDIOBOOK,
+                entry.title,
+                artist=entry.author,
+                raw={
+                    "unresolved": True,
+                    "list_note": f"countdown rank {entry.rank}",
+                    "chart_url": (
+                        RN_BOOKS_TOP_URL
+                        if entry.rank <= 100
+                        else RN_BOOKS_NEXT_URL
+                    ),
+                },
+            )
+            for entry in entries
+        ]
+        return ChartResults(
+            items, "AU", 0.0, "rn_books", detail=countdown.label
+        )
+
     def resolve_track_row(self, row: SpotifyItem) -> SpotifyItem | None:
         if row.kind == ItemKind.AUDIOBOOK:
             return self.spotify.find_audiobook(row.name, row.artist)
+        if row.raw.get("classical_work"):
+            vocal_work_words = {
+                "cantata", "mass", "messiah", "opera", "oratorio",
+                "passion", "requiem",
+            }
+            title_words = set(re.findall(r"[^\W_]+", row.name.casefold()))
+            require_vocal = bool(
+                row.raw.get("classical_vocal")
+                or title_words & vocal_work_words
+            )
+            row.raw["classical_vocal"] = require_vocal
+            excerpt_words = {
+                "aria", "chorus", "duet", "overture", "prelude", "song"
+            }
+            is_excerpt = bool(title_words & excerpt_words)
+            row.raw["classical_chart_album"] = not is_excerpt
+            if is_excerpt:
+                return self.spotify.find_classical_work(
+                    row.name, row.artist, require_vocal=require_vocal
+                )
+            return self.spotify.find_classical_album(
+                row.name, row.artist, require_vocal=require_vocal
+            )
         find = (
             self.spotify.find_album
             if row.kind == ItemKind.ALBUM
@@ -13039,6 +13358,101 @@ class MainFrame(wx.Frame):
             return None
         return item
 
+    def find_alternate_versions_for(self, item: SpotifyItem) -> None:
+        """Offer playable alternatives without modifying a playlist."""
+        work = str(item.raw.get("classical_source_work") or "")
+        composer = str(item.raw.get("classical_source_composer") or "")
+        classical_album = bool(item.raw.get("classical_chart_album"))
+        if not (work and composer):
+            source_title = item.name if item.kind == ItemKind.ALBUM else item.album
+            source_words = set(
+                re.findall(r"[^\W_]+", source_title.casefold())
+            )
+            classical_markers = {
+                "bwv", "cantata", "concerto", "hwv", "mass", "messiah",
+                "opera", "oratorio", "passion", "requiem", "rv", "sonata",
+                "symphony",
+            }
+            if source_title and source_words & classical_markers:
+                composer = item.artist.split(",", 1)[0].strip()
+                work = re.sub(
+                    r"\s*\([^)]*\b(?:complete|recording|version)\b[^)]*\)\s*$",
+                    "",
+                    source_title,
+                    flags=re.IGNORECASE,
+                ).strip()
+                surname = composer.rsplit(" ", 1)[-1]
+                work = re.sub(
+                    rf"^{re.escape(surname)}\s*:\s*",
+                    "",
+                    work,
+                    flags=re.IGNORECASE,
+                )
+                classical_album = bool(composer and work)
+        if work and composer and classical_album:
+            vocal_words = {
+                "cantata", "mass", "messiah", "opera", "oratorio",
+                "passion", "requiem",
+            }
+            require_vocal = bool(
+                item.raw.get("classical_vocal")
+                or set(re.findall(r"[^\W_]+", work.casefold())) & vocal_words
+            )
+            logger.info(
+                "Alternate versions route=classical-album work=%r composer=%r",
+                work,
+                composer,
+            )
+            worker = lambda: self.spotify.alternate_classical_albums(
+                work,
+                composer,
+                require_vocal=require_vocal,
+                exclude_uri=item.uri,
+            )
+        else:
+            logger.info(
+                "Alternate versions route=track name=%r artist=%r",
+                item.name,
+                item.artist,
+            )
+            worker = lambda: self.spotify.alternate_versions(item)
+        self.run_task(
+            None,
+            worker,
+            lambda candidates: self.show_playable_alternate_versions(
+                item, candidates
+            ),
+        )
+
+    def show_playable_alternate_versions(
+        self,
+        original: SpotifyItem,
+        candidates: list[SpotifyItem],
+    ) -> None:
+        if not candidates:
+            self.say(msg.NO_ALTERNATE_VERSIONS)
+            return
+        dialog = AlternateVersionsDialog(self, original, candidates)
+        try:
+            dialog.ShowModal()
+        finally:
+            dialog.Destroy()
+
+    def find_alternate_versions_for_current(self) -> None:
+        item = self.current_track()
+        if item:
+            source = getattr(self, "current_classical_alternate_source", None)
+            context_uri = str(
+                getattr(self, "current_player_state", {}).get(
+                    "context_uri", ""
+                )
+            )
+            self.find_alternate_versions_for(
+                source
+                if source and source.uri == context_uri
+                else item
+            )
+
     def show_current_song_story(self) -> None:
         item = self.current_track()
         if item:
@@ -13048,6 +13462,24 @@ class MainFrame(wx.Frame):
         item = self.current_track()
         if item:
             self.open_album_for_track(item)
+
+    def open_focused_or_current_album(self) -> None:
+        """Open the focused item's album, falling back to Now Playing."""
+        focused_list = item_list_ancestor(wx.Window.FindFocus())
+        if focused_list:
+            item = focused_list.selected_item()
+            if not item:
+                return
+            if item.kind == ItemKind.TRACK:
+                self.open_selected_track_album(item)
+            elif item.kind == ItemKind.ALBUM:
+                self.run_task(
+                    msg.opening(item.name),
+                    lambda: self.spotify.children(item),
+                    lambda tracks: self.finish_open_album(item, tracks),
+                )
+            return
+        self.open_current_album()
 
     def show_current_artist_albums(self) -> None:
         item = self.current_track()
@@ -13081,6 +13513,25 @@ class MainFrame(wx.Frame):
         self.run_task(
             tr("Looking up {name} on Wikipedia.").format(name=item.name),
             lambda: self.wikipedia.song_story(item.name, item.artist),
+            lambda story: self.finish_song_story(item, story),
+        )
+
+    @staticmethod
+    def unambiguous_artist_name(item: SpotifyItem) -> str:
+        if item.kind == ItemKind.ARTIST:
+            return item.name.strip()
+        if item.kind not in (ItemKind.TRACK, ItemKind.ALBUM):
+            return ""
+        artists = item.raw.get("artists") or []
+        if len(artists) != 1:
+            return ""
+        return str(artists[0].get("name") or "").strip()
+
+    def show_artist_story(self, name: str) -> None:
+        item = SpotifyItem("wikipedia-artist", ItemKind.ARTIST, name)
+        self.run_task(
+            tr("Looking up {name} on Wikipedia.").format(name=name),
+            lambda: self.wikipedia.artist_story(name),
             lambda story: self.finish_song_story(item, story),
         )
 

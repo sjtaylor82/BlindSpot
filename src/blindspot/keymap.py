@@ -155,7 +155,7 @@ KEY_ACTIONS = (
     ),
     KeyAction(
         "open_current_album",
-        tr_noop("Open album of current track"),
+        tr_noop("Open album of focused or current track"),
         "Main",
         ("Control+Shift+O",),
         ("Control+Shift+O",),

@@ -633,6 +633,58 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
 
         self.assertEqual(focused_targets, [controls["release_types"]])
 
+    def test_triple_j_countdown_is_in_the_discover_tab_loop(self):
+        focused_targets = []
+
+        class Control:
+            def SetFocus(self):
+                focused_targets.append(self)
+
+            def GetParent(self):
+                return None
+
+            def IsEnabled(self):
+                return True
+
+            def IsShown(self):
+                return True
+
+        notebook = Control()
+        notebook.GetSelection = lambda: 8
+        names = (
+            "discovery_source",
+            "history_chart",
+            "triple_j_countdown",
+            "classic_100_countdown",
+            "rn_books_countdown",
+            "release_types",
+            "chart_country",
+            "search_button",
+            "items",
+            "filter",
+        )
+        controls = {name: Control() for name in names}
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": notebook,
+                "new_music": type("NewMusic", (), controls)(),
+            },
+        )()
+
+        with (
+            patch(
+                "blindspot.ui.wx.Window.FindFocus",
+                return_value=controls["history_chart"],
+            ),
+            patch("blindspot.ui.item_list_ancestor", return_value=None),
+            patch("blindspot.ui.radio_box_ancestor", return_value=None),
+        ):
+            MainFrame.move_focus(frame, backward=False)
+
+        self.assertEqual(focused_targets, [controls["triple_j_countdown"]])
+
     def test_hosted_window_keeps_playback_keys_working(self):
         calls = []
         frame = type(
@@ -2180,6 +2232,49 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
 
         self.assertEqual(opened, [track])
 
+    def test_open_album_shortcut_prefers_the_focused_list_track(self):
+        selected = ui.SpotifyItem("selected", ui.ItemKind.TRACK, "Selected")
+        focused_list = type(
+            "Items", (), {"selected_item": lambda self: selected}
+        )()
+        opened = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "open_selected_track_album": (
+                    lambda self, item: opened.append(("focused", item))
+                ),
+                "open_current_album": (
+                    lambda self: opened.append(("current", None))
+                ),
+            },
+        )()
+
+        with (
+            patch("blindspot.ui.wx.Window.FindFocus", return_value=object()),
+            patch("blindspot.ui.item_list_ancestor", return_value=focused_list),
+        ):
+            MainFrame.open_focused_or_current_album(frame)
+
+        self.assertEqual(opened, [("focused", selected)])
+
+    def test_open_album_shortcut_uses_now_playing_without_list_focus(self):
+        opened = []
+        frame = type(
+            "Frame",
+            (),
+            {"open_current_album": lambda self: opened.append("current")},
+        )()
+
+        with (
+            patch("blindspot.ui.wx.Window.FindFocus", return_value=object()),
+            patch("blindspot.ui.item_list_ancestor", return_value=None),
+        ):
+            MainFrame.open_focused_or_current_album(frame)
+
+        self.assertEqual(opened, ["current"])
+
     def test_opening_track_album_remembers_exact_paginated_search_row(self):
         track = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Track")
         state = ui.ViewState(
@@ -3539,7 +3634,11 @@ class DiscoverPanelStub:
         self.filter = type(
             "Filter",
             (),
-            {"GetValue": lambda self: filter_text},
+            {
+                "value": filter_text,
+                "GetValue": lambda self: self.value,
+                "SetValue": lambda self, value: setattr(self, "value", value),
+            },
         )()
         self.items = type(
             "Items",
@@ -4004,6 +4103,15 @@ class NewMusicTests(unittest.TestCase):
         self.assertTrue(panel.statuses[-1].startswith("1 chart entry."))
         self.assertIn("Australia", panel.statuses[-1])
 
+    def test_new_chart_clears_a_filter_left_by_the_previous_source(self):
+        panel = DiscoverPanelStub(filter_text="does not match")
+        track = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Visible work")
+
+        panel.show_chart_items(ui.ChartResults([track], "au", 0.0))
+
+        self.assertEqual(panel.filter.GetValue(), "")
+        self.assertEqual(panel.last_rendered_ids(), ["track"])
+
     def test_chart_provenance_names_source_country_and_limits(self):
         note = ui.chart_provenance(
             ui.ChartResults([], "pl", 1_790_000_000.0)
@@ -4253,12 +4361,13 @@ class NewMusicTests(unittest.TestCase):
             panel.discovery_source.selection = selection
             ui.NewMusicPanel.update_source_controls(panel)
 
-        # New releases, Followed artists and authors, Top charts, Historical.
+        # New releases, Followed artists and authors, Apple Music most played,
+        # Charts.
         for name in ("genre", "keyword"):
             self.assertEqual(enabled[name], [True, False, False, False])
         self.assertEqual(enabled["release_types"], [True, False, True, False])
         self.assertEqual(enabled["release_window"], [True, True, False, False])
-        self.assertEqual(enabled["chart_country"], [True, True, True, False])
+        self.assertEqual(enabled["chart_country"], [True, False, True, False])
         self.assertEqual(enabled["chart_date"], [False, False, False, True])
 
     def test_chart_country_choice_maps_back_to_a_storefront_code(self):

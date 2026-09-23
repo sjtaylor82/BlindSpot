@@ -362,6 +362,8 @@ class DiscoverOrderTests(unittest.TestCase):
             id(getattr(self.panel, name)): name
             for name in (
                 "discovery_source", "history_chart", "number_ones_country",
+                "triple_j_countdown", "classic_100_countdown",
+                "rn_books_countdown",
                 "release_types", "number_ones_order",
                 "genre", "release_window", "keyword", "chart_country",
                 "chart_date", "search_button",
@@ -379,7 +381,7 @@ class DiscoverOrderTests(unittest.TestCase):
         ]
 
     def test_uk_choice_reaches_show_and_order_after_the_chart_choice(self):
-        self.panel.discovery_source.SetSelection(3)  # Historical charts
+        self.panel.discovery_source.SetSelection(3)  # Charts
         self.panel.history_chart.SetSelection(1)  # UK number ones
         self.panel.update_source_controls()
 
@@ -404,4 +406,49 @@ class DiscoverOrderTests(unittest.TestCase):
         self.assertEqual(
             self.order(),
             ["discovery_source", "history_chart", "chart_date", "search_button"],
+        )
+
+    def test_triple_j_chart_offers_only_the_countdown(self):
+        self.panel.discovery_source.SetSelection(3)
+        self.panel.history_chart.SetSelection(2)
+        self.panel.update_source_controls()
+
+        self.assertEqual(
+            self.order(),
+            [
+                "discovery_source",
+                "history_chart",
+                "triple_j_countdown",
+                "search_button",
+            ],
+        )
+
+    def test_classic_100_chart_offers_only_the_countdown(self):
+        self.panel.discovery_source.SetSelection(3)
+        self.panel.history_chart.SetSelection(3)
+        self.panel.update_source_controls()
+
+        self.assertEqual(
+            self.order(),
+            [
+                "discovery_source",
+                "history_chart",
+                "classic_100_countdown",
+                "search_button",
+            ],
+        )
+
+    def test_radio_national_chart_offers_only_the_countdown(self):
+        self.panel.discovery_source.SetSelection(3)
+        self.panel.history_chart.SetSelection(4)
+        self.panel.update_source_controls()
+
+        self.assertEqual(
+            self.order(),
+            [
+                "discovery_source",
+                "history_chart",
+                "rn_books_countdown",
+                "search_button",
+            ],
         )
