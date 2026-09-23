@@ -1,6 +1,21 @@
 BLINDSPOT CHANGELOG
 ===================
 
+2026.9.5 - 23 September 2026
+
+Features implemented:
+- Triple J Hottest 100, ABC Classic 100 and ABC Radio National Top Books
+  countdown browsing from official ABC sources.
+- Spotify classical-work matching, alternate-recording browsing and Wikipedia
+  artist stories.
+- Continuous playback from a selected lyric with Space, phrase playback with
+  Shift+Space, and pause or resume with Enter in the Lyrics window.
+
+Bugs fixed:
+- Kept translated lyrics synchronized with playback and retained the reader's
+  approximate position when switching between original and translated lyrics.
+
+
 2026.9.4 - 23 September 2026
 
 Features implemented:
