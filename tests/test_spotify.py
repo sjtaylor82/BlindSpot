@@ -803,6 +803,39 @@ class PlaybackCommandTests(unittest.TestCase):
 
         self.assertEqual([item.id for item in albums], ["album-1"])
 
+    def test_album_children_load_every_track_page_in_order(self):
+        def track(number):
+            return {
+                "id": f"track-{number}",
+                "name": f"Track {number}",
+                "uri": f"spotify:track:{number}",
+            }
+
+        client = CommandClient(
+            [
+                {
+                    "items": [track(number) for number in range(50)],
+                    "total": 52,
+                },
+                {
+                    "items": [track(50), track(51)],
+                    "offset": 50,
+                    "total": 52,
+                },
+            ]
+        )
+        album = SpotifyItem("album-1", ItemKind.ALBUM, "Large Album")
+
+        tracks = client.children(album)
+
+        self.assertEqual(len(tracks), 52)
+        self.assertEqual(tracks[50].id, "track-50")
+        self.assertEqual(tracks[51].album, "Large Album")
+        self.assertEqual(
+            [call[2] for call in client.calls],
+            [{"limit": 50}, {"limit": 50, "offset": 50}],
+        )
+
     def test_album_for_track_uses_embedded_album_without_request(self):
         client = PlaylistClient([])
         track = SpotifyItem(

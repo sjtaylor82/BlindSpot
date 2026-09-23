@@ -435,10 +435,14 @@ class SpotifyClient:
             item.name,
         )
         if item.kind == ItemKind.ALBUM:
-            data = self._request("GET", f"/albums/{item.id}/tracks", query={"limit": 50})
+            values = self._paged_items(
+                "GET",
+                f"/albums/{item.id}/tracks",
+                query={"limit": 50},
+            )
             items = [
                 self._map_item(x, ItemKind.TRACK, album=item.name)
-                for x in data["items"]
+                for x in values
             ]
             logger.info("Loaded %d album tracks", len(items))
             return items
