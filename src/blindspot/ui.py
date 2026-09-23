@@ -4336,7 +4336,7 @@ class NewMusicPanel(CollectionPanel):
                 tr("New releases"),
                 tr("Followed artists and authors"),
                 tr("Apple Music most played"),
-                tr("Charts"),
+                tr("Charts and countdowns"),
             ],
             majorDimension=1,
             style=wx.RA_SPECIFY_ROWS,

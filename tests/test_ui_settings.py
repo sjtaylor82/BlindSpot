@@ -4362,7 +4362,7 @@ class NewMusicTests(unittest.TestCase):
             ui.NewMusicPanel.update_source_controls(panel)
 
         # New releases, Followed artists and authors, Apple Music most played,
-        # Charts.
+        # Charts and countdowns.
         for name in ("genre", "keyword"):
             self.assertEqual(enabled[name], [True, False, False, False])
         self.assertEqual(enabled["release_types"], [True, False, True, False])

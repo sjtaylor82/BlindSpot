@@ -381,7 +381,7 @@ class DiscoverOrderTests(unittest.TestCase):
         ]
 
     def test_uk_choice_reaches_show_and_order_after_the_chart_choice(self):
-        self.panel.discovery_source.SetSelection(3)  # Charts
+        self.panel.discovery_source.SetSelection(3)  # Charts and countdowns
         self.panel.history_chart.SetSelection(1)  # UK number ones
         self.panel.update_source_controls()
 

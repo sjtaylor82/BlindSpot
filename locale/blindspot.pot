@@ -3124,7 +3124,7 @@ msgid "Apple Music most played"
 msgstr ""
 
 #: blindspot/ui.py
-msgid "Charts"
+msgid "Charts and countdowns"
 msgstr ""
 
 #: blindspot/ui.py
@@ -4726,4 +4726,3 @@ msgstr ""
 #, python-brace-format
 msgid "UK number ones are available from {first} to {last}."
 msgstr ""
-

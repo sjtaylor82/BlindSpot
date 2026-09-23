@@ -22,7 +22,7 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
   Saved Albums, and Discover tabs. Bookmarks and concert search open from the
   File menu instead of the tab bar.
 - The Discover tab offers **New releases**, **Followed artists and authors**,
-  **Apple Music most played**, and **Charts**. The Apple charts show the most-played
+  **Apple Music most played**, and **Charts and countdowns**. The Apple charts show the most-played
   songs or albums for one of 45 countries, taken from Apple Music's
   public RSS feed, which reports real play data from Apple Music's whole
   user base and needs no API key. Rows announce their chart position.
@@ -63,7 +63,7 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
   data/followed_artists.json and is separate from following on Spotify.
   Spotify's own new-release search is no longer used, because it returns the
   top 100 worldwide releases and cannot be limited by genre or country.
-  **Charts** includes historical and listener-voted sources. The experimental
+  **Charts and countdowns** includes historical and listener-voted sources. The experimental
   US Billboard Hot 100
   accepts a date, maps it to the latest weekly chart on or before that day,
   and reads the JSON live from the community-maintained

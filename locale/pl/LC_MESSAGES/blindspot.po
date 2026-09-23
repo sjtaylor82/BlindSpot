@@ -3259,7 +3259,7 @@ msgid "Apple Music most played"
 msgstr ""
 
 #: blindspot/ui.py
-msgid "Charts"
+msgid "Charts and countdowns"
 msgstr ""
 
 #: blindspot/ui.py
