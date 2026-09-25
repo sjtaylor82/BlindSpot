@@ -1,7 +1,7 @@
 BLINDSPOT CHANGELOG
 ===================
 
-Unreleased
+2026.9.7 - 25 September 2026
 
 Features implemented:
 - On Windows, the playback device list can send BlindSpot's own player to a
