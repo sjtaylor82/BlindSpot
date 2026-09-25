@@ -26,6 +26,7 @@ from . import diagnostics
 from . import export as exporting
 from . import i18n
 from . import messages as msg
+from . import recent_plays
 from .applemusic import (
     CHART_COUNTRIES,
     DEFAULT_COUNTRY as DEFAULT_CHART_COUNTRY,
@@ -7675,6 +7676,7 @@ class MainFrame(wx.Frame):
         self.remote_supports_volume: bool | None = None
         self.pending_transfer_device: dict | None = None
         self.audio_output_applied = False
+        self.listening_timer = recent_plays.ListeningTimer()
         self.volume_before_mute_percent = self.playback_volume_percent
         self.remote_refresh_pending = False
         self.remote_refresh_timer = wx.Timer(self)
@@ -11547,7 +11549,25 @@ class MainFrame(wx.Frame):
         return items
 
     def load_recently_played(self) -> list[SpotifyItem]:
-        return self.spotify.recently_played()
+        return recent_plays.merge(
+            self.spotify.recently_played(),
+            recent_plays.load(self.store),
+        )
+
+    def note_listening(self, state: dict) -> None:
+        """Record songs Spotify leaves out of Recently Played.
+
+        Spotify only lists songs that played to the end, so BlindSpot keeps
+        its own record of anything it has played for a short while.
+        """
+        timer = getattr(self, "listening_timer", None)
+        if timer is None:
+            return
+        item = self.current_player_item
+        uri = item.uri if item and item.uri.startswith("spotify:") else ""
+        if timer.update(uri, bool(state.get("is_playing")), time.monotonic()):
+            recent_plays.remember(self.store, item)
+            logger.info("Recorded local play item=%s", item.id)
 
     def save_current_bookmark(self) -> None:
         if self.using_local_player():
@@ -12179,6 +12199,7 @@ class MainFrame(wx.Frame):
         ):
             self.apply_audio_output()
         self.apply_playback_update(state)
+        self.note_listening(state)
 
     @staticmethod
     def report_transit_seconds(state: dict) -> float:

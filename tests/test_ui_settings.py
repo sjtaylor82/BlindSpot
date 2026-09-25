@@ -1,4 +1,5 @@
 import tempfile
+from datetime import datetime, timezone
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, call, patch
@@ -4464,26 +4465,63 @@ class NewMusicTests(unittest.TestCase):
         self.assertEqual(ui.parse_chart_date("19800105"), ui.date(1980, 1, 5))
         self.assertEqual(ui.parse_chart_date("1980-01-05"), ui.date(1980, 1, 5))
 
-    def test_recently_played_preserves_spotify_order(self):
+    def test_recently_played_merges_local_plays_newest_first(self):
+        def played(item_id, when):
+            return ui.SpotifyItem(
+                item_id,
+                ui.ItemKind.TRACK,
+                item_id,
+                uri=f"spotify:track:{item_id}",
+                raw={"played_at": when},
+            )
+
         spotify_items = [
-            ui.SpotifyItem("newest", ui.ItemKind.TRACK, "Newest"),
-            ui.SpotifyItem("older", ui.ItemKind.TRACK, "Older"),
+            played("duncan", "2026-09-25T13:04:20.286Z"),
+            played("harleys", "2026-09-25T13:01:34.006Z"),
         ]
-        frame = type(
-            "Frame",
-            (),
-            {
-                "spotify": type(
-                    "Spotify",
-                    (),
-                    {"recently_played": lambda self: spotify_items},
-                )(),
-            },
-        )()
+        with tempfile.TemporaryDirectory() as folder:
+            store = ui.PortableStore(Path(folder))
+            skipped = played("dreams", "")
+            ui.recent_plays.remember(
+                store, skipped, datetime(2026, 9, 25, 13, 7, 30, tzinfo=timezone.utc)
+            )
+            ui.recent_plays.remember(
+                store,
+                played("harleys", ""),
+                datetime(2026, 9, 25, 12, 0, tzinfo=timezone.utc),
+            )
+            frame = type(
+                "Frame",
+                (),
+                {
+                    "store": store,
+                    "spotify": type(
+                        "Spotify",
+                        (),
+                        {"recently_played": lambda self: spotify_items},
+                    )(),
+                },
+            )()
 
-        items = MainFrame.load_recently_played(frame)
+            items = MainFrame.load_recently_played(frame)
 
-        self.assertIs(items, spotify_items)
+        # Newest first, and Harleys appears once with its latest play.
+        self.assertEqual([item.id for item in items], ["dreams", "duncan", "harleys"])
+        self.assertEqual(items[2].raw["played_at"], "2026-09-25T13:01:34.006Z")
+
+    def test_listening_timer_counts_only_time_spent_playing(self):
+        timer = ui.recent_plays.ListeningTimer()
+        self.assertFalse(timer.update("spotify:track:a", True, 0))
+        self.assertFalse(timer.update("spotify:track:a", True, 10))
+        # Paused for a minute: that time doesn't count.
+        self.assertFalse(timer.update("spotify:track:a", False, 15))
+        self.assertFalse(timer.update("spotify:track:a", True, 75))
+        self.assertFalse(timer.update("spotify:track:a", True, 84))
+        self.assertTrue(timer.update("spotify:track:a", True, 90))
+        # Recorded once only.
+        self.assertFalse(timer.update("spotify:track:a", True, 100))
+        # A new song starts counting from zero.
+        self.assertFalse(timer.update("spotify:track:b", True, 101))
 
     def test_recently_played_refresh_resets_generic_list_sorting(self):
         panel = ui.RecentlyPlayedPanel.__new__(ui.RecentlyPlayedPanel)

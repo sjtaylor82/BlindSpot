@@ -153,7 +153,7 @@ def _classical_match_score(
     return score, duration_bonus
 
 
-def _played_at_label(value: str) -> str:
+def played_at_label(value: str) -> str:
     try:
         played_at = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
@@ -620,7 +620,7 @@ class SpotifyClient:
                 seen_tracks.add(track_key)
             item = self._map_item(track, ItemKind.TRACK)
             item.raw["played_at"] = value.get("played_at", "")
-            item.raw["played_at_label"] = _played_at_label(
+            item.raw["played_at_label"] = played_at_label(
                 str(value.get("played_at") or "")
             )
             items.append(item)

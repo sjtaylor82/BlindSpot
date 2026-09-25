@@ -97,10 +97,10 @@ class ShippedCatalogueTests(unittest.TestCase):
     def test_polish_dates_use_polish_words(self) -> None:
         i18n.set_language("pl")
         self.assertEqual("5 marca 2026", msg.long_date(date(2026, 3, 5)))
-        from blindspot.spotify import _played_at_label
+        from blindspot.spotify import played_at_label
 
         when = datetime(2026, 3, 5, 0, 5, tzinfo=timezone.utc)
-        label = _played_at_label(when.isoformat())
+        label = played_at_label(when.isoformat())
         self.assertTrue(label.startswith("odtworzono "), label)
         self.assertNotIn("PM", label)
 
