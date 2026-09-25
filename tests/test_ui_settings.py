@@ -5790,7 +5790,27 @@ class TranscriptPlaybackTests(unittest.TestCase):
 
         event.Skip.assert_called_once_with()
         timer.StartOnce.assert_called_once_with(200)
-        ui.TranscriptDialog.on_activation_focus_timer(dialog)
+        with patch.object(ui.sys, "platform", "darwin"):
+            ui.TranscriptDialog.on_activation_focus_timer(dialog)
+        text.SetFocus.assert_called_once_with()
+
+    def test_focus_restore_brings_transcript_to_the_foreground(self):
+        text = Mock()
+        dialog = Mock(closed=False, text=text)
+        dialog.GetHandle.return_value = 1234
+        user32 = Mock()
+        user32.GetForegroundWindow.return_value = 999
+        windll = Mock(user32=user32)
+
+        with (
+            patch.object(ui.sys, "platform", "win32"),
+            patch("ctypes.windll", windll, create=True),
+            patch.object(ui.wx.Window, "FindFocus", return_value=None),
+        ):
+            ui.TranscriptDialog.restore_activation_focus(dialog)
+
+        user32.SetForegroundWindow.assert_called_once()
+        self.assertEqual(user32.SetForegroundWindow.call_args.args[0].value, 1234)
         text.SetFocus.assert_called_once_with()
 
     def test_app_return_schedules_transcript_focus_recovery(self):

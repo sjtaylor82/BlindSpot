@@ -2076,10 +2076,31 @@ class TranscriptDialog(wx.Dialog):
         ]
 
     def restore_activation_focus(self) -> None:
-        if not self.closed:
-            logger.debug("Transcript restoring focus to read-only text")
+        if self.closed:
+            return
+        foreground = True
+        if sys.platform == "win32":
+            import ctypes
+
+            user32 = ctypes.windll.user32
+            user32.GetForegroundWindow.restype = ctypes.c_void_p
+            handle = self.GetHandle()
+            foreground = user32.GetForegroundWindow() == handle
+            if not foreground:
+                # Raise() only reorders windows.  Windows can leave the owner
+                # frame active, and keyboard focus with it, after Alt+Tab.
+                user32.SetForegroundWindow(ctypes.c_void_p(handle))
+        else:
             self.Raise()
+        if wx.Window.FindFocus() is not self.text:
             self.text.SetFocus()
+        focused = wx.Window.FindFocus()
+        logger.debug(
+            "Transcript focus restore was_foreground=%s focused=%s",
+            foreground,
+            "text" if focused is self.text
+            else type(focused).__name__ if focused else "none",
+        )
 
     def on_activation_focus_timer(
         self,

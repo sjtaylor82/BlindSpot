@@ -11,6 +11,9 @@ Features implemented:
   Spotify itself only lists songs that played to the end.
 
 Bugs fixed:
+- Returning to the transcript window with Alt+Tab brings it to the front
+  before moving focus to the transcript, so focus no longer stays behind in
+  the main window.
 - Refreshing Recently Played now moves to the newest play, instead of
   staying on the previous song and leaving new plays unseen above it.
 
