@@ -6,545 +6,722 @@
   <title>BlindSpot manual</title>
 </head>
   <body>
-    <p>BlindSpot permits one running instance per user. Starting it again
-      reports that BlindSpot is already running.</p>
   <main>
     <h1>BlindSpot manual</h1>
-    <p>Build 2026.9.5</p>
-    <p>BlindSpot is a portable, keyboard-first Spotify client for Windows and macOS.</p>
+    <p>Build 2026.9.6</p>
+    <p>BlindSpot is a Spotify player for Windows and macOS, designed to be
+      used entirely from the keyboard with a screen reader. It's portable, so
+      there's nothing to install. Just run it from its folder.</p>
+    <p>This manual shows you what BlindSpot can do and how to do it. Where
+      information comes from somewhere other than Spotify, it tells you where,
+      and it explains what BlindSpot saves on your computer.</p>
 
-    <h2>Main interface</h2>
-    <p>Use Tab and Shift+Tab to move throughout the interface. Enter opens
-      an album, artist, playlist, or podcast, and plays a track or episode.
-      Backspace returns to the previous remembered list position. A horizontal tab-bar, as well as a menu bar, is where the program's features are located</p>
+    <h2>Finding your way around</h2>
+    <p>At the top of the main window is a menu bar, followed by a row of tabs
+      such as Search, Liked Songs and Playlists. Below those are the controls
+      for the tab you're on, a list of results, and finally a Now Playing
+      area. Press Tab and Shift+Tab to move between them.</p>
+    <p>In a list, press Enter on a song, chapter or episode to play it. Press
+      Enter on an album, artist, playlist, audiobook or podcast to open it and
+      see what's inside. To go back, press Backspace or Alt+Left, and you'll
+      return to the same spot in the list you came from.</p>
+    <p>Most items can do more than play or open. To see everything you can
+      do with one, press the Applications key or Shift+F10 to open its context
+      menu.</p>
+    <p>Spotify sends long lists a page at a time. When there's more to come,
+      the last item in the list is Load more or Show more. Press Enter on it
+      and the next page is added to the bottom.</p>
+    <p>You can only run one copy of BlindSpot at a time. If you try to start
+      a second one, it tells you BlindSpot is already running.</p>
 
-    <h2>Keyboard commands</h2>
+    <h2>Keyboard shortcuts</h2>
+    <p>These are the shortcuts BlindSpot starts with. You can change most of
+      them in Keyboard Manager, which is described under Preferences. On macOS,
+      if the menu shows Command for a command, use Command in place of
+      Ctrl.</p>
+
+    <h3>Getting around</h3>
     <ul>
-      <li>Ctrl+1 through Ctrl+9: Search, Liked Songs, Queue, Playlists,
-        Recently Played, Audiobooks, Podcasts, Saved Albums, and Discover
-        respectively.</li>
-      <li>Ctrl+B: open Bookmarks. Ctrl+Shift+G: search for concerts. Both are
-        in the File menu and open in their own window; playback keys still
-        work there.</li>
-      <li>Ctrl+Tab and Ctrl+Shift+Tab: cycle through the main tabs.</li>
-      <li>Ctrl+F: focus the search box.</li>
+      <li>Ctrl+1 to Ctrl+9: go straight to a tab. In order, they are Search,
+        Liked Songs, Queue, Playlists, Recently Played, Audiobooks, Podcasts,
+        Saved Albums and Discover.</li>
+      <li>Ctrl+Tab and Ctrl+Shift+Tab: move to the next or previous tab.</li>
+      <li>Ctrl+F: go to the search box.</li>
+      <li>Ctrl+B: open your bookmarks.</li>
+      <li>Ctrl+Shift+G: search for concerts.</li>
       <li>Ctrl+Comma: open Preferences.</li>
-      <li>Enter: open a container, or play a track or episode.</li>
-      <li>F4: play the focused track, playlist, album, or artist. When no list
-        has focus, F4 plays the song remembered from your last session.</li>
-      <li>F5: restart current track. Double-press within 0.5 seconds to move to the previous track
-        immediately.</li>
-      <li>F6 / F8: seek backward and forward five seconds.</li>
-      <li>Shift+F8 / Shift+F6: jump to the next or previous lyric section
-      (verse or chorus). BlindSpot finds sections from the gaps between lines
-      in the synced lyrics, so this works only for songs that have them.
-      Preferences has an option, off by default, to speak the section number
-      after each jump.</li>
-      <li>F7: pause or resume. After launch, F7 also starts a remembered
-        track when playback memory is enabled.</li>
-      <li>F9: next track.</li>
-      <li>Left bracket then right bracket: mark the start and end of a cart
-        while a song is playing. Press Alt+1 through Alt+9 to assign the
-        marked section.</li>
-      <li>Alt+1 through Alt+9: play the corresponding cart when no marked
-        section is waiting to be assigned. Use File, Manage carts to preview
-        or clear saved carts. Repeat One loops the current cart; Repeat All
-        advances through populated carts in number order and wraps around.</li>
-      <li>Shift+F4 / Shift+F5: decrease and increase volume by five
-        percent.</li>
-      <li>Shift+F7: mute or restore previous volume. Preferences can turn off
-        the spoken volume percentage, which is on by default.</li>
-      <li>Space: pause or resume playback, except when focus is in a control
-        that uses Space itself, such as a button, radio button, checkbox, or
-        edit field.</li>
-      <li>Shift+Space: play from the current line in Lyrics view.</li>
-      <li>Ctrl+Q: queue selected track or tracks.</li>
-      <li>Ctrl+L: like or unlike selected track.</li>
-      <li>Ctrl+Shift+L: like or unlike the currently loaded track.</li>
-      <li>Ctrl+Shift+A: copy the selected track or marked tracks to an editable
-        playlist, preserving their displayed order.</li>
-      <li>Ctrl+Shift+N: create playlist.</li>
-      <li>Ctrl+Shift+B: bookmark current playback position.</li>
-      <li>Ctrl+Shift+O: open the focused track's album, or the currently
-        playing track's album when no list item has focus.</li>
-      <li>Ctrl+Shift+D: choose a Spotify Connect playback device.</li>
-      <li>Ctrl+R: cycle repeat mode.</li>
-      <li>Ctrl+S: toggle shuffle.</li>
-      <li>Ctrl+J: jump to playback time.</li>
-      <li>Ctrl+Shift+J: open sleep timer.</li>
-      <li>Ctrl+Shift+I: speak current track name.</li>
-      <li>Ctrl+Shift+U: speak upcoming track.</li>
-      <li>Ctrl+Y: retrieve lyrics for the focused playable item, or for the
-        current track when focus is elsewhere.</li>
-      <li>Ctrl+Shift+T: speak total track time.</li>
-      <li>Ctrl+Shift+E: speak elapsed time.</li>
-      <li>Ctrl+Shift+R: refresh the current view.</li>
-      <li>On macOS, Option+M: open actions for the selected item.</li>
-      <li>Ctrl+Enter: open the focused track's album.</li>
-      <li>Delete: remove the selected playlist, or track from Liked Songs.</li>
-      <li>Delete inside a playlist: remove the selected track when editable.</li>
-            <li>Backspace or Alt+Left: return to the previous remembered view.</li>
-      <li>Shift+F10 or the Applications key: open item actions.</li>
+      <li>Enter: play a song or episode, or open an album, playlist or other
+        collection.</li>
+      <li>Backspace or Alt+Left: go back.</li>
+      <li>Applications key or Shift+F10: open the context menu. On macOS,
+        press Option+M.</li>
     </ul>
-    <p>Library and playlist views provide a <strong>Filter this list</strong>
-      edit box immediately before Now Playing in the Tab order. It searches the
-      complete loaded list using the title, artist or publisher, and album or
-      show name. Matching ignores case and common diacritics. Clear the edit box
-      to restore every item. In an open playlist, F4 plays the visible filtered
-      sequence beginning with the focused track.</p>
-    <p>The View, Sort by submenu can temporarily order supported collection
-      views by Original order, Title, Artist, Album, Duration, or Date added
-      when Spotify provides that field. Choose Descending in the View menu to
-      reverse the selected sort. This changes only the displayed view and never
-      rewrites the saved playlist. Queue and Recently Played are not sortable
-      because their sequence has meaning.</p>
-    <h2>Search results</h2>
-    <p>Choose Related albums from an album's context menu, or while browsing
-      its tracks, to open a deduplicated list of related albums. Enter opens a
-      result, F4 plays it, and Backspace returns to the originating album or
-      collection.</p>
-    <p>A category search initially displays up to 20 results. When Spotify has
-      more matches, choose Load more results at the end of the list to append
-      the next page. The separate editable Genre field browses
-      community-tagged Songs, Albums, or Artists. Choose a supplied tag or type
-      another; the ordinary Search query can optionally narrow those results.
-      BlindSpot labels their Last.fm origin and resolves each result to Spotify
-      before offering playback or library actions.</p>
-    <p>You do not need to know a tag's name. Open the context menu on a
-      song or artist and choose Browse genres (Last.fm). BlindSpot lists
-      that item's strongest community tags, each with Last.fm's own weight
-      out of 100, and opens the one you choose as an ordinary Genre search
-      for songs or artists respectively. Tags that merely repeat the
-      artist or title, name a year, or describe opinion rather than genre,
-      such as seen live, are omitted. These are community tags, not an
-      official genre classification, and a track with few listeners may
-      have none.</p>
-    <h2>Finding covers</h2>
-    <p>Open the context menu on a song and choose Find covers (MusicBrainz)
-      to list other artists' recordings of the same song. MusicBrainz is a
-      free, open music database. It links all recordings of a song together
-      and marks which ones are covers, which Spotify does not provide.</p>
-    <p>The list opens in the Search tab, and Backspace returns to where you
-      were. Live, video and karaoke recordings, and the artist of the song
-      you started from, are left out. Recordings MusicBrainz marks as covers
-      come first, in alphabetical order by artist, and their row ends with
-      cover. Next come other recordings of the same song, then recordings
-      with the same title that MusicBrainz has not yet linked to the song,
-      which is common for recent releases; those are checked against the
-      length of your track. If you start from a cover, the original
-      artist's recording appears too. Novelty versions such as 8-bit
-      arrangements are listed last. MusicBrainz has no popularity ranking,
-      so the order does not reflect how well known a version is.</p>
-    <p>A lookup takes up to about 20 seconds, because MusicBrainz asks
-      programs to make no more than one request a second. For a very
-      popular song BlindSpot reads only the first 300 of its recordings and
-      the status line says how many were checked. If MusicBrainz does not
-      know the song, or has no song entry for it, BlindSpot tells you
-      instead of showing an empty list.</p>
-    <p>Rows show the artist, title and year. A version is looked up on
-      Spotify only when you play, queue, like or open the menu for it, as in
-      Discover charts. MusicBrainz lists many recordings that are not on
-      Spotify, so you may be told a version was not found.</p>
+
+    <h3>Playback</h3>
+    <ul>
+      <li>F4: play the selected song, album, playlist or artist. If you're not
+        in a list, F4 plays the song you were listening to last time.</li>
+      <li>F5: go back to the start of the song. Press it twice quickly to go
+        back to the previous song.</li>
+      <li>F6 and F8: go back or forward five seconds.</li>
+      <li>F7: pause or resume. When you've just started BlindSpot, F7 can also
+        pick up where you left off last time. See Preferences to turn this
+        on.</li>
+      <li>F9: go to the next song.</li>
+      <li>Space: pause or resume. On a button, checkbox or edit box, Space
+        does its usual job instead.</li>
+      <li>Shift+F4 and Shift+F5: turn the volume down or up by five
+        percent.</li>
+      <li>Shift+F7: mute or unmute.</li>
+      <li>Shift+F6 and Shift+F8: jump to the previous or next verse or chorus.
+        This is explained under Lyrics.</li>
+      <li>Ctrl+R: change the repeat mode.</li>
+      <li>Ctrl+S: turn shuffle on or off.</li>
+      <li>Ctrl+J: jump to a particular time in the song.</li>
+      <li>Ctrl+Shift+J: set the sleep timer.</li>
+      <li>Ctrl+Shift+D: choose which device the music plays on.</li>
+    </ul>
+
+    <h3>Songs and your library</h3>
+    <ul>
+      <li>Ctrl+Q: add the selected songs to the queue.</li>
+      <li>Ctrl+L: like or unlike the selected song.</li>
+      <li>Ctrl+Shift+L: like or unlike the song that's playing.</li>
+      <li>Ctrl+Shift+A: add the selected songs to one of your playlists. They
+        keep the order you see them in.</li>
+      <li>Ctrl+Shift+N: create a new playlist.</li>
+      <li>Ctrl+Shift+B: bookmark your place in what's playing.</li>
+      <li>Ctrl+Shift+O or Ctrl+Enter: open the album the selected song is
+        from. If you're not in a list, Ctrl+Shift+O opens the album of the song
+        that's playing.</li>
+      <li>Delete: remove a song from Liked Songs or from one of your
+        playlists, or remove a playlist from your library. You'll be asked to
+        confirm first.</li>
+    </ul>
+
+    <h3>Hearing what's playing</h3>
+    <ul>
+      <li>Ctrl+Shift+I: hear the name of the song that's playing.</li>
+      <li>Ctrl+Shift+U: hear what's coming up next.</li>
+      <li>Ctrl+Shift+E: hear how far into the song you are.</li>
+      <li>Ctrl+Shift+T: hear how long the song is.</li>
+      <li>Ctrl+Y: show the lyrics for the selected song, or for the song
+        that's playing.</li>
+      <li>Ctrl+Shift+F: refresh the list you're in.</li>
+    </ul>
+
+    <h2>Working with lists</h2>
+    <p>The quickest way to reach an item is to type the first few letters of
+      its name. Type them quickly, one after the other, and BlindSpot jumps to
+      the first match. Wait a moment before typing again to start a new
+      search.</p>
+    <p>Your library and playlists also have a <strong>Filter this
+      list</strong> box. You'll find it just before Now Playing as you tab
+      around. As you type, the list narrows to show only matching titles,
+      artists, albums or shows. It doesn't matter whether you use capitals or
+      accents, so typing beyonce finds Beyoncé. The filter only searches what
+      has already loaded, so load more first if you need to. To see the whole
+      list again, clear the box. In a filtered playlist, F4 plays only the
+      songs you can see, starting from the one you're on.</p>
+    <p>To change the order of a list, open the View menu and choose Sort by.
+      You can sort by title, artist, album, length or date added, as long as
+      Spotify provides that information. Choose Descending in the same menu to
+      reverse the order, or Original order to put everything back. Sorting only
+      changes what you see in BlindSpot. Your playlists on Spotify stay exactly
+      as they were.</p>
+    <p>The Queue and Recently Played can't be sorted, because their order is
+      the whole point. The Queue shows what will play next, and Recently Played
+      shows what you heard, in the order you heard it.</p>
+
+    <h2>Searching</h2>
+    <p>Search can find songs, albums, artists, playlists, podcasts, podcast
+      episodes, audiobooks and audiobook chapters. Before you search, choose
+      which of these you're looking for. You'll see the first 20 matches
+      straight away, and if there are more, you'll find Load more results at
+      the end of the list.</p>
+    <p>Press Enter to open or play a result. For everything else you can do
+      with it, open its context menu.</p>
+
+    <h3>Related albums</h3>
+    <p>Enjoying an album and want more like it? Open the context menu on the
+      album, or on any of its songs, and choose Related albums. Press Enter to
+      open a suggestion or F4 to play it. Backspace brings you back to where
+      you started.</p>
+
+    <h3>Browsing by genre</h3>
+    <p>Search also has a Genre box for exploring songs, albums or artists by
+      style. Choose one of the suggested genres or type your own. To narrow
+      the results further, type something in the ordinary search box as
+      well.</p>
+    <p>The genres come from Last.fm, where listeners tag music with whatever
+      words they like. That makes them a helpful guide, but not an official
+      label. BlindSpot tells you when results come from Last.fm, and finds each
+      one on Spotify before you play or save it.</p>
+    <p>Not sure what to type? Start from something you already like. Open the
+      context menu on a song or artist and choose Browse genres (Last.fm).
+      You'll see the tags listeners use most, each with a score out of 100
+      showing how strongly it fits. Choose a tag to find more songs or artists
+      like it. Tags that aren't really genres, such as the artist's name, the song title, a year, or an
+      opinion like seen live, are left out. Songs that few people
+      listen to may have no tags at all.</p>
+
+    <h3>Finding covers</h3>
+    <p>To hear other artists' versions of a song, open its context menu and
+      choose Find covers (MusicBrainz). MusicBrainz is a free, open music
+      database. Unlike Spotify, it knows which recordings are versions of the
+      same song, and which of those are covers.</p>
+    <p>The versions appear in the Search tab. Known covers come first, sorted
+      by artist, and each one ends with the word cover. Next come other
+      recordings of the same song. After those are recordings with the same
+      title that MusicBrainz hasn't yet linked to the song, which often happens
+      with new releases. BlindSpot compares their length with your song to
+      leave out ones that are clearly different. Novelty versions, such as
+      8-bit arrangements, come last. When you're done, Backspace takes you back
+      to where you were.</p>
+    <p>Live, video and karaoke recordings aren't included. Neither are
+      recordings by the artist you started from, unless you started from a
+      cover. In that case, the original is included.</p>
+    <p>MusicBrainz doesn't rank versions by popularity, so a famous cover may
+      not be near the top. It also asks programs not to send it more than one
+      request a second, so a search can take up to 20 seconds. For very
+      popular songs, BlindSpot looks through the first 300 recordings, and the
+      status line tells you how many it checked. If MusicBrainz doesn't know
+      the song at all, BlindSpot tells you.</p>
+    <p>Each version shows its artist, title and year. BlindSpot doesn't look
+      for it on Spotify until you play it, queue it, like it or open its menu.
+      MusicBrainz knows about many recordings that aren't on Spotify, so now
+      and then you'll be told a version can't be found.</p>
 
     <h2>Playlists</h2>
-    <p>Followed playlists that cannot be edited are announced as read only.
-      Enter opens a focused playlist. F4 plays the focused playlist, or starts
-      at the focused song when browsing one. Playback continues from selected track to the end.</p>
-    <p>Use control+Space (or VoiceOver selection commands) to select multiple tracks. Use Ctrl+A on Windows and
-      Linux, or Command+A on macOS, to select every track in the list. Select all is also available from the Edit
-      menu and the list context menu. Ctrl+Q adds all marked songs to the queue.
-      Delete removes the focused song from
-      an editable playlist after confirmation. In the list of playlists, Delete removes the
-      focused playlist from your library after confirmation.</p>
-    <p>Ctrl+C on Windows and Linux, or Command+C on macOS, copies the marked
-      tracks to BlindSpot's playlist clipboard. Ctrl+X or Command+X cuts marked
-      tracks from an editable playlist. Open the destination playlist and use
-      Ctrl+V or Command+V to paste. Cut tracks remain in the source until the
-      destination addition succeeds.</p>
-    <p>A track's context menu can open or start a similar-track mix provided by Last.fm, or append it after the
-      current queue. Opening the mix displays up to 50 candidates in pages of 20 without changing playback;
-      starting it plays the first matched page while the remaining candidates are prepared and appended in the
-      background. BlindSpot starts one track and queues the rest so Spotify does not loop a multi-track playback
-      context. When about ten queued mix tracks remain, BlindSpot uses the current track to find and append another
-      deduplicated batch. Playing an unrelated item ends the continuous mix. Duplicate Spotify matches are removed
-      throughout the session. Repeat is switched off before starting a mix.
-      Ctrl+Shift+M opens a mix for the focused track and Ctrl+Shift+P starts it. The Go menu provides equivalent
-      actions for the currently playing track.</p>
-    <p>The playlist context menu provides Open, Play, New playlist, Rename for
-      playlists you own, and Remove from library.</p>
-    <p>While browsing a playlist you own, the selected track's context menu
-      contains a Move submenu. Tracks can be moved up, down, to the top or
-      bottom, or to a numbered position. Focus follows the moved track and
-      BlindSpot announces its new position. Reordering is not offered for
-      playlists owned by someone else.</p>
-    <p>Type two or more letters quickly in any item list to jump to an item
-      beginning with that prefix. The prefix resets after a short pause.</p>
-    <p>A playlist track's context menu provides Copy to playlist. Editable
-      source playlists also provide Move to another playlist. These commands
-      apply to marked tracks, or the focused track when nothing is marked. A
-      move removes source tracks only after they are added to the destination.</p>
-    <p>The same owned-playlist track menu provides Find alternate versions.
-      BlindSpot searches for other recordings by the primary artist while
-      suppressing duplicate releases of the same recording. In the results,
-      Enter reviews the replacement. Tab to Replace, or use Replace playlist
-      track from the candidate's context menu, to substitute it at the
-      original playlist position. Find alternate versions is also available
-      from other track context menus and from Playback, Now Playing. There,
-      Enter plays the selected alternative without changing a playlist.</p>
+    <h3>Playing and selecting songs</h3>
+    <p>Press Enter on a playlist to open it, or F4 to play it. Inside a
+      playlist, F4 plays from the selected song to the end. If you follow a
+      playlist that you can't change, BlindSpot announces it as read only.</p>
+    <p>To work with several songs at once, select them with Ctrl+Space. On
+      macOS, use VoiceOver's selection commands. To select every song in the
+      list, press Ctrl+A, or Command+A on macOS. You'll also find Select all in
+      the Edit menu and the context menu. Once songs are selected, Ctrl+Q adds
+      them all to the queue.</p>
+    <p>You can also copy songs from one playlist to another. Select them and
+      press Ctrl+C, or Command+C on macOS. To move them out of one of your own
+      playlists instead, press Ctrl+X. Then open the playlist you want them in
+      and press Ctrl+V. Songs you cut stay in the original playlist until
+      they've safely arrived in the new one.</p>
+    <p>To remove a song from one of your playlists, press Delete. In your list
+      of playlists, Delete removes the whole playlist from your library.
+      Either way, you'll be asked to confirm first.</p>
 
-    <h2>Exporting a list</h2>
-    <p>Choose File, Export list to save the list you are viewing as a
-      readable file. You are asked where to save it and whether it should be
-      plain text or CSV. Each entry has its position, title, artist, album,
-      duration and a Spotify link. CSV opens in a spreadsheet, including
-      accented and Polish characters. Only this information is exported;
-      no audio is downloaded.</p>
-    <p>The export contains exactly what is displayed, in that order, so a
-      Filter this list or Sort by choice applies. In a list of playlists or
-      albums, such as the Playlists tab, Export list exports the tracks of
-      the selected one instead. If the list still ends with a row that loads
-      more results, BlindSpot tells you the file is a partial list; load the
-      rest and export again for everything. A chart from Discover exports
-      too, without durations or links for songs not yet looked up on
-      Spotify.</p>
+    <h3>Organising playlists</h3>
+    <p>A playlist's context menu lets you open it, play it, create a new
+      playlist, or remove it from your library. If the playlist is yours, you
+      can rename it too.</p>
+    <p>In your own playlists, each song's context menu has a Move submenu.
+      From there you can move the song up or down, to the top or bottom, or to
+      a particular position. The song stays selected as it moves, and
+      BlindSpot tells you where it ended up. You can't rearrange playlists that
+      belong to someone else.</p>
+    <p>A song's context menu also has Copy to playlist. In your own playlists,
+      it has Move to another playlist as well. These work on the songs you've
+      selected, or on the current song if nothing is selected. As with cutting
+      and pasting, a song you move stays put until it has reached the other
+      playlist.</p>
+
+    <h3>Swapping in a different version</h3>
+    <p>Sometimes a playlist has the wrong recording of a song, perhaps a live
+      version or a remaster you don't like. To find a better one, choose Find
+      alternate versions from the song's context menu. BlindSpot finds other
+      recordings of the song by the same artist, leaving out re-releases of
+      the same recording. Press Enter on one to hear it. If you like it, press
+      Tab to reach the Replace button, and it takes the old one's place in the
+      playlist. You can also choose Replace playlist track from its context
+      menu.</p>
+    <p>Find alternate versions is also in other song menus, and under
+      Playback, Now playing. From there, Enter just plays the version you
+      choose, and your playlists aren't touched.</p>
+
+    <h3>Mixes of similar songs</h3>
+    <p>A mix is an endless stream of songs like one you choose, suggested by
+      Last.fm. From a song's context menu, you can look at a mix, start one
+      playing, or add one to the end of your queue. Ctrl+Shift+M shows a mix
+      for the selected song, and Ctrl+Shift+P starts one playing. For the song
+      that's playing, you'll find the same commands in the Go menu.</p>
+    <p>Looking at a mix shows up to 50 suggestions, 20 at a time, and doesn't
+      interrupt what you're listening to. Starting a mix plays the first song
+      straight away, and the rest are queued as BlindSpot finds them. When only
+      about ten songs are left, BlindSpot finds more like the song that's
+      playing at the time. The mix carries on like this until you play
+      something else. You won't hear the same song twice in one session, and
+      repeat is turned off when a mix starts.</p>
 
     <h2>Albums</h2>
-    <p>Choose Album and recording information from a track or album context
-      menu. The read-only window includes Spotify's detailed release and
-      recording metadata: release type and date, record label, copyrights,
-      track and disc numbers, duration, explicit status, ISRC and UPC when
-      available. The same command is under Playback, Now playing.</p>
-    <p>Press Ctrl+8 to browse albums saved in your Spotify library. Enter
-      opens the selected album, and Backspace returns to the previous position. Use Ctrl+L to like or unlike the selected album.</p>
-    <p>When browsing an album, each row contains its track number and
-      title, followed by any artist credited in addition to the album's primary
-      artist. Multi-disc releases also include the disc number. Press Enter to play only the selected album track. Press F4 to play
-      the album from the focused track.</p>
+    <p>Press Ctrl+8 to see the albums saved in your library. Press Enter to
+      open one and Backspace to come back. To save an album to your library,
+      or remove it, press Ctrl+L.</p>
+    <p>Each song in an album shows its track number and title, and any guest
+      artists. If the album has more than one disc, you'll hear the disc number
+      too. Press Enter to play just that song, or F4 to play the album from
+      that song onwards.</p>
+    <p>For the fine print, choose Album and recording information from the
+      context menu of a song or album, or from Playback, Now playing. You'll
+      see whether it's an album, single or compilation, and its release date,
+      record label and copyright. For a song, you'll also see its track and
+      disc number, its length, and whether it's explicit. When Spotify has
+      them, the ISRC and UPC codes are shown as well.</p>
 
     <h2>Discover</h2>
-    <p>Press Ctrl+9 to open Discover. The Discover radio buttons choose
-      between New releases, Followed artists and authors, Apple Music most played and
-      Charts and countdowns.
-      Only the control that applies to
-      the chosen source stays enabled, and neither source replaces the
-      current list until Search is activated again.</p>
-    <p>With New releases selected, choose Songs or Albums under Show, then a
-      Genre, how recent a release must be under Released within, and a
-      country, and activate Search. The list comes from Apple's iTunes Store
-      chart for that genre and country, keeping only releases inside your
-      window, newest first. Type an artist or title in the keyword box to list
-      that artist's releases instead, for example a small Australian artist who
-      does not chart. Keyword searches ignore the genre but still honour
-      Released within, so choose Any time to see older releases.
-      Releases are looked up on Spotify only when you act on them. Choose
-      Followed artists and authors to see new releases by artists you follow
-      and new audiobooks by authors you follow: right-click an artist, song,
-      album or audiobook and choose Follow for new releases, or use Playback,
-      Now playing, Follow artist or author for new releases for what is
-      playing. Audiobook releases come from Apple's catalogue and only titles
-      marked Unabridged or Abridged are listed, which skips translated
-      editions; an audiobook opens in the Audiobooks tab if Spotify has it.
-      Followed releases automatically use the country from your Spotify
-      account, falling back to Australia when unavailable; the country picker
-      is disabled for this workflow.
-      Choose File, Followed artists and authors to review or remove them.
-      BlindSpot also checks for new releases a few seconds after it starts and
-      announces any it has not mentioned before; turn that off in
-      Preferences. Enter opens a release, F4
-      plays it, and Ctrl+L saves or removes it from your library.</p>
-    <p>Apple Music most played lists the most played songs or albums, chosen under Show, in
-      the country chosen under Chart country. The chart comes from Apple
-      Music's public feed,
-      so it reflects real listening across Apple Music's whole user base
-      rather than a sample. Apple provides up to a hundred entries and all
-      of them are listed at once. Every row announces its chart position,
-      title, artist and year.</p>
-    <p>With Albums chosen, Enter resolves the album on Spotify and opens its
-      tracks; F4 resolves and plays it.</p>
-    <p>Charts and countdowns offers five sources, chosen under Chart. The US
-      Billboard Hot 100 (experimental) accepts a date written as
-      year-month-day, with or without hyphens, and
-      loads the latest weekly chart on or before that date. BlindSpot reads
-      the JSON live from the community-maintained
-      mhollingshead/billboard-hot-100 project on GitHub. The source is
-      unofficial, is not included with BlindSpot, and may change or disappear.</p>
-    <p>Triple J Hottest 100 enables a Countdown list containing annual polls
-      and special countdowns such as Of Australian Songs, Like A Version and
-      the all-time polls. Choose one explicitly before activating Search;
-      BlindSpot prompts you if none is selected. Results come from the official ABC archive and show
-      the countdown rank, artist, title and release year. It is a listener
-      poll rather than an Australian sales chart, and community playlists are
-      not used as chart data.</p>
-    <p>ABC Classic 100 enables a countdown list covering ABC Classic's themed
-      annual listener polls from 2001 through the current poll. Rows contain
-      the official rank, work and composer. When you play, queue or save a
-      work, BlindSpot searches Spotify for a representative recording. For a
-      symphony, concerto, opera or collection, the match may be one movement
-      or excerpt rather than the complete work.</p>
-    <p>ABC Radio National Top Books enables a countdown list rather than the
-      historical-date edit. It offers the official 2025 Top 100 Books of the
-      21st Century, The Ones That Got Away at ranks 101 to 200, and a combined
-      Top 200. Rows contain the official rank, title and author. BlindSpot
-      searches Spotify for an audiobook only when you open or play a row, so
-      browsing the countdown does not use audiobook listening time. Spotify
-      audiobook availability depends on your plan and country. Future ABC
-      countdowns, including 2026 when published, can be added to this same
-      list.</p>
-    <p>Number ones by country covers the United Kingdom, Australia and New
-      Zealand, chosen under Number ones country. It accepts a year or a date in
-      the same box. Type a year such as 1985 to list every number one that
-      year, choosing Songs or Albums under Show. Each song is listed once, with
-      its weeks at number one that year and, when it differs, in total. Order
-      puts the song with the most weeks at number one first, which is the
-      default, or lists them in date order. Type a full date such as 1985-07-13
-      to hear which single or album was number one in that chart week. Years
-      available: United Kingdom singles from 1952 and albums from 1956;
-      Australia singles from 1940 and albums from 1965; New Zealand singles
-      and albums from 1980. The data comes from Wikipedia's lists of number
-      ones, which are licensed CC BY-SA and compiled from each country's
-      official charts. They list only number ones, not the whole chart, and
-      being community edited they can contain mistakes.</p>
-    <p>BlindSpot does not search Spotify for chart entries when the chart
-      appears. Each song or album is looked up only when you play it with Enter or
-      F4, queue it, like it, add it to a playlist, open its album or menu,
-      or start a similar-music mix from it. That takes a moment the first
-      time and is announced. It keeps BlindSpot well inside Spotify's
-      request limits. Until a song has been looked up the row cannot show
-      Spotify details such as its duration or album, and BlindSpot cannot
-      tell you in advance whether Spotify has it. If Spotify does not, you
-      are told when you try to play or queue it. If Spotify refuses a
-      lookup because of its request limit, BlindSpot says how long to wait.</p>
-    <p>Chart country starts on your Spotify account's country when Apple
-      publishes a chart for it, and otherwise on Australia. Choosing a
-      country yourself always takes precedence. The status line states the
-      source and country, when BlindSpot loaded the chart, that Apple
-      publishes rank only rather than play counts, a reporting period or a
-      measurement time, and that songs are looked up on Spotify on demand.
-      Apple's own updated stamp is not shown because it reflects when the
-      chart was requested, not when it was measured.</p>
-    <p>A real chart mixes new releases with long-standing favourites,
-      because listeners keep playing them. A song from decades ago appearing
-      partway down the list is a genuine chart position, not a fault.</p>
-    <p>The Filter this list edit box and the View, Sort by submenu apply to
-      whichever Discover results are loaded. Filtering never hides the row
-      that loads the next page.</p>
+    <p>Press Ctrl+9 for Discover. Here you can explore new releases, keep up
+      with artists and authors you follow, and browse charts and countdowns.
+      Use the buttons at the top to choose what you'd like to see. Only the
+      options that suit your choice are available, and the list doesn't change
+      until you press Search.</p>
+    <p>A lot of what Discover shows comes from outside Spotify. BlindSpot only
+      looks for a song on Spotify when you want to play it or do something
+      else with it. There's more about this under Charts from outside Spotify,
+      below.</p>
 
-    <h2>Concerts</h2>
-    <p>Press Ctrl+Shift+G, or choose File, Search for concerts, to open the
-      concert search window and search Ticketmaster for upcoming live events.
-      Close the window with Escape; it keeps your last search.
-      Choose a country and From and Until dates, then enter an optional keyword,
-      state code or city, optionally choose a Ticketmaster category and genre,
-      and activate Search concerts. Genres update to match the chosen category;
-      leave both set to All for the broadest keyword search.
-      BlindSpot lists
-      up to 50 events at a time in date order. Choose Load more results to
-      retrieve another page, or press Enter on a concert to open its official
-      Ticketmaster page. Add your Ticketmaster Discovery API key in Preferences
-      before searching. At the end of Preferences, choose Get a Ticketmaster
-      API key to open Ticketmaster's registration instructions.</p>
+    <h3>New releases</h3>
+    <p>Choose New releases, then choose Songs or Albums, a genre and a
+      country. Under Released within, choose how recent the releases should be.
+      Then press Search. The results come from the iTunes Store charts for that
+      genre and country, with the newest first.</p>
+    <p>To see new releases from one artist, type their name in the keyword
+      box. This is handy for smaller artists who don't make the charts. The
+      genre is ignored when you search this way, but Released within still
+      counts, so choose Any time if you'd like older releases too.</p>
 
-    <h2>Lyrics</h2>
-    <p>To translate fetched lyrics, open File, Preferences, enter a DeepL API
-      key and choose a Lyrics translation language. BlindSpot automatically
-      recognises API Free keys. BlindSpot does not translate each fetched song
-      automatically. Activate Fetch translation in the Lyrics window when you
-      want one. The button disappears after success and Translation is added
-      to the Lyrics view choice. Translations are cached locally, so reopening
-      the same lyrics does not submit them again or consume more translation
-      credit.</p>
-    <p>Press Ctrl+Y to retrieve lyrics, either on a focused track, or a currently playing song. In the Lyrics window, press Ctrl+F on Windows or Command+F on macOS to show a Find box. Enter finds the next match and Shift+Enter finds the previous match. With focus back in the read-only lyrics, N and P repeat next and previous. Escape closes the Find box.</p>
-    <p>Select Follow playback on braille display to read the lyrics in real-time
-      as the song plays. BlindSpot changes lines
-      around 1 second early by default, giving you time to read the
-      incoming line. Ctrl+Less-than moves changes 0.5 seconds earlier and
-      Ctrl+Greater-than moves them 0.5 seconds later. Fine-tuning is saved
-      separately for each Spotify song in <code>data/lyrics.json</code>.
-      You can move the cursor to a line of a song, and press Shift+Space to
-      start or resume audio playback from that line. Press Spacebar in the
-      lyrics text, or F7, to pause or resume audio playback. Spacebar remains
-      available normally for controls such as the follow-playback checkbox.
-      Alt+Up Arrow and Alt+Down Arrow on Windows, or Option+Command+Up Arrow
-      and Option+Command+Down Arrow on macOS, move to the previous or next
-      synced lyric line and play the audio from that position. Select Enable phrase
-      mode to have any of these commands pause playback when the next synced
-      line begins. Phrase mode is off each time the Lyrics window opens.
-      BlindSpot reports when synced lyrics are unavailable and if line seeking
-      cannot be used.</p>
-            <p>On macOS, VoiceOver does not provide BlindSpot with a separate
-      braille-only scripting channel. Following therefore uses a VoiceOver
-      announcement, which may also speak each line. VoiceOver speech can be
-      muted temporarily when braille-only reading is preferred. This macOS
-      behaviour is experimental. The same 1-second lead and saved per-song
-      fine-tuning apply.</p>
+    <h3>Artists and authors you follow</h3>
+    <p>BlindSpot can watch for new music from artists you like and new
+      audiobooks from authors you like. To follow someone, open the context
+      menu on one of their songs, albums or audiobooks and choose Follow for
+      new releases. To follow whoever's playing, choose Playback, Now playing,
+      Follow artist or author for new releases. To see who you're following,
+      or to stop following someone, choose File, Followed artists and
+      authors.</p>
+    <p>To see what they've released, choose Followed artists and authors in
+      Discover. BlindSpot uses the country from your Spotify account, or
+      Australia if your account doesn't have one. Press Enter to open a
+      release or F4 to play it. Ctrl+L saves it to your library, or removes it
+      if it's already there.</p>
+    <p>BlindSpot also checks for new releases by itself a few seconds after
+      it starts, and tells you about any it hasn't mentioned before. If you'd
+      rather it didn't, you can turn this off in Preferences.</p>
+    <p>New audiobooks come from Apple's catalogue. BlindSpot only lists books
+      marked Unabridged or Abridged, which leaves out translated editions. If
+      Spotify has the book, it opens in the Audiobooks tab.</p>
 
-    <h2>Karaoke and instrumental tracks</h2>
-    <p>BlindSpot has been programmed to display lyrics for Karaoke/instrumental versions of tracks too, so you can read the lyrics and sing along to your favourite songs! A synced result is accepted when its duration
-      is within ten seconds of the original Spotify recording.</p>
-    <p>The matched lyric source is cached for that Spotify song in
-      <code>data/lyrics.json</code>. Its timing adjustment is also song-specific,
-      allowing a karaoke recording to be aligned once and reused later.</p>
+    <h3>Apple Music most played</h3>
+    <p>This chart shows the songs or albums played most on Apple Music in the
+      country you choose. It's based on Apple's own listening data, so it
+      reflects what everyone on Apple Music is really playing rather than a
+      sample. Apple publishes up to 100 entries, and you get them all at once.
+      Each one gives its position, title, artist and year. For an album, press
+      Enter to open it on Spotify or F4 to play it.</p>
+    <p>The chart starts out on your Spotify account's country, or on
+      Australia if Apple doesn't have a chart for it, and you can change the
+      country whenever you like. The status line tells you which chart and
+      country you're looking at, and when BlindSpot loaded it. Apple only gives
+      chart positions. It doesn't say how many times songs were played, or what
+      period the chart covers.</p>
+    <p>Don't be surprised to find a song from decades ago halfway down the
+      chart. People keep playing their old favourites, and those plays count
+      just as much as plays of new releases.</p>
 
-    <h2>Playback devices</h2>
-    <p>Press Ctrl+Shift+D, or choose playback device under the "Go" menu, to list
-      the controllable Spotify Connect devices currently available on the
-      account. After selecting a device, choose whether to continue playing
-      there, move playback there without playing, or force a transfer on the
-      next play command without moving the current session immediately. Moving without playing first
-      pauses the current device, preserves the track and position, and leaves
-      the destination paused. Choose BlindSpot from the same
-      dialog to return playback to the internal player. Remote playback
-      controls use Spotify's network service and may respond less quickly
-      than the internal player. Devices marked as restricted by Spotify are
-      not shown, and some devices do not support remote volume adjustment.</p>
-    <p>If a phone or speaker is missing, open Spotify on a linked account such as a mobile device, and start
-      playback on that device first. For a Sonos, Google Cast, or similar
-      speaker, transfer playback to the speaker from Spotify's phone app,
-      leave it active, and then reopen BlindSpot's device picker. Spotify may
-      report only devices that are active or have been used recently, and
-      BlindSpot retrieves a fresh device list whenever the picker opens.
-      Choose <strong>Refresh device list</strong> at the end of the picker
-      after activating a phone or speaker.</p>
+    <h3>Charts and countdowns</h3>
+    <p>Choose Charts and countdowns, then choose one of these under
+      Chart.</p>
+    <p><strong>US Billboard Hot 100 (experimental).</strong> Type a date as
+      year, month and day, such as 1985-07-13 or 19850713, and you'll see the
+      chart for that week. The chart comes from mhollingshead/billboard-hot-100,
+      a project on GitHub run by volunteers. It isn't official and isn't part
+      of BlindSpot, so it could change or disappear.</p>
+    <p><strong>Triple J Hottest 100.</strong> Choose a countdown from the list.
+      There's one for every year, and specials such as the Hottest 100 of
+      Australian Songs, Like A Version, and the all-time countdowns. Each entry
+      gives its place, artist, title and the year it was released, all taken
+      from the ABC's official archive. Remember that the Hottest 100 is a vote
+      by listeners, not a sales chart.</p>
+    <p><strong>ABC Classic 100.</strong> ABC Classic's yearly countdowns, voted
+      for by listeners, from 2001 to the most recent. Each year has its own
+      theme. Each entry gives its place, the piece and the composer. When you
+      play one, BlindSpot finds a recording of it on Spotify. For a long work
+      such as a symphony or opera, you may get a single movement or excerpt
+      rather than the whole piece.</p>
+    <p><strong>ABC Radio National Top Books.</strong> The 2025 countdown of the
+      top 100 books of the 21st century. You can also choose its companion
+      list, The Ones That Got Away, which covers places 101 to 200, or both
+      lists together. Each entry gives its place, title and author. BlindSpot
+      only looks for an audiobook when you open or play a book, so browsing the
+      list doesn't use up your audiobook listening time. Which audiobooks you
+      can hear depends on your Spotify plan and country. As the ABC publishes
+      new countdowns, they can be added to this list.</p>
+    <p><strong>Number ones.</strong> The songs and albums that reached number
+      one in the United Kingdom, Australia and New Zealand. Choose a country,
+      choose Songs or Albums under Show, then type a year or a date.</p>
+    <p>Type a year, such as 1985, to list every number one from that year.
+      Each one appears once, with the number of weeks it spent at the top that
+      year, and its total weeks if they're different. The longest-running
+      number ones come first, or you can list them in the order they reached
+      the top. Type a full date, such as 1985-07-13, to find out what was
+      number one that week.</p>
+    <p>UK singles go back to 1952 and UK albums to 1956. Australian singles
+      go back to 1940 and Australian albums to 1965. In New Zealand, both go
+      back to 1980. These lists come from Wikipedia, which bases them on each
+      country's official charts and shares them under the CC BY-SA licence.
+      They only cover number ones, not the full charts. Because anyone can edit
+      Wikipedia, they may also contain the odd mistake.</p>
 
-    <h2>Recently Played</h2>
-    <p>Press Ctrl+5 to open Recently Played. The list loads when you move
-      into it. Use Go, Refresh current view (Control+Shift+F) to refresh the
-      tab's contents. Enter plays the selected track, and its context menu
-      provides the usual album, queue, and library actions. The first time it
-      is opened, BlindSpot may ask to authorize access to Spotify listening
-      history. The list comes directly from Spotify and preserves Spotify's
-      most-recent-first ordering.</p>
-
-    <h2>Audiobooks</h2>
-    <p>Press Ctrl+6 to open saved Spotify audiobooks. Enter opens a book and
-      lists its chapters. Each chapter announces its saved Spotify resume
-      position when one is available; Enter plays from that position.
-      Backspace returns to the saved-book list. </p>
-    <p>Audiobook availability, included listening time, and playback are
-      determined by the individual's Spotify plan. </p>
+    <h3>Charts from outside Spotify</h3>
+    <p>If BlindSpot looked up every song in a chart as soon as the chart
+      appeared, it would be slow, and it would soon hit Spotify's limit on
+      requests. Instead, it looks a song up the first time you do something
+      with it. That might be playing it, queueing it, liking it, adding it to a
+      playlist, opening its album or menu, or starting a mix from it. The
+      lookup takes a moment, and BlindSpot lets you know it's searching.</p>
+    <p>Until a song has been looked up, BlindSpot can't show Spotify details
+      such as its album or length. It also can't tell you whether Spotify has
+      the song. If Spotify doesn't, you'll find out when you try to play it. If
+      Spotify asks BlindSpot to slow down, you'll be told how long to
+      wait.</p>
+    <p>You can filter and sort Discover results just like any other list, and
+      the filter never hides the Load more item.</p>
 
     <h2>Podcasts</h2>
-    <p>Press Ctrl+7 to open Podcasts. Choose a category such as Comedy, News,
-      Science or Technology, then activate Browse podcasts to explore matching
-      Spotify shows. These are relevance-ranked Spotify search results, not a
-      complete Spotify catalogue. Each show identifies its publisher; use its
-      context menu for the description, or press Enter to browse episodes.
-      Choose Show saved podcasts to return to followed shows and saved episodes.</p>
-    <p>Search offers Podcasts for matching whole shows and Podcast episodes
-      for matching individual episodes. These searches fetch results in batches;
-      choose Show more podcasts or Show more episodes to append another batch.
-      Opening a podcast lists its first 50 episodes. Choose Show more episodes
-      at the end of the list to continue browsing. BlindSpot
-      retains the existing entries, moves focus to the first newly added episode,
-      and announces how many were loaded.</p>
-    <p>Followed podcasts and saved episodes appear together when the saved view
-      is selected. Episodes use their Spotify resume positions when available.
-      Podcast views also provide language and listening-status filters. Language
-      uses the metadata declared by Spotify. Listening status can be All, Not
-      started, In progress, Completed, or Unknown; missing playback information
-      remains Unknown. If more Spotify pages are available, filtered counts are
-      labelled as covering loaded items.</p>
-    <p>Choose Download episode from a podcast episode's context menu to save its public RSS media file.
-      BlindSpot locates the publisher's public feed independently of Spotify,
-      so downloads may be unavailable for private or Spotify-exclusive
-      episodes.</p>
+    <p>BlindSpot can play podcasts from Spotify, and podcasts you've
+      subscribed to in another app. Spotify keeps track of where you're up to
+      in its podcasts, and BlindSpot keeps track of the rest.</p>
 
-    <h2>Sleep timer</h2>
-    <p>Press Ctrl+Shift+J to activate the sleep timer dialog. BlindSpot can sleep after 15, 30, or 60 minutes. The timer controls BlindSpot's internal player
-      as well as selected Spotify Connect devices. </p>
+    <h3>Spotify podcasts</h3>
+    <p>Press Ctrl+7 for Podcasts. You'll see the shows you follow and the
+      episodes you've saved, and every episode picks up where you left
+      off.</p>
+    <p>To find something new, choose a category such as Comedy, News, Science
+      or Technology, then press Browse podcasts. You'll get Spotify's best
+      matches for that category rather than a complete directory. Each show
+      tells you who makes it. Press Enter to see its episodes, or open its
+      context menu to read what it's about. Backspace takes you back to your
+      own shows.</p>
+    <p>You can also look for podcasts in the Search tab. Choose Podcasts to
+      find whole shows, or Podcast episodes to find individual episodes. For
+      more results, choose Show more at the end of the list. When you open a
+      show, you'll see its latest 50 episodes. To see older ones, choose Show
+      more episodes at the end. BlindSpot adds them to the bottom of the list
+      and takes you to the first new one.</p>
+    <p>You can narrow your podcasts down by language, or by whether you've
+      started, finished or not yet played an episode. If Spotify doesn't know
+      whether you've played an episode, it's marked Unknown. When there are
+      more pages still to load, the counts only include what's loaded so
+      far.</p>
+
+    <h3>Podcasts from other apps</h3>
+    <p>Most podcast apps can export your subscriptions as an OPML file. To
+      bring them into BlindSpot, choose File, Import podcast subscriptions from
+      OPML. Any podcasts you already have are skipped. These subscriptions
+      belong to BlindSpot and aren't connected to your Spotify account.</p>
+    <p>Their episodes stream straight from the podcast's publisher, and you
+      control them with the same keys as everything else. Some publishers don't
+      allow skipping forward and back, so this may not always work.</p>
+
+    <h3>Downloading episodes</h3>
+    <p>To save an episode to your computer, choose Download episode from its
+      context menu. BlindSpot downloads it from the podcast's public feed, so
+      private episodes and Spotify-only shows can't be downloaded.</p>
+
+    <h3>Transcripts</h3>
+    <p>To read along with an episode, choose Show transcript from its context
+      menu. If the podcast publishes its own transcript, that's what you'll
+      see.</p>
+    <p>If it doesn't, BlindSpot can make one for you with Whisper, a speech
+      recognition program. The first time, you'll be asked whether to download
+      Whisper, which is about 150 MB. After that, transcription happens
+      entirely on your computer, and the text appears bit by bit as Whisper
+      works through the episode. Private and Spotify-only episodes can't be
+      transcribed.</p>
+    <p>Podcasts sometimes change their ads from one download to the next,
+      which would throw the timing out. To avoid this, BlindSpot keeps its own
+      copy of the episode and plays that while you read.</p>
+    <p>To stop part way through, press Tab to reach Stop transcription. You'll
+      keep the text that has been written so far.</p>
+    <p>Moving around a transcript works much like the Lyrics window. Press
+      Space to play from the line you're on, and Enter to pause or resume.
+      Tick Follow transcript playback and your cursor keeps pace with what's
+      being said. The playback keys and your lyrics shortcuts work here
+      too.</p>
+    <p>To read a transcript in another language, first set up DeepL, as
+      described under Lyrics. Once transcription has finished, choose
+      Translation in the list above the transcript, or press Translate with
+      DeepL. When the translation arrives, BlindSpot switches to it. To go back,
+      choose Original. The translation is saved, so it's there straight away
+      next time. Playback still follows the timings of the original.</p>
+
+    <h3>Transcribing your own recordings</h3>
+    <p>Whisper can transcribe any audio or video file, not just podcasts. It's
+      handy for interviews, meetings and lectures. Choose File, Transcribe local
+      audio, and pick the file. It opens in the same transcript window, and
+      Space plays from the line you're on. BlindSpot plays your original file
+      and doesn't make a copy of it.</p>
+
+    <h2>Audiobooks</h2>
+    <p>Press Ctrl+6 for your saved audiobooks. Press Enter on a book to see
+      its chapters. If you've already started a chapter, BlindSpot tells you
+      how far you got, and Enter carries on from there. Press Backspace to go
+      back to your books.</p>
+    <p>Which audiobooks you can hear, and for how long, depends on your
+      Spotify plan.</p>
+
+    <h2>Recently Played</h2>
+    <p>Press Ctrl+5 to see what you've listened to lately, starting with the
+      most recent. The list loads when you move into it, and Ctrl+Shift+F
+      refreshes it. Press Enter to play a song again. Its context menu has the
+      usual commands for albums, the queue and your library. The first time you
+      open Recently Played, Spotify may ask you to let BlindSpot see your
+      listening history.</p>
+
+    <h2>Lyrics</h2>
+    <p>Press Ctrl+Y to see the lyrics for the selected song, or for the song
+      that's playing. To search the lyrics, press Ctrl+F, or Command+F on
+      macOS. Press Enter to find the next match and Shift+Enter to find the
+      previous one. Back in the lyrics, press N and P to move between matches.
+      Escape closes the search.</p>
+
+    <h3>Reading along</h3>
+    <p>Many songs have lyrics timed to the music. Tick Follow playback on
+      braille display, and the lyrics move along on your braille display as
+      the song plays. Each line appears about a second early to give you time
+      to read it. If the timing doesn't suit a song, press Ctrl+Less-than to
+      bring the lines half a second earlier, or Ctrl+Greater-than to make them
+      half a second later. BlindSpot remembers this for next time you play
+      that song.</p>
+    <p>On macOS, VoiceOver doesn't let BlindSpot send text to the braille
+      display on its own. Instead, each line is sent as an announcement, which
+      VoiceOver may speak as well. If you only want braille, mute VoiceOver's
+      speech while you read. Reading along on macOS is still
+      experimental.</p>
+
+    <h3>Playing from a line</h3>
+    <p>Move to a line and press Shift+Space to play the song from there. Press
+      Space or F7 to pause and resume. On a checkbox or button, Space does its
+      usual job. To move through the song line by line, hearing each one as you
+      go, press Alt+Up Arrow or Alt+Down Arrow. On macOS, press Option+Command
+      with the Up or Down Arrow.</p>
+    <p>If you're learning a song, tick Enable phrase mode. Playback then stops
+      at the end of each line, so you can listen, sing it back and move on.
+      Phrase mode is turned off again whenever you close the Lyrics
+      window.</p>
+    <p>Shift+F6 and Shift+F8 jump to the previous or next verse or chorus,
+      even when the Lyrics window is closed. BlindSpot finds the verses by
+      looking for pauses between lines, so this only works for songs with timed
+      lyrics. If a song doesn't have them, BlindSpot tells you. To hear the
+      section number after each jump, turn that on in Preferences.</p>
+
+    <h3>Karaoke and instrumental versions</h3>
+    <p>BlindSpot can find lyrics for karaoke and instrumental versions too, so
+      you can sing along. It only uses timed lyrics when they were written for
+      a recording within ten seconds of the same length. BlindSpot remembers
+      which lyrics it chose for that version, and any timing change you make,
+      so you only need to get it right once.</p>
+
+    <h3>Translating lyrics</h3>
+    <p>BlindSpot can translate lyrics into your own language using DeepL. For
+      this you need a DeepL API key, and the free one works well. To get one,
+      open Preferences and choose Get a DeepL API key, near the end. It takes
+      you to DeepL's sign-up page. Once you have your key, enter it in
+      Preferences and choose a Lyrics translation language.</p>
+    <p>BlindSpot doesn't translate every song automatically, because that
+      would quickly use up your DeepL allowance. When you'd like a translation,
+      press Fetch translation in the Lyrics window. Once it arrives, use the
+      list above the lyrics to switch between Original and Translation.
+      Translations are saved, so opening the same song again costs
+      nothing.</p>
+
+    <h2>Carts</h2>
+    <p>A cart is a short clip from a song that plays at the press of a key.
+      It could be a jingle, a sound effect, a favourite line, or a passage
+      you're rehearsing. You have nine of them, on Alt+1 to Alt+9. They're
+      named after the cartridges radio stations once used for the same
+      job.</p>
+    <h3>Making a cart</h3>
+    <ol>
+      <li>Play the song, and press Left Bracket where you want the clip to
+        start.</li>
+      <li>Keep listening, and press Right Bracket where you want it to end.
+        The end has to come after the start, in the same song.</li>
+      <li>Press Alt with a number from 1 to 9 to save the clip in that slot.
+        This replaces anything that was already there.</li>
+    </ol>
+    <h3>Playing carts</h3>
+    <p>To play a cart, press Alt with its number. The clip plays from its
+      start to its end, and BlindSpot says the cart's name. If you'd rather not
+      hear the name, you can turn it off in Preferences. If there's nothing in
+      that slot, BlindSpot tells you.</p>
+    <p>To see all nine carts, choose File, Manage carts. Each cart shows its
+      name and its start and end times, and you can listen to it or clear it.
+      Repeat works with carts too. With repeat off, a cart plays once. With
+      Repeat One, it plays over and over. With Repeat All, the carts play one
+      after another in number order, then start again from the first.</p>
 
     <h2>Bookmarks</h2>
-    <p>Press control+shift+b to bookmark a position whilst a song is playing. Press Ctrl+B,
-      or choose File, Bookmarks, to open Bookmarks in its own window. Each entry includes its saved playback position.
-      Press Enter to resume from that position, Delete to remove it, or use
-      the context menu for resume, album, queue, library, and delete actions.</p>
-    <p>Bookmarks are stored locally in data/bookmarks.json in BlindSpot's
-      portable folder. They are separate from Spotify's saved library and do
-      not synchronize to other Spotify applications.</p>
+    <p>A bookmark saves your place in whatever you're listening to. To add
+      one, press Ctrl+Shift+B. To see your bookmarks, press Ctrl+B or choose
+      File, Bookmarks. Each bookmark tells you how far into the track you
+      saved it. Press Enter to carry on listening from there, or Delete to
+      remove it. The context menu has more options, such as opening the album
+      or adding the track to the queue.</p>
+    <p>Bookmarks are kept by BlindSpot rather than Spotify, so you won't see
+      them in other Spotify apps.</p>
+
+    <h2>Sleep timer</h2>
+    <p>Press Ctrl+Shift+J to set the sleep timer for 15, 30 or 60 minutes.
+      When the time is up, the music stops, whether it's playing in BlindSpot
+      or on another device.</p>
+
+    <h2>Concerts</h2>
+    <p>BlindSpot can search Ticketmaster for upcoming concerts. For this you
+      need a Ticketmaster Discovery API key, which is free. To find out how to
+      get one, open Preferences and choose Get a Ticketmaster API key, near the
+      end. When you have your key, enter it in Preferences.</p>
+    <p>To search, press Ctrl+Shift+G or choose File, Search for concerts.
+      Choose a country and a range of dates. You can also type an artist, city
+      or state code, and choose a category and a genre. The genres on offer
+      change to suit the category, and leaving both on All gives you the widest
+      search. Then press Search concerts.</p>
+    <p>Concerts are listed in date order, 50 at a time. For more, choose Load
+      more results at the end of the list. Press Enter on a concert to open its
+      Ticketmaster page. Escape closes the window, and your search will still
+      be there next time you open it.</p>
+
+    <h2>Listening on other devices</h2>
+    <p>BlindSpot has its own player built in, but it can also play through
+      your phone, a smart speaker, or any other device signed in to your
+      Spotify account. Press Ctrl+Shift+D, or choose Go, Playback device, and
+      pick a device. You can start playing there straight away, or move what's
+      playing but leave it paused. You can also wait, and switch over the next
+      time you press play. To come back to BlindSpot's own player, choose
+      BlindSpot from the same list.</p>
+    <p>When you're controlling another device, your commands travel through
+      Spotify's servers, so it may be a little slower to respond. Some devices
+      don't let BlindSpot change their volume, and Spotify doesn't show some
+      devices to other apps at all.</p>
+    <p>If a device you expect isn't in the list, it's probably because
+      Spotify doesn't think it's in use. Open Spotify on that device and play
+      something. For a Sonos, Chromecast or similar speaker, use the Spotify
+      app on your phone to start playing on the speaker, and leave it playing.
+      Then choose <strong>Refresh device list</strong> at the end of the
+      list.</p>
+
+    <h2>Exporting a list</h2>
+    <p>To keep a copy of a playlist or any other list, choose File, Export
+      list. You'll be asked where to save it, and whether you'd like a plain
+      text file or a CSV file for a spreadsheet. Each entry includes its
+      position, title, artist, album and length, and a link to it on Spotify.
+      Only these details are saved, never the music itself.</p>
+    <p>The file matches the list as you see it, including any filter or sort
+      you've applied. If you're looking at a list of playlists or albums, you
+      get the songs from the one you've selected. If the list hasn't finished
+      loading, BlindSpot warns you that the file is incomplete. To get
+      everything, load the rest of the list and export it again. You can
+      export charts from Discover too, but songs that haven't been looked up on
+      Spotify yet won't have a length or a link.</p>
 
     <h2>Preferences</h2>
-    <p>Use File, Preferences to adjust settings such as speaking the track name whenever
-      playback changes. Track-change announcements use the configured
-      accessible-output2 screen-reader output and are disabled by default.
-      Startup playback memory can either remember nothing, remember the last track
-      from its beginning, or remember both the track and its elapsed position.
-      Press F7 after the next launch to start the remembered track. BlindSpot
-      also restores the last manually selected built-in-player volume when it
-      starts again; temporarily muting playback does not replace that saved
-      volume.</p>
-    <p>Language chooses the language of BlindSpot's menus, messages and spoken
-      text. System default follows the language of your operating system when a
-      translation exists; otherwise BlindSpot uses English. Restart BlindSpot
-      after changing it. Polish is included; corrections are welcome. This
-      manual is currently available in English only. Anyone can help to
-      translate BlindSpot without programming; the translator guide is in the
-      <code>locale</code> folder of the
+    <p>To change how BlindSpot works, choose File, Preferences, or press
+      Ctrl+Comma.</p>
+
+    <h3>Playback and announcements</h3>
+    <p>BlindSpot can announce each new song as it starts. This is off until
+      you turn it on. You can also choose what BlindSpot remembers for next
+      time. It can remember nothing, the last song you played, or the last song
+      and how far through it you were. If it remembers, press F7 or F4 after
+      starting BlindSpot to pick up where you left off.</p>
+    <p>BlindSpot also remembers your volume, so it starts at the level you
+      last chose. Muting doesn't count, so you won't start in silence. When you
+      change the volume, BlindSpot tells you the new level as a percentage. You
+      can turn that off if you prefer.</p>
+
+    <h3>Language</h3>
+    <p>Choose the language for BlindSpot's menus and messages. If you choose
+      System default, BlindSpot uses your computer's language, as long as a
+      translation exists. Otherwise it uses English. Restart BlindSpot after
+      changing the language.</p>
+    <p>BlindSpot is currently available in English and Polish. This manual is
+      only in English for now. You don't need to be a programmer to translate
+      BlindSpot into your own language. You'll find a guide for translators in
+      the <code>locale</code> folder of the
       <a href="https://github.com/sjtaylor82/BlindSpot">BlindSpot GitHub
-      repository</a>.</p>
-    <p>Choose Keyboard Manager from Preferences to change built-in shortcuts.
-      All commands are shown initially; type in Search commands to
-      filter by name, context, or assigned key. Commands are grouped into Main,
-      Lists, and Lyrics contexts. Assign replaces the same key in its context,
-      Clear removes a command's assignment, and Restore defaults resets the
-      selected context. The same manager can assign opt-in global shortcuts to
-      playback, seeking, Spotify volume, mute, current-track liking and
-      announcements, time announcements, bookmarks, shuffle, and repeat
-      commands. Global shortcuts work while BlindSpot is in the background and
-      may override shortcuts in other applications. None are assigned by
-      default, and existing global assignments are retained. If another
-      application already owns a combination, BlindSpot reports that assignment
-      but continues registering the others. BlindSpot stores custom keys in
-      keymap.json and application settings. Brief conflict and global-risk
-      warnings are shown only once.</p>
-    <p>Logging is off by default. It can be enabled when diagnostic information is needed.</p>
+      repository</a>. Corrections to the Polish translation are welcome
+      too.</p>
+
+    <h3>Keyboard Manager</h3>
+    <p>Keyboard Manager lets you change BlindSpot's shortcuts. You'll find it
+      in Preferences. To find a command, type its name, where it's used or its
+      current key in the search box. Commands are grouped into Main, Lists and
+      Lyrics, depending on where they work. To give a command a new key, choose
+      Assign. If another command in the same group already had that key, it
+      loses it. Clear removes a command's key. Restore defaults puts the whole
+      group back the way it was.</p>
+    <p>You can also set up global shortcuts, which work even while you're
+      using another program. These are available for playback, skipping,
+      volume and mute, liking the current song, hearing the song name and time,
+      bookmarks, shuffle and repeat. None are set up at first. A global
+      shortcut takes over its key in every program, so pick combinations your
+      other programs don't use. If another program already uses one of your
+      keys, BlindSpot tells you and still sets up the rest.</p>
+
+    <h3>Logging</h3>
+    <p>A log is a running record of what BlindSpot is doing, which helps when
+      tracking down problems. Logging is off unless you turn it on. Reporting a
+      problem, below, explains how to use it.</p>
 
     <h2>Reporting a problem</h2>
     <p>When something goes wrong, the error message has a Copy error details
-      button. Help, Copy last error details does the same at any time. The
-      copied text says what BlindSpot was doing, the error type and message,
-      any Spotify status and wait time, and the technical traceback. Tokens,
-      API keys, e-mail addresses and your Windows user name are removed, and
-      file locations are shortened.</p>
-    <p>For a developer report, choose Help, Capture log for developer. A
-      window shows the whole report, which you can read before choosing
-      Copy to clipboard or Save to file. It contains BlindSpot, Python and
-      operating system versions, non-secret settings, whether each
-      credential is set but never its value, and the last error.</p>
-    <p>Include recent log lines adds the end of the log. Song, artist and
-      playlist names, device names and search terms are hidden there unless
-      you also tick the box to include them. Logging is off by default: in
-      Preferences set the logging level to Debug, repeat the problem, then
-      create the report. Read the report before sharing it, since a log can
-      still reveal what you were listening to when names are included.</p>
+      button. You can also choose Help, Copy last error details at any time.
+      Either one copies a description of what BlindSpot was doing and what went
+      wrong, ready to paste into an email or bug report. Passwords, keys, email
+      addresses and your Windows user name are left out.</p>
+    <p>For trickier problems, a log helps a great deal. In Preferences, set
+      the logging level to Debug, and make the problem happen again. Then
+      choose Help, Capture log for developer. You'll see the whole report before
+      anything leaves your computer, and you can copy it or save it to a file.
+      It includes the versions of BlindSpot and your operating system, your
+      settings and the last error. Your passwords and keys are never
+      included.</p>
+    <p>To add the latest part of the log, tick Include recent log lines. The
+      names of songs, artists, playlists and devices, and anything you've
+      searched for, are hidden unless you tick the box to include them. If you
+      do, the report shows what you've been listening to, so read it through
+      before you send it.</p>
 
-    <h2>Portable data</h2>
-    <p>On Windows, settings, authentication, and logs are stored in the data
-      folder beside BlindSpot. Use File, Account, Sign out and erase
-      credentials before sharing the portable folder.</p>
-    <p>On macOS, BlindSpot uses Library/Application Support/BlindSpot in the
-      current user's home folder. Authentication remains available when
-      BlindSpot.app is moved or updated.</p>
-    <p>This application is unsigned. After extracting the download, open
-      Terminal in the BlindSpot-macOS folder and run sh prepare-macos.sh. The
-      helper changes the adjacent BlindSpot.app, removes its downloaded
-      quarantine attribute, and opens it. It does not require administrator
-      access.</p>
+    <h2>Your data</h2>
+    <p>On Windows, BlindSpot keeps everything in a folder called
+      <code>data</code>, next to the program. That includes your settings,
+      Spotify sign-in, bookmarks, carts, transcripts and logs. Before you give
+      a copy of BlindSpot to someone else, choose File, Account, Sign out and
+      erase credentials.</p>
+    <p>On macOS, BlindSpot keeps everything in your home folder, under
+      <code>Library/Application Support/BlindSpot</code>. That way you stay signed in when
+      you move or update the app.</p>
+
+    <h2>Installing on macOS</h2>
+    <p>BlindSpot isn't signed by Apple, so macOS won't open it straight away.
+      After unzipping the download, open Terminal in the BlindSpot-macOS folder
+      and type <code>sh prepare-macos.sh</code>. This tells macOS that the app
+      is safe, and then opens it. You don't need an administrator
+      password.</p>
 
     <h2>Updates</h2>
-    <p>BlindSpot checks its GitHub release feed when it starts. When a newer
-      build is available, it offers to install it. Portable Windows builds
-      preserve the data folder, replace the program after it closes, and
-      restart automatically. macOS opens the release page because a running
-      app bundle cannot safely replace itself. Use Help, Check for updates to
-      check on demand.</p>
+    <p>Each time BlindSpot starts, it checks for a newer version and offers
+      to install it. On Windows, BlindSpot closes, updates itself and starts
+      again, and your data folder is kept. On macOS, it opens the download page
+      instead, because an app can't safely replace itself while it's running.
+      To check for updates yourself, choose Help, Check for updates.</p>
 
     <h2>Supporting BlindSpot</h2>
-    <p>Choose Help, Donate to Project to open BlindSpot's PayPal donation page
-      in your default browser.</p>
+    <p>If you find BlindSpot useful and would like to support it, choose Help,
+      Donate to Project. This opens a PayPal donation page in your web
+      browser.</p>
 
-    <h2>License and copyright</h2>
-    <p>Copyright © 2026 Sam Taylor. BlindSpot is free software licensed under
-      the GNU General Public License version 3 or later.</p>
+    <h2>Licence and copyright</h2>
+    <p>Copyright © 2026 Sam Taylor. BlindSpot is free software, released under
+      the GNU General Public License, version 3 or later.</p>
   </main>
 </body>
 </html>
