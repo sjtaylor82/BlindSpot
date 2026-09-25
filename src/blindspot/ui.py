@@ -1980,10 +1980,13 @@ class TranscriptDialog(wx.Dialog):
                 wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
                 10,
             )
+        # A plain edit control, like the Lyrics window.  A rich edit counts
+        # each line break as one position instead of two, which shifted timed
+        # lines, and screen readers missed its focus after Alt+Tab.
         self.text = wx.TextCtrl(
             self,
             value=transcript.text if transcript else "",
-            style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2,
+            style=wx.TE_MULTILINE | wx.TE_READONLY,
         )
         self.text.SetName(
             tr("Transcript for {episode_name}").format(episode_name=item.name)
