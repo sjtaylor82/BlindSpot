@@ -1,6 +1,41 @@
 BLINDSPOT CHANGELOG
 ===================
 
+2026.9.6 - 25 September 2026
+
+Features implemented:
+- Platform-independent OPML podcast subscription import and direct RSS audio
+  streaming through BlindSpot's existing playback and seek controls.
+- Optional podcast transcripts from publisher feeds, with an on-demand local
+  Whisper fallback, synchronized playback navigation, accessible cancellation
+  and portable caching.
+- Local audio-file transcription from the File menu using the same accessible
+  transcript reader, synchronized playback controls and portable Whisper tools.
+- Optional DeepL translation for podcast and local-audio transcripts, with
+  Original/Translation switching, preserved timed navigation and local caching.
+- Rewrote the manual in plainer, friendlier English.
+
+Bugs fixed:
+- Albums with more than 50 tracks now list every track.
+- Recently Played is always listed most recent first and skips local files
+  that Spotify cannot play.
+- Reopened local-audio transcripts now use the original file instead of a
+  stale localhost playback URL, preserve partial text while resuming, and can
+  translate partial text after transcription is stopped.
+- The transcript view list now always offers Translation when DeepL is
+  configured; choosing it fetches the translation. A finished transcription
+  also picks up a translation saved earlier.
+- Tab and Shift+Tab in the transcript window now visit the same controls;
+  previously Tab from the transcript returned to the view list and Shift+Tab
+  skipped it.
+- Prevented the idle Spotify player from announcing "No tracks" whenever a
+  directly streamed podcast starts.
+- Split locally generated Whisper transcripts into shorter, word-aligned timed
+  lines so playback from the transcript cursor no longer starts up to roughly
+  30 seconds before the selected words. Existing coarse Whisper caches are
+  regenerated automatically when reopened.
+
+
 2026.9.5 - 23 September 2026
 
 Features implemented:
