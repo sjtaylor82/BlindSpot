@@ -5815,7 +5815,10 @@ class TranscriptPlaybackTests(unittest.TestCase):
         ui.TranscriptDialog.on_translation_view(dialog)
 
         text.SetValue.assert_called_once_with("Eine langere Zeile\nKurz")
-        self.assertEqual(dialog.synced_line_positions, [0, 20])
+        self.assertEqual(
+            dialog.synced_line_positions,
+            ui.native_text_positions("Eine langere Zeile\nKurz", [0, 19]),
+        )
         text.SetName.assert_called_once_with("Translated transcript")
 
     def test_choosing_missing_transcript_translation_fetches_it(self):
@@ -5885,7 +5888,7 @@ class TranscriptPlaybackTests(unittest.TestCase):
 
     def test_cached_local_audio_transcript_opens_with_original_file(self):
         with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "meeting.mp3"
+            path = Path(folder).resolve() / "meeting.mp3"
             path.write_bytes(b"audio")
             cached = Transcript((TranscriptLine(0, "Hello"),), "whisper")
             frame = type(
@@ -5911,7 +5914,7 @@ class TranscriptPlaybackTests(unittest.TestCase):
 
     def test_uncached_local_audio_starts_ready_whisper_transcriber(self):
         with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "meeting.wav"
+            path = Path(folder).resolve() / "meeting.wav"
             path.write_bytes(b"audio")
             frame = type(
                 "Frame",
