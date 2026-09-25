@@ -4696,6 +4696,10 @@ class RecentlyPlayedPanel(CollectionPanel):
         self.sort_key = "original"
         self.sort_descending = False
         super().show_items(items)
+        # New plays arrive at the top.  Keeping the previous selection would
+        # leave them above the reader, so a refresh starts at the newest.
+        if getattr(self, "all_items", None):
+            CollectionPanel.apply_filter(self, preferred=self.all_items[0])
 
     def sort_options(self) -> set[str]:
         return {"original"}

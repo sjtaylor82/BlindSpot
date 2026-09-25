@@ -7,6 +7,10 @@ Features implemented:
 - On Windows, the playback device list can send BlindSpot's own player to a
   chosen sound card, or back to the Windows default.
 
+Bugs fixed:
+- Refreshing Recently Played now moves to the newest play, instead of
+  staying on the previous song and leaving new plays unseen above it.
+
 
 2026.9.6 - 25 September 2026
 

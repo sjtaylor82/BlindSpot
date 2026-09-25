@@ -1667,6 +1667,22 @@ class GlobalShortcutRegistrationTests(unittest.TestCase):
 
 
 class RecentlyPlayedRefreshTests(unittest.TestCase):
+    def test_refresh_moves_to_the_newest_play(self):
+        older = ui.SpotifyItem("old", ui.ItemKind.TRACK, "Were You There")
+        newest = ui.SpotifyItem("new", ui.ItemKind.TRACK, "Harleys In Hawaii")
+        items = Mock()
+        items.selected_item.return_value = older
+        panel = ui.RecentlyPlayedPanel.__new__(ui.RecentlyPlayedPanel)
+        panel.items = items
+        panel.filter = Mock(GetValue=Mock(return_value=""))
+        panel.status = Mock()
+        panel.frame = Mock()
+        panel.title = "Recently Played"
+
+        ui.RecentlyPlayedPanel.show_items(panel, [newest, older])
+
+        items.set_items.assert_called_with([newest, older], 0)
+
     def test_opening_recently_played_tab_waits_for_list_focus(self):
         refreshed = []
         titles = []
