@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: BlindSpot 2026.9.3\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-09-25 22:10+1000\n"
+"POT-Creation-Date: 2026-09-25 22:54+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: BlindSpot contributors\n"
 "Language: pl\n"
@@ -2924,11 +2924,6 @@ msgid "&Follow transcript playback"
 msgstr ""
 
 #: blindspot/ui.py
-#, python-brace-format
-msgid "Transcript for {episode_name}"
-msgstr ""
-
-#: blindspot/ui.py
 msgid "Original"
 msgstr ""
 
@@ -2938,6 +2933,11 @@ msgstr ""
 
 #: blindspot/ui.py
 msgid "Transcript view"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Transcript for {episode_name}"
 msgstr ""
 
 #: blindspot/ui.py
@@ -4558,12 +4558,31 @@ msgid "volume {volume} percent"
 msgstr "głośność {volume} procent"
 
 #: blindspot/ui.py
+#, python-brace-format
+msgid "Sound card: {name}"
+msgstr "Karta dźwiękowa: {name}"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{label}, current"
+msgstr "{label}, bieżąca"
+
+#: blindspot/ui.py
 msgid "Refresh device list"
 msgstr "Odśwież listę urządzeń"
 
 #: blindspot/ui.py
 msgid "Choose playback device - BlindSpot"
 msgstr "Wybierz urządzenie odtwarzania - BlindSpot"
+
+#: blindspot/ui.py
+msgid "Windows default"
+msgstr "Domyślna systemu Windows"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "BlindSpot plays through {name}."
+msgstr "BlindSpot odtwarza przez {name}."
 
 #: blindspot/ui.py
 msgid "Continue playing on this device"
@@ -5376,4 +5395,7 @@ msgstr "Brytyjskie numery jeden są dostępne od {first} do {last}."
 
 #~ msgid "&Transcribe local audio..."
 #~ msgstr ""
+
+#~ msgid "Windows default ({name})"
+#~ msgstr "Domyślna systemu Windows ({name})"
 

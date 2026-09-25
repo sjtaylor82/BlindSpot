@@ -947,6 +947,51 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
         self.assertEqual(selections, [8])
         self.assertEqual(focused, [True])
 
+    def test_sound_card_choice_follows_spotify_devices(self):
+        output = ui.audio_devices.AudioOutput("{speaker}", "Speakers")
+        frame = Mock()
+
+        MainFrame.handle_playback_device_selection(
+            frame, [{"id": "phone"}], 2, [ui.audio_devices.AudioOutput("", "Default"), output]
+        )
+
+        frame.choose_sound_card.assert_called_once_with(output)
+        frame.choose_playback_device_action.assert_not_called()
+
+    def test_choosing_sound_card_saves_and_routes_it(self):
+        with tempfile.TemporaryDirectory() as folder:
+            frame = Mock(store=ui.PortableStore(Path(folder)))
+            frame.apply_audio_output = lambda: MainFrame.apply_audio_output(frame)
+            with patch.object(ui.audio_devices, "AVAILABLE", True), patch.object(
+                ui.audio_devices, "route_process_tree", return_value=0
+            ) as route:
+                MainFrame.choose_sound_card(
+                    frame, ui.audio_devices.AudioOutput("{speaker}", "Speakers")
+                )
+
+            self.assertEqual(
+                frame.store.read("settings.json")["audio_output_device"], "{speaker}"
+            )
+            route.assert_called_once_with("{speaker}")
+            # Nothing was playing yet, so routing is retried when sound starts.
+            self.assertFalse(frame.audio_output_applied)
+            frame.say.assert_called_once_with("BlindSpot plays through Speakers.")
+
+    def test_sound_card_routing_is_left_alone_until_chosen(self):
+        with tempfile.TemporaryDirectory() as folder:
+            frame = Mock(store=ui.PortableStore(Path(folder)))
+            with patch.object(ui.audio_devices, "AVAILABLE", True), patch.object(
+                ui.audio_devices, "route_process_tree"
+            ) as route:
+                MainFrame.apply_audio_output(frame)
+
+            route.assert_not_called()
+            self.assertTrue(frame.audio_output_applied)
+
+    def test_sound_cards_are_not_offered_off_windows(self):
+        with patch.object(ui.audio_devices, "AVAILABLE", False):
+            self.assertEqual(MainFrame.sound_card_choices(Mock()), [])
+
     def test_refresh_device_choice_reloads_device_picker(self):
         refreshed = []
         frame = type(

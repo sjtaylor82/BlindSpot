@@ -21,6 +21,7 @@ import wx.dataview as dv
 from accessible_output2.outputs.auto import Auto
 
 from . import __version__
+from . import audio_devices
 from . import diagnostics
 from . import export as exporting
 from . import i18n
@@ -7669,6 +7670,7 @@ class MainFrame(wx.Frame):
         self.remote_device_name = ""
         self.remote_supports_volume: bool | None = None
         self.pending_transfer_device: dict | None = None
+        self.audio_output_applied = False
         self.volume_before_mute_percent = self.playback_volume_percent
         self.remote_refresh_pending = False
         self.remote_refresh_timer = wx.Timer(self)
@@ -10338,6 +10340,7 @@ class MainFrame(wx.Frame):
         )
 
     def show_playback_devices(self, devices: list[dict]) -> None:
+        outputs = self.sound_card_choices()
         labels = []
         selected = 0
         for index, device in enumerate(devices):
@@ -10360,6 +10363,14 @@ class MainFrame(wx.Frame):
                     "volume {volume} percent"
                 ).format(volume=volume))
             labels.append(", ".join(parts))
+        chosen_output = (self.store.read("settings.json", {}) or {}).get(
+            "audio_output_device"
+        )
+        for output in outputs:
+            label = tr("Sound card: {name}").format(name=output.name)
+            if output.id == (chosen_output or ""):
+                label = tr("{label}, current").format(label=label)
+            labels.append(label)
         labels.append(tr("Refresh device list"))
         dialog = wx.SingleChoiceDialog(
             self,
@@ -10373,17 +10384,61 @@ class MainFrame(wx.Frame):
             return
         selection = dialog.GetSelection()
         dialog.Destroy()
-        self.handle_playback_device_selection(devices, selection)
+        self.handle_playback_device_selection(devices, selection, outputs)
 
     def handle_playback_device_selection(
         self,
         devices: list[dict],
         selection: int,
+        outputs: list[audio_devices.AudioOutput] | None = None,
     ) -> None:
-        if selection >= len(devices):
+        outputs = outputs or []
+        if selection < len(devices):
+            self.choose_playback_device_action(devices[selection])
+        elif selection < len(devices) + len(outputs):
+            self.choose_sound_card(outputs[selection - len(devices)])
+        else:
             self.choose_playback_device()
+
+    def sound_card_choices(self) -> list[audio_devices.AudioOutput]:
+        """List Windows sound cards, led by a choice to follow the default."""
+        if not audio_devices.AVAILABLE:
+            return []
+        try:
+            outputs = audio_devices.output_devices()
+        except (OSError, audio_devices.AudioDeviceError):
+            logger.exception("Could not list Windows sound cards")
+            return []
+        return [audio_devices.AudioOutput("", tr("Windows default"), True), *outputs]
+
+    def choose_sound_card(self, output: audio_devices.AudioOutput) -> None:
+        settings = self.store.read("settings.json", {}) or {}
+        settings["audio_output_device"] = output.id
+        self.store.write("settings.json", settings)
+        self.audio_output_applied = False
+        self.apply_audio_output()
+        self.say(tr("BlindSpot plays through {name}.").format(name=output.name))
+
+    def apply_audio_output(self) -> None:
+        """Route BlindSpot's audio to the sound card chosen in the device list.
+
+        Windows only accepts processes that have opened audio, and WebView2
+        starts its audio process when sound first plays, so this runs again
+        at the start of playback until it succeeds.
+        """
+        device_id = (self.store.read("settings.json", {}) or {}).get(
+            "audio_output_device"
+        )
+        if device_id is None or not audio_devices.AVAILABLE:
+            self.audio_output_applied = True
             return
-        self.choose_playback_device_action(devices[selection])
+        try:
+            routed = audio_devices.route_process_tree(str(device_id))
+        except (OSError, audio_devices.AudioDeviceError):
+            logger.exception("Could not route audio to the chosen sound card")
+            self.audio_output_applied = True
+            return
+        self.audio_output_applied = routed > 0
 
     def choose_playback_device_action(self, device: dict) -> None:
         choices = [
@@ -12115,6 +12170,10 @@ class MainFrame(wx.Frame):
     def on_playback_update(self, state: dict) -> None:
         if self.remote_device_id and not state.get("direct_audio"):
             return
+        if state.get("is_playing") and not getattr(
+            self, "audio_output_applied", True
+        ):
+            self.apply_audio_output()
         self.apply_playback_update(state)
 
     @staticmethod

@@ -1,6 +1,13 @@
 BLINDSPOT CHANGELOG
 ===================
 
+Unreleased
+
+Features implemented:
+- On Windows, the playback device list can send BlindSpot's own player to a
+  chosen sound card, or back to the Windows default.
+
+
 2026.9.6 - 25 September 2026
 
 Features implemented:
