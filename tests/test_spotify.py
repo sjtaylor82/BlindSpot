@@ -1031,6 +1031,73 @@ class PlaybackCommandTests(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0].raw["played_at"], "2026-07-25T01:00:00Z")
 
+    def test_recently_played_sorts_play_events_newest_first(self):
+        client = CommandClient(
+            [
+                {
+                    "items": [
+                        {
+                            "played_at": "2026-07-24T23:00:00Z",
+                            "track": {"id": "older", "name": "Older"},
+                        },
+                        {
+                            "played_at": "2026-07-25T02:00:00Z",
+                            "track": {"id": "newest", "name": "Newest"},
+                        },
+                        {
+                            "played_at": "2026-07-25T01:00:00Z",
+                            "track": {"id": "middle", "name": "Middle"},
+                        },
+                    ]
+                }
+            ]
+        )
+        client.token = {"scope": "user-read-recently-played"}
+
+        items = client.recently_played()
+
+        self.assertEqual([item.id for item in items], ["newest", "middle", "older"])
+
+    def test_recently_played_omits_spotify_local_files(self):
+        client = CommandClient(
+            [
+                {
+                    "items": [
+                        {
+                            "played_at": "2026-07-25T03:00:00Z",
+                            "track": {
+                                "id": "local-flag",
+                                "name": "Local by flag",
+                                "is_local": True,
+                                "uri": "spotify:track:local-flag",
+                            },
+                        },
+                        {
+                            "played_at": "2026-07-25T02:00:00Z",
+                            "track": {
+                                "id": "",
+                                "name": "Local by URI",
+                                "uri": "spotify:local:Artist:Album:Song:180",
+                            },
+                        },
+                        {
+                            "played_at": "2026-07-25T01:00:00Z",
+                            "track": {
+                                "id": "spotify-track",
+                                "name": "Spotify track",
+                                "uri": "spotify:track:spotify-track",
+                            },
+                        },
+                    ]
+                }
+            ]
+        )
+        client.token = {"scope": "user-read-recently-played"}
+
+        items = client.recently_played()
+
+        self.assertEqual([item.id for item in items], ["spotify-track"])
+
     def test_saved_audiobooks_maps_authors_and_chapter_count(self):
         client = CommandClient(
             [

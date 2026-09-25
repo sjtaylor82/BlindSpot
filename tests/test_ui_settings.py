@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import Mock, call, patch
 
 from blindspot import ui
+from blindspot.transcripts import Transcript, TranscriptLine
 from blindspot.ui import (
     AlternateVersionsDialog,
     LyricsDialog,
@@ -241,20 +242,25 @@ class FirstRunSetupTests(unittest.TestCase):
 
         self.assertEqual(focused, [dialog.open_dashboard])
 
-    def test_web_player_is_deferred_until_spotify_is_connected(self):
+    def test_web_player_is_available_for_direct_audio_without_spotify(self):
         frame = type(
             "Frame",
             (),
             {
                 "spotify": type("Spotify", (), {"connected": False})(),
                 "player": None,
+                "on_player_ready": lambda self, device_id: None,
+                "on_player_error": lambda self, message: None,
+                "on_playback_update": lambda self, state: None,
+                "playback_volume_percent": 80,
+                "say": lambda self, message: None,
             },
         )()
 
         with patch("blindspot.ui.WebPlaybackController") as player:
             MainFrame._create_web_player(frame)
 
-        player.assert_not_called()
+        player.assert_called_once()
 
     def test_web_player_is_created_after_first_connection(self):
         created = []
@@ -4418,6 +4424,19 @@ class NewMusicTests(unittest.TestCase):
 
         self.assertIs(items, spotify_items)
 
+    def test_recently_played_refresh_resets_generic_list_sorting(self):
+        panel = ui.RecentlyPlayedPanel.__new__(ui.RecentlyPlayedPanel)
+        panel.sort_key = "title"
+        panel.sort_descending = True
+        items = [ui.SpotifyItem("newest", ui.ItemKind.TRACK, "Newest")]
+
+        with patch.object(ui.CollectionPanel, "show_items") as show_items:
+            ui.RecentlyPlayedPanel.show_items(panel, items)
+
+        self.assertEqual((panel.sort_key, panel.sort_descending), ("original", False))
+        show_items.assert_called_once_with(items)
+        self.assertEqual(ui.RecentlyPlayedPanel.sort_options(panel), {"original"})
+
 
 class ExportAndDiagnosticsWiringTests(unittest.TestCase):
     def _frame(self, **attributes):
@@ -4439,6 +4458,35 @@ class ExportAndDiagnosticsWiringTests(unittest.TestCase):
             artist="Artist",
             uri=f"spotify:track:t{number}",
         )
+
+    def test_status_speech_is_deferred_until_focus_events_settle(self):
+        callbacks = []
+        announcer = Mock()
+        statuses = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "announcer": announcer,
+                "SetStatusText": lambda self, message: statuses.append(message),
+                "_announce_status": MainFrame._announce_status,
+            },
+        )()
+
+        with patch(
+            "blindspot.ui.wx.CallAfter",
+            side_effect=lambda callback, *args: callbacks.append(
+                (callback, args)
+            ),
+        ):
+            MainFrame.say(frame, "Finished.")
+
+        self.assertEqual(statuses, ["Finished."])
+        announcer.speak.assert_not_called()
+        callback, args = callbacks[0]
+        callback(*args)
+        announcer.speak.assert_called_once_with("Finished.", interrupt=False)
+        announcer.braille.assert_called_once_with("Finished.")
 
     def _item_list(self, items, selected=None):
         return type(
@@ -5152,6 +5200,33 @@ class ExportAndDiagnosticsWiringTests(unittest.TestCase):
 
 
 class PodcastSupportTests(unittest.TestCase):
+    def test_import_announcement_waits_for_refreshed_list(self):
+        spoken = []
+        refreshed = []
+        panel = type(
+            "Panel",
+            (),
+            {
+                "loading": True,
+                "pending_refresh_announcement": None,
+                "frame": type(
+                    "Frame",
+                    (),
+                    {"say": lambda self, message: spoken.append(message)},
+                )(),
+                "refresh": lambda self: refreshed.append(True),
+            },
+        )()
+
+        PodcastsPanel.finish_import_opml(panel, (125, 140))
+
+        self.assertEqual(spoken, [])
+        self.assertEqual(refreshed, [True])
+        self.assertEqual(
+            panel.pending_refresh_announcement,
+            "Imported 125 podcast subscriptions; 140 stored.",
+        )
+
     def test_browse_category_displays_scoped_podcast_results(self):
         rendered = []
         status_labels = []
@@ -5513,6 +5588,436 @@ class UpdatePromptFocusTests(unittest.TestCase):
 
         self.assertFalse(target.focused)
         self.assertTrue(frame.search.focused)
+
+
+class TranscriptPlaybackTests(unittest.TestCase):
+    class KeyEvent:
+        def __init__(self, key):
+            self.key = key
+            self.stopped = False
+            self.skipped = False
+
+        def GetKeyCode(self):
+            return self.key
+
+        def AltDown(self):
+            return False
+
+        def ShiftDown(self):
+            return False
+
+        def ControlDown(self):
+            return False
+
+        def RawControlDown(self):
+            return False
+
+        def StopPropagation(self):
+            self.stopped = True
+
+        def Skip(self):
+            self.skipped = True
+
+    def test_selected_line_uses_caret_position(self):
+        dialog = type("Dialog", (), {})()
+        dialog.synced_lines = [(1000, "One"), (2500, "Two")]
+        dialog.synced_line_positions = [0, 4]
+        dialog.text = Mock()
+        dialog.text.GetInsertionPoint.return_value = 5
+
+        self.assertEqual(ui.TranscriptDialog.selected_line_index(dialog), 1)
+
+    def test_space_playback_starts_episode_at_selected_line(self):
+        dialog = type("Dialog", (), {})()
+        dialog.synced_lines = [(1000, "One"), (2500, "Two")]
+        dialog.synced_line_positions = [0, 4]
+        dialog.text = Mock()
+        dialog.text.GetInsertionPoint.return_value = 4
+        dialog.selected_line_index = lambda: (
+            ui.TranscriptDialog.selected_line_index(dialog)
+        )
+        dialog.track_id = "episode-id"
+        dialog.item = ui.SpotifyItem(
+            "episode-id", ui.ItemKind.EPISODE, "Episode"
+        )
+        dialog.frame = Mock()
+        dialog.frame.current_track_is_paused.return_value = False
+
+        ui.TranscriptDialog.play_selected_line(dialog)
+
+        dialog.frame.play_from_lyric.assert_called_once_with(dialog.item, 2500)
+
+    def test_handled_space_does_not_reach_main_window(self):
+        played = []
+        dialog = type(
+            "Dialog",
+            (),
+            {
+                "play_selected_line": lambda self: played.append(True),
+                "consume_key": (
+                    lambda self, event: ui.TranscriptDialog.consume_key(event)
+                ),
+            },
+        )()
+        event = self.KeyEvent(ui.wx.WXK_SPACE)
+
+        ui.TranscriptDialog.on_text_key(dialog, event)
+
+        self.assertEqual(played, [True])
+        self.assertTrue(event.stopped)
+        self.assertFalse(event.skipped)
+
+    def test_alt_tab_return_focuses_transcript_text(self):
+        text = Mock()
+        timer = Mock()
+        dialog = type(
+            "Dialog",
+            (),
+            {
+                "text": text,
+                "closed": False,
+                "was_activated": True,
+                "activation_focus_timer": timer,
+                "Raise": Mock(),
+                "restore_activation_focus": (
+                    lambda self: ui.TranscriptDialog.restore_activation_focus(self)
+                ),
+            },
+        )()
+        event = Mock()
+        event.GetActive.return_value = True
+
+        ui.TranscriptDialog.on_activate(dialog, event)
+
+        event.Skip.assert_called_once_with()
+        timer.StartOnce.assert_called_once_with(200)
+        ui.TranscriptDialog.on_activation_focus_timer(dialog)
+        text.SetFocus.assert_called_once_with()
+
+    def test_app_return_schedules_transcript_focus_recovery(self):
+        schedule = Mock()
+        dialog = type(
+            "Dialog",
+            (),
+            {"closed": False, "schedule_activation_focus": schedule},
+        )()
+        event = Mock()
+        event.GetActive.return_value = True
+
+        ui.TranscriptDialog.on_app_activate(dialog, event)
+
+        event.Skip.assert_called_once_with()
+        schedule.assert_called_once_with()
+
+    def test_focus_recovery_retries_after_native_focus_races(self):
+        stopped = []
+        previous = type("Retry", (), {"Stop": lambda self: stopped.append(True)})()
+        dialog = type(
+            "Dialog",
+            (),
+            {
+                "activation_focus_retries": [previous],
+                "restore_activation_focus": Mock(),
+            },
+        )()
+        retries = []
+
+        with patch(
+            "blindspot.ui.wx.CallLater",
+            side_effect=lambda delay, callback: retries.append((delay, callback)) or Mock(),
+        ):
+            ui.TranscriptDialog.schedule_activation_focus(dialog)
+
+        self.assertEqual(stopped, [True])
+        self.assertEqual([delay for delay, _callback in retries], [1, 150, 500])
+
+    def test_initial_dialog_activation_does_not_repeat_focus(self):
+        timer = Mock()
+        dialog = type(
+            "Dialog",
+            (),
+            {
+                "was_activated": False,
+                "activation_focus_timer": timer,
+            },
+        )()
+        event = Mock()
+        event.GetActive.return_value = True
+
+        ui.TranscriptDialog.on_activate(dialog, event)
+
+        event.Skip.assert_called_once_with()
+        timer.StartOnce.assert_not_called()
+        self.assertTrue(dialog.was_activated)
+
+    def test_follow_playback_moves_caret_to_current_timed_line(self):
+        dialog = type("Dialog", (), {})()
+        dialog.synced_lines = [(1000, "One"), (2500, "Two")]
+        dialog.synced_line_positions = [0, 4]
+        dialog.track_id = "episode-id"
+        dialog.last_followed_line = -1
+        dialog.frame = Mock()
+        dialog.frame.playback_position_ms.return_value = 3000
+        dialog.text = Mock()
+
+        ui.TranscriptDialog.on_follow_timer(dialog)
+
+        dialog.text.SetInsertionPoint.assert_called_once_with(4)
+        dialog.text.ShowPosition.assert_called_once_with(4)
+
+    def test_local_whisper_lines_receive_playback_timing_compensation(self):
+        dialog = type("Dialog", (), {})()
+        transcript = Transcript(
+            (TranscriptLine(0, "Opening"), TranscriptLine(2500, "Two")),
+            "whisper",
+        )
+
+        ui.TranscriptDialog.set_transcript(dialog, transcript)
+
+        self.assertEqual(
+            dialog.synced_lines,
+            [(0, "Opening"), (5500, "Two")],
+        )
+
+    def test_publisher_transcript_timing_is_not_compensated(self):
+        dialog = type("Dialog", (), {})()
+        transcript = Transcript(
+            (TranscriptLine(2500, "Two"),),
+            "publisher",
+        )
+
+        ui.TranscriptDialog.set_transcript(dialog, transcript)
+
+        self.assertEqual(dialog.synced_lines, [(2500, "Two")])
+
+    def test_translated_view_preserves_timed_line_mapping(self):
+        transcript = Transcript(
+            (TranscriptLine(0, "Short"), TranscriptLine(2500, "A longer line")),
+            "publisher",
+            translated_text="Eine langere Zeile\nKurz",
+            translated_language="DE",
+        )
+        text = Mock()
+        text.GetValue.return_value = transcript.text
+        text.GetInsertionPoint.return_value = 6
+        view = Mock()
+        view.GetSelection.return_value = 1
+        dialog = type(
+            "Dialog",
+            (),
+            {
+                "latest": transcript,
+                "text": text,
+                "translation_view": view,
+            },
+        )()
+
+        ui.TranscriptDialog.on_translation_view(dialog)
+
+        text.SetValue.assert_called_once_with("Eine langere Zeile\nKurz")
+        self.assertEqual(dialog.synced_line_positions, [0, 20])
+        text.SetName.assert_called_once_with("Translated transcript")
+
+    def test_choosing_missing_transcript_translation_fetches_it(self):
+        transcript = Transcript((TranscriptLine(0, "Bonjour"),), "whisper")
+        view = Mock()
+        view.GetSelection.return_value = 1
+        dialog = type(
+            "Dialog",
+            (),
+            {
+                "latest": transcript,
+                "running": False,
+                "translation_view": view,
+                "frame": Mock(),
+                "on_fetch_translation": Mock(),
+            },
+        )()
+
+        ui.TranscriptDialog.on_translation_view(dialog)
+
+        view.SetSelection.assert_called_once_with(0)
+        dialog.on_fetch_translation.assert_called_once_with()
+
+    def test_transcript_translation_waits_for_transcription(self):
+        transcript = Transcript((TranscriptLine(0, "Bonjour"),), "whisper", False)
+        view = Mock()
+        view.GetSelection.return_value = 1
+        dialog = type(
+            "Dialog",
+            (),
+            {
+                "latest": transcript,
+                "running": True,
+                "translation_view": view,
+                "frame": Mock(),
+                "on_fetch_translation": Mock(),
+            },
+        )()
+
+        ui.TranscriptDialog.on_translation_view(dialog)
+
+        view.SetSelection.assert_called_once_with(0)
+        dialog.on_fetch_translation.assert_not_called()
+        dialog.frame.say.assert_called_once_with(
+            "The transcript can be translated when transcription finishes."
+        )
+
+    def test_finished_transcription_uses_cached_translation(self):
+        transcript = Transcript((TranscriptLine(0, "Bonjour"),), "whisper")
+        translated = Transcript(
+            transcript.lines, "whisper", True, "Hello", "EN-GB"
+        )
+        frame = Mock()
+        frame.cached_transcript_translation.return_value = translated
+        dialog = Mock(
+            closed=False,
+            running=True,
+            frame=frame,
+            fetch_translation=Mock(),
+        )
+
+        ui.TranscriptDialog.finish(dialog, transcript)
+
+        dialog.update_transcript.assert_called_once_with(translated)
+        dialog.fetch_translation.Hide.assert_called_once_with()
+        self.assertFalse(dialog.running)
+
+    def test_cached_local_audio_transcript_opens_with_original_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "meeting.mp3"
+            path.write_bytes(b"audio")
+            cached = Transcript((TranscriptLine(0, "Hello"),), "whisper")
+            frame = type(
+                "Frame",
+                (),
+                {
+                    "store": object(),
+                    "use_transcript_audio": Mock(),
+                    "display_transcript": Mock(),
+                },
+            )()
+            cache = Mock()
+            cache.read.return_value = cached
+
+            with patch("blindspot.ui.TranscriptCache", return_value=cache):
+                ui.MainFrame.transcribe_local_audio_path(frame, path)
+
+            item = frame.display_transcript.call_args.args[0]
+            self.assertEqual(item.name, "meeting")
+            self.assertEqual(item.raw["local_audio_path"], str(path.resolve()))
+            frame.use_transcript_audio.assert_called_once_with(item, path.resolve())
+            frame.display_transcript.assert_called_once_with(item, cached)
+
+    def test_uncached_local_audio_starts_ready_whisper_transcriber(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "meeting.wav"
+            path.write_bytes(b"audio")
+            frame = type(
+                "Frame",
+                (),
+                {
+                    "store": object(),
+                    "use_transcript_audio": Mock(),
+                    "start_local_audio_transcript": Mock(),
+                },
+            )()
+            cache = Mock()
+            cache.read.return_value = None
+            transcriber = Mock()
+            transcriber.ready = True
+
+            with (
+                patch("blindspot.ui.TranscriptCache", return_value=cache),
+                patch("blindspot.ui.WhisperTranscriber", return_value=transcriber),
+            ):
+                ui.MainFrame.transcribe_local_audio_path(frame, path)
+
+            item = frame.start_local_audio_transcript.call_args.args[0]
+            frame.start_local_audio_transcript.assert_called_once_with(
+                item,
+                path.resolve(),
+                cache,
+                transcriber,
+                None,
+            )
+
+    def test_show_transcript_routes_remembered_local_audio_to_original_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "remembered.ogg"
+            path.write_bytes(b"audio")
+            item = ui.SpotifyItem(
+                "local-audio:remembered",
+                ui.ItemKind.EPISODE,
+                "Remembered",
+                raw={
+                    "local_audio_path": str(path),
+                    "audio_url": "http://127.0.0.1:12345/stale",
+                },
+            )
+            frame = type(
+                "Frame",
+                (),
+                {
+                    "store": object(),
+                    "transcribe_local_audio_path": Mock(),
+                },
+            )()
+            cache = Mock()
+            cache.read.return_value = Transcript(
+                (TranscriptLine(0, "Partial"),), "whisper", False
+            )
+
+            with patch("blindspot.ui.TranscriptCache", return_value=cache):
+                ui.MainFrame.show_transcript_for_item(frame, item)
+
+            frame.transcribe_local_audio_path.assert_called_once_with(path.resolve())
+
+    def test_missing_local_audio_displays_incomplete_cached_transcript(self):
+        item = ui.SpotifyItem(
+            "local-audio:missing",
+            ui.ItemKind.EPISODE,
+            "Missing",
+            raw={"local_audio_path": "Z:/not-there/audio.ogg"},
+        )
+        partial = Transcript((TranscriptLine(0, "Partial"),), "whisper", False)
+        frame = type(
+            "Frame",
+            (),
+            {
+                "store": object(),
+                "say": Mock(),
+                "display_transcript": Mock(),
+            },
+        )()
+        cache = Mock()
+        cache.read.return_value = partial
+
+        with patch("blindspot.ui.TranscriptCache", return_value=cache):
+            ui.MainFrame.show_transcript_for_item(frame, item)
+
+        frame.display_transcript.assert_called_once_with(item, partial)
+        frame.say.assert_called_once()
+
+    def test_stopping_transcription_enables_translation_of_partial_text(self):
+        dialog = type(
+            "Dialog",
+            (),
+            {
+                "transcriber": Mock(),
+                "running": True,
+                "stop_button": Mock(),
+                "fetch_translation": Mock(),
+                "latest": Transcript((TranscriptLine(0, "Partial"),), "whisper", False),
+                "frame": type("Frame", (), {"say": Mock()})(),
+            },
+        )()
+
+        ui.TranscriptDialog.on_stop(dialog)
+
+        dialog.transcriber.stop.assert_called_once_with()
+        self.assertFalse(dialog.running)
+        dialog.fetch_translation.Enable.assert_called_once_with()
 
 
 class BrailleLyricsTests(unittest.TestCase):
@@ -6193,6 +6698,57 @@ class MuteTests(unittest.TestCase):
 
 
 class PlaybackFeedbackTests(unittest.TestCase):
+    def test_pending_local_audio_resume_never_calls_spotify(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "meeting.mp3"
+            path.write_bytes(b"audio")
+            item = ui.SpotifyItem(
+                "local-audio:one",
+                ui.ItemKind.EPISODE,
+                "Meeting",
+                raw={"local_audio_path": str(path)},
+            )
+            frame = type(
+                "Frame",
+                (),
+                {
+                    "pending_resume": (item, 12_000, ""),
+                    "use_transcript_audio": Mock(),
+                    "play_direct_audio": Mock(),
+                    "spotify": Mock(),
+                },
+            )()
+
+            MainFrame.toggle_playback(frame)
+
+            frame.use_transcript_audio.assert_called_once_with(item, path)
+            frame.play_direct_audio.assert_called_once_with(
+                item, 12_000, announce=False
+            )
+            frame.spotify.play_at.assert_not_called()
+
+    def test_legacy_local_resume_without_path_does_not_call_spotify(self):
+        messages = []
+        item = ui.SpotifyItem(
+            "local-audio:old",
+            ui.ItemKind.EPISODE,
+            "Old recording",
+        )
+        frame = type(
+            "Frame",
+            (),
+            {
+                "pending_resume": (item, 0, ""),
+                "spotify": Mock(),
+                "say": lambda self, message: messages.append(message),
+            },
+        )()
+
+        MainFrame.toggle_playback(frame)
+
+        frame.spotify.play_at.assert_not_called()
+        self.assertIn("Transcribe local audio", messages[0])
+
     def test_pending_forced_transfer_does_not_retarget_transport_controls(self):
         frame = type(
             "Frame",

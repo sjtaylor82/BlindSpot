@@ -600,9 +600,18 @@ class SpotifyClient:
         )
         items = []
         seen_tracks: set[str] = set()
-        for value in data.get("items", []):
+        values = sorted(
+            data.get("items", []),
+            key=lambda value: str(value.get("played_at") or ""),
+            reverse=True,
+        )
+        for value in values:
             track = value.get("track")
             if not track:
+                continue
+            if track.get("is_local") or str(track.get("uri") or "").startswith(
+                "spotify:local:"
+            ):
                 continue
             track_key = str(track.get("id") or track.get("uri") or "")
             if track_key and track_key in seen_tracks:

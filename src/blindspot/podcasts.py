@@ -126,6 +126,9 @@ def _safe_filename(title: str, url: str) -> str:
 
 
 def find_episode_download(item: SpotifyItem) -> PodcastDownload:
+    direct_url = str(item.raw.get("audio_url") or "")
+    if direct_url:
+        return PodcastDownload(direct_url, _safe_filename(item.name, direct_url))
     show = item.album or str((item.raw.get("show") or {}).get("name") or "")
     publisher = item.artist or str(
         (item.raw.get("show") or {}).get("publisher") or ""

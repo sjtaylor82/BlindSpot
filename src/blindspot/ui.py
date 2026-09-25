@@ -105,6 +105,21 @@ from .navigation import NavigationHistory
 from .network import TLS_CONTEXT
 from .portable import PortableStore, resource_directory
 from .podcasts import PodcastDownload, download_episode, find_episode_download
+from .rss_podcasts import (
+    RSSPodcastError,
+    RSSSubscriptionStore,
+    feed_episodes,
+)
+from .transcripts import (
+    EpisodeMedia,
+    Transcript,
+    TranscriptCache,
+    TranscriptUnavailable,
+    WHISPER_PLAYBACK_OFFSET_MS,
+    WhisperTranscriber,
+    fetch_publisher_transcript,
+    find_episode_media,
+)
 from .playlist_operations import (
     PlaylistClipboard,
     PlaylistOperations,
@@ -1899,6 +1914,594 @@ def music_details_text(details: dict) -> str:
         for copyright_value in album.get("copyrights") or []:
             add("Copyright", copyright_value.get("text"))
     return "\n".join(lines).strip()
+
+
+class TranscriptDialog(wx.Dialog):
+    def __init__(
+        self,
+        parent: "MainFrame",
+        item: SpotifyItem,
+        transcript: Transcript | None = None,
+    ) -> None:
+        super().__init__(
+            parent,
+            title=tr("Transcript for {episode_name} - BlindSpot").format(
+                episode_name=item.name
+            ),
+            size=(700, 650),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        self.frame = parent
+        self.item = item
+        self.transcriber: WhisperTranscriber | None = None
+        self.cache: TranscriptCache | None = None
+        self.latest = transcript
+        self.running = False
+        self.closed = False
+        self.was_activated = False
+        self.track_id = item.id
+        self.synced_lines: list[tuple[int, str]] = []
+        self.synced_line_positions: list[int] = []
+        self.last_followed_line = -1
+        self.follow_timer = wx.Timer(self)
+        self.activation_focus_timer = wx.Timer(self)
+        self.activation_focus_retries: list[wx.CallLater] = []
+
+        outer = wx.BoxSizer(wx.VERTICAL)
+        outer.Add(wx.StaticText(self, label=item.name), 0, wx.ALL, 10)
+        self.follow_playback = wx.CheckBox(
+            self, label=tr("&Follow transcript playback")
+        )
+        self.follow_playback.SetValue(True)
+        outer.Add(self.follow_playback, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+
+        # Create controls in tab order.  Reordering them afterwards with
+        # MoveBeforeInTabOrder left Tab and Shift+Tab visiting different
+        # controls around the view choice on Windows.
+        self.translation_view = None
+        self.fetch_translation = None
+        translation_enabled = bool(
+            parent.deepl.api_key and parent.deepl.target_language
+        )
+        if translation_enabled or (transcript and transcript.translated_text):
+            self.translation_view = wx.Choice(
+                self,
+                # Offer the translation up front so choosing it fetches one,
+                # rather than hiding it until the button has been found.
+                choices=[tr("Original"), tr("Translation")],
+            )
+            self.translation_view.SetName(tr("Transcript view"))
+            self.translation_view.SetSelection(0)
+            outer.Add(
+                self.translation_view,
+                0,
+                wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+                10,
+            )
+        self.text = wx.TextCtrl(
+            self,
+            value=transcript.text if transcript else "",
+            style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2,
+        )
+        self.text.SetName(
+            tr("Transcript for {episode_name}").format(episode_name=item.name)
+        )
+        outer.Add(self.text, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        if self.translation_view and (
+            not transcript or not transcript.translated_text
+        ):
+            self.fetch_translation = wx.Button(
+                self, label=tr("&Translate with DeepL")
+            )
+            self.fetch_translation.SetToolTip(
+                tr("Sends this transcript text to DeepL for translation.")
+            )
+            outer.Add(
+                self.fetch_translation,
+                0,
+                wx.LEFT | wx.RIGHT | wx.TOP,
+                10,
+            )
+
+        buttons = wx.BoxSizer(wx.HORIZONTAL)
+        self.stop_button = wx.Button(self, label=tr("&Stop transcription"))
+        self.stop_button.Enable(False)
+        self.close_button = wx.Button(self, wx.ID_CLOSE, tr("&Close"))
+        buttons.Add(self.stop_button, 0, wx.RIGHT, 8)
+        buttons.Add(self.close_button, 0)
+        outer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.ALL, 10)
+        self.SetSizer(outer)
+        self.stop_button.Bind(wx.EVT_BUTTON, self.on_stop)
+        self.close_button.Bind(wx.EVT_BUTTON, self.on_close)
+        self.follow_playback.Bind(wx.EVT_CHECKBOX, self.on_follow_playback)
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.Bind(wx.EVT_ACTIVATE, self.on_activate)
+        wx.GetApp().Bind(wx.EVT_ACTIVATE_APP, self.on_app_activate)
+        self.frame.Bind(wx.EVT_CHILD_FOCUS, self.on_parent_child_focus)
+        self.Bind(wx.EVT_CHAR_HOOK, self.on_dialog_key)
+        self.Bind(wx.EVT_TIMER, self.on_follow_timer, self.follow_timer)
+        self.Bind(
+            wx.EVT_TIMER,
+            self.on_activation_focus_timer,
+            self.activation_focus_timer,
+        )
+        self.text.Bind(wx.EVT_KEY_DOWN, self.on_text_key)
+        if self.translation_view:
+            self.translation_view.Bind(wx.EVT_CHOICE, self.on_translation_view)
+        if self.fetch_translation:
+            self.fetch_translation.Bind(wx.EVT_BUTTON, self.on_fetch_translation)
+        self.set_transcript(transcript)
+        self.follow_timer.Start(BRAILLE_LYRICS_TIMER_MS)
+        self.text.SetFocus()
+
+    @staticmethod
+    def consume_key(event: wx.KeyEvent) -> None:
+        stop = getattr(event, "StopPropagation", None)
+        if stop:
+            stop()
+
+    def on_activate(self, event: wx.ActivateEvent) -> None:
+        event.Skip()
+        if event.GetActive():
+            if self.was_activated:
+                self.activation_focus_timer.StartOnce(200)
+            self.was_activated = True
+
+    def on_app_activate(self, event: wx.ActivateEvent) -> None:
+        """Recover the modal transcript focus Windows can return to its parent."""
+        event.Skip()
+        if event.GetActive() and not self.closed:
+            logger.debug("Transcript app activation scheduling text focus")
+            self.schedule_activation_focus()
+
+    def on_parent_child_focus(self, event: wx.ChildFocusEvent) -> None:
+        """Reject native focus escaping into the disabled frame on Windows."""
+        event.Skip()
+        if not self.closed and self.IsShown():
+            focused = event.GetWindow()
+            logger.debug(
+                "Transcript recovering focus from parent child=%s",
+                type(focused).__name__ if focused else "none",
+            )
+            self.schedule_activation_focus()
+
+    def schedule_activation_focus(self) -> None:
+        for retry in self.activation_focus_retries:
+            retry.Stop()
+        self.activation_focus_retries = [
+            wx.CallLater(delay, self.restore_activation_focus)
+            for delay in (1, 150, 500)
+        ]
+
+    def restore_activation_focus(self) -> None:
+        if not self.closed:
+            logger.debug("Transcript restoring focus to read-only text")
+            self.Raise()
+            self.text.SetFocus()
+
+    def on_activation_focus_timer(
+        self,
+        event: wx.TimerEvent | None = None,
+    ) -> None:
+        self.restore_activation_focus()
+
+    def on_follow_playback(self, event: wx.CommandEvent | None = None) -> None:
+        if self.follow_playback.GetValue():
+            self.last_followed_line = -1
+            self.follow_timer.Start(BRAILLE_LYRICS_TIMER_MS)
+            self.on_follow_timer()
+        else:
+            self.follow_timer.Stop()
+
+    def set_transcript(self, transcript: Transcript | None) -> None:
+        self.latest = transcript
+        self.synced_lines = [
+            (
+                line.start_ms
+                + (
+                    WHISPER_PLAYBACK_OFFSET_MS
+                    if transcript and transcript.source == "whisper" and line.start_ms
+                    else 0
+                ),
+                line.text,
+            )
+            for line in (transcript.lines if transcript else ())
+        ]
+        positions: list[int] = []
+        position = 0
+        for line in (transcript.text.splitlines(keepends=True) if transcript else ()):
+            positions.append(position)
+            position += len(line)
+        self.synced_line_positions = native_text_positions(
+            transcript.text if transcript else "", positions
+        )
+
+    def on_translation_view(self, event: wx.CommandEvent | None = None) -> None:
+        if (
+            self.translation_view
+            and self.translation_view.GetSelection() == 1
+            and not (self.latest and self.latest.translated_text)
+        ):
+            self.translation_view.SetSelection(0)
+            if self.running or not self.latest:
+                self.frame.say(
+                    tr("The transcript can be translated when transcription finishes.")
+                )
+            else:
+                self.on_fetch_translation()
+            return
+        if not self.latest:
+            return
+        previous_value = self.text.GetValue()
+        previous_position = self.text.GetInsertionPoint()
+        translated = bool(
+            self.translation_view
+            and self.translation_view.GetSelection() == 1
+            and self.latest.translated_text
+        )
+        value = self.latest.translated_text if translated else self.latest.text
+        position = LyricsDialog._corresponding_text_position(
+            previous_value, value, previous_position
+        )
+        original_positions: list[int] = []
+        source_position = 0
+        for line in self.latest.text.splitlines(keepends=True):
+            original_positions.append(source_position)
+            source_position += len(line)
+        positions = (
+            LyricsDialog._corresponding_line_positions(
+                self.latest.text, value, original_positions
+            )
+            if translated
+            else original_positions
+        )
+        self.synced_line_positions = native_text_positions(value, positions)
+        self.text.SetValue(value)
+        self.text.SetName(
+            tr("Translated transcript")
+            if translated
+            else tr("Original transcript")
+        )
+        self.text.SetInsertionPoint(position)
+        self.text.ShowPosition(position)
+
+    def on_fetch_translation(self, event: wx.CommandEvent | None = None) -> None:
+        if not self.latest or self.running:
+            return
+        if self.fetch_translation:
+            self.fetch_translation.Disable()
+            self.fetch_translation.SetLabel(tr("Translating..."))
+        self.frame.run_task(
+            tr("Translating transcript"),
+            lambda: self.frame.translate_transcript(self.item, self.latest),
+            self.finish_fetch_translation,
+            failure=self.fail_fetch_translation,
+            error_parent=self,
+            requires_spotify=False,
+        )
+
+    def finish_fetch_translation(self, transcript: Transcript) -> None:
+        if self.closed:
+            return
+        self.latest = transcript
+        if self.fetch_translation:
+            self.fetch_translation.Hide()
+        self.Layout()
+        if self.translation_view:
+            self.translation_view.SetSelection(1)
+            self.on_translation_view()
+            self.text.SetFocus()
+
+    def fail_fetch_translation(self) -> None:
+        if self.closed or not self.fetch_translation:
+            return
+        self.fetch_translation.Enable()
+        self.fetch_translation.SetLabel(tr("&Translate with DeepL"))
+
+    def begin(
+        self,
+        transcriber: WhisperTranscriber,
+        media: EpisodeMedia,
+        cache: TranscriptCache,
+        source_path: Path | None = None,
+    ) -> None:
+        self.transcriber = transcriber
+        self.cache = cache
+        self.running = True
+        self.stop_button.Enable(True)
+        if self.fetch_translation:
+            self.fetch_translation.Disable()
+        self.frame.say(tr("Transcribing episode."))
+
+        def update(transcript: Transcript) -> None:
+            cache.write(self.item.id, transcript)
+            wx.CallAfter(self.update_transcript, transcript)
+
+        def audio_ready(path: Path) -> None:
+            wx.CallAfter(self.frame.use_transcript_audio, self.item, path)
+
+        if source_path is not None:
+            self.frame.use_transcript_audio(self.item, source_path)
+
+        def run() -> None:
+            try:
+                if source_path is not None:
+                    transcript = transcriber.transcribe(source_path, update)
+                else:
+                    transcript = transcriber.transcribe(
+                        media.audio_url,
+                        update,
+                        audio_path=cache.audio_path(self.item.id),
+                        audio_ready=audio_ready,
+                    )
+            except TranscriptUnavailable as error:
+                wx.CallAfter(self.finish_error, str(error))
+            except Exception as error:
+                logger.exception("Podcast transcription failed")
+                wx.CallAfter(self.finish_error, str(error))
+            else:
+                cache.write(self.item.id, transcript)
+                wx.CallAfter(self.finish, transcript)
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def update_transcript(self, transcript: Transcript) -> None:
+        if self.closed:
+            return
+        self.set_transcript(transcript)
+        insertion = self.text.GetInsertionPoint()
+        self.text.ChangeValue(transcript.text)
+        self.text.SetInsertionPoint(min(insertion, len(transcript.text)))
+
+    def finish(self, transcript: Transcript) -> None:
+        if self.closed:
+            return
+        transcript = self.frame.cached_transcript_translation(
+            self.item, transcript
+        )
+        self.update_transcript(transcript)
+        self.running = False
+        self.stop_button.Enable(False)
+        if self.fetch_translation:
+            if transcript.translated_text:
+                self.fetch_translation.Hide()
+                self.Layout()
+            else:
+                self.fetch_translation.Enable()
+        self.frame.say(tr("Transcription complete."))
+
+    def finish_error(self, message: str) -> None:
+        if self.closed:
+            return
+        self.running = False
+        self.stop_button.Enable(False)
+        if self.fetch_translation and self.latest:
+            self.fetch_translation.Enable()
+        if self.latest:
+            partial = Transcript(self.latest.lines, self.latest.source, False)
+            self.update_transcript(partial)
+        self.frame.say(message)
+
+    def on_stop(self, event: wx.Event | None = None) -> None:
+        if self.transcriber and self.running:
+            self.transcriber.stop()
+            self.running = False
+            self.stop_button.Enable(False)
+            if self.fetch_translation and self.latest:
+                self.fetch_translation.Enable()
+            self.frame.say(tr("Stopping transcription."))
+
+    def selected_line_index(self) -> int | None:
+        if not self.synced_lines:
+            return None
+        insertion_point = self.text.GetInsertionPoint()
+        selected = None
+        for index, position in enumerate(self.synced_line_positions):
+            if position > insertion_point:
+                break
+            selected = index
+        return selected
+
+    def play_selected_line(self) -> None:
+        line_index = self.selected_line_index()
+        if line_index is None:
+            self.frame.say(tr("Move to a timed transcript line first."))
+            return
+        timestamp_ms = self.synced_lines[line_index][0]
+        if self.frame.current_track_is_paused(self.track_id):
+            self.frame.resume_from_lyric(self.track_id, timestamp_ms)
+        else:
+            self.frame.play_from_lyric(self.item, timestamp_ms)
+
+    def play_adjacent_line(self, direction: int) -> None:
+        selected = self.selected_line_index()
+        target = 0 if selected is None else selected + direction
+        if not 0 <= target < len(self.synced_lines):
+            self.frame.say(
+                tr("First transcript line.")
+                if direction < 0
+                else tr("Last transcript line.")
+            )
+            return
+        position = self.synced_line_positions[target]
+        self.text.SetInsertionPoint(position)
+        self.text.ShowPosition(position)
+        timestamp_ms = self.synced_lines[target][0]
+        if self.frame.current_track_is_paused(self.track_id):
+            self.frame.resume_from_lyric(self.track_id, timestamp_ms)
+        else:
+            self.frame.play_from_lyric(self.item, timestamp_ms)
+
+    def on_follow_timer(self, event: wx.TimerEvent | None = None) -> None:
+        position_ms = self.frame.playback_position_ms(self.track_id)
+        if position_ms is None:
+            return
+        line_index = -1
+        for index, (timestamp_ms, _text) in enumerate(self.synced_lines):
+            if timestamp_ms > position_ms:
+                break
+            line_index = index
+        if line_index < 0 or line_index == self.last_followed_line:
+            return
+        self.last_followed_line = line_index
+        position = self.synced_line_positions[line_index]
+        self.text.SetInsertionPoint(position)
+        self.text.ShowPosition(position)
+
+    def dispatch_mapped_key(self, event: wx.KeyEvent) -> bool:
+        action = self.frame.keymap_action_for_event(event, ("Lyrics", "Main"))
+        if not action:
+            return False
+        if (
+            action == "pause_resume"
+            and event.GetKeyCode() == wx.WXK_SPACE
+            and space_belongs_to_control(event.GetEventObject())
+        ):
+            return False
+        if action == "play_lyric_line":
+            self.play_selected_line()
+        elif action in {"previous_lyric_line", "next_lyric_line"}:
+            self.play_adjacent_line(
+                -1 if action == "previous_lyric_line" else 1
+            )
+        elif action == "play_focused":
+            self.frame.play(self.item, announce=False)
+        elif action == "seek_backward":
+            self.frame.seek(-5000)
+        elif action == "seek_forward":
+            self.frame.seek(5000)
+        elif action == "previous_track":
+            self.frame.previous_track()
+        elif action == "pause_resume":
+            if (
+                event.GetKeyCode() == wx.WXK_SPACE
+                and event.GetEventObject() is self.text
+            ):
+                self.play_selected_line()
+            else:
+                self.frame.toggle_pause_resume()
+        elif action == "next_track":
+            self.frame.next_track()
+        elif action == "toggle_mute":
+            self.frame.toggle_mute()
+        elif action == "volume_down":
+            self.frame.adjust_volume(-5)
+        elif action == "volume_up":
+            self.frame.adjust_volume(5)
+        else:
+            return False
+        return True
+
+    def on_text_key(self, event: wx.KeyEvent) -> None:
+        key = event.GetKeyCode()
+        if (
+            key == wx.WXK_SPACE
+            and not event.AltDown()
+            and not event.ShiftDown()
+            and not physical_control_down(event)
+        ):
+            self.play_selected_line()
+            self.consume_key(event)
+            return
+        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+            self.frame.toggle_pause_resume()
+            self.consume_key(event)
+            return
+        if (
+            key in (wx.WXK_UP, wx.WXK_DOWN)
+            and lyric_navigation_modifier_down(event)
+        ):
+            self.play_adjacent_line(-1 if key == wx.WXK_UP else 1)
+            self.consume_key(event)
+            return
+        event.Skip()
+
+    def on_dialog_key(self, event: wx.KeyEvent) -> None:
+        key = event.GetKeyCode()
+        focused = event.GetEventObject()
+        if key == wx.WXK_F4 and event.AltDown():
+            self.on_close(event)
+            return
+        if key == wx.WXK_ESCAPE:
+            self.on_close(event)
+            return
+        if key in ENTER_KEY_CODES + (wx.WXK_SPACE,):
+            if focused is self.stop_button:
+                self.on_stop(event)
+                return
+            if focused is self.close_button:
+                self.on_close(event)
+                return
+        if self.dispatch_mapped_key(event):
+            self.consume_key(event)
+            return
+        if (
+            key in (wx.WXK_UP, wx.WXK_DOWN)
+            and lyric_navigation_modifier_down(event)
+        ):
+            self.play_adjacent_line(-1 if key == wx.WXK_UP else 1)
+            self.consume_key(event)
+            return
+        if (
+            key == wx.WXK_SPACE
+            and not event.AltDown()
+            and not event.ShiftDown()
+            and focused is self.text
+        ):
+            self.play_selected_line()
+            self.consume_key(event)
+            return
+        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and focused is self.text:
+            self.frame.toggle_pause_resume()
+            self.consume_key(event)
+            return
+        if key == wx.WXK_F7 and playback_adjustment_modifier_down(event):
+            self.frame.toggle_mute()
+            return
+        if key == wx.WXK_F4 and not event.AltDown() and not event.ShiftDown() and not physical_control_down(event):
+            self.frame.play(self.item, announce=False)
+            return
+        if key == wx.WXK_F4 and playback_adjustment_modifier_down(event):
+            self.frame.adjust_volume(-5)
+            return
+        if key == wx.WXK_F5 and playback_adjustment_modifier_down(event):
+            self.frame.adjust_volume(5)
+            return
+        if key == wx.WXK_F5 and not event.AltDown() and not event.ShiftDown() and not physical_control_down(event):
+            self.frame.previous_track()
+            return
+        if key == wx.WXK_F6 and not event.AltDown() and not event.ShiftDown() and not physical_control_down(event):
+            self.frame.seek(-5000)
+            return
+        if key == wx.WXK_F7 and not event.AltDown() and not event.ShiftDown() and not physical_control_down(event):
+            self.frame.toggle_pause_resume()
+            return
+        if key == wx.WXK_F8 and not event.AltDown() and not event.ShiftDown() and not physical_control_down(event):
+            self.frame.seek(5000)
+            return
+        if key == wx.WXK_F9 and not event.AltDown() and not event.ShiftDown() and not physical_control_down(event):
+            self.frame.next_track()
+            return
+        event.Skip()
+
+    def on_close(self, event: wx.Event | None = None) -> None:
+        if self.transcriber and self.running:
+            self.transcriber.stop()
+        self.follow_timer.Stop()
+        self.activation_focus_timer.Stop()
+        for retry in self.activation_focus_retries:
+            retry.Stop()
+        self.activation_focus_retries.clear()
+        wx.GetApp().Unbind(wx.EVT_ACTIVATE_APP, handler=self.on_app_activate)
+        self.frame.Unbind(
+            wx.EVT_CHILD_FOCUS,
+            handler=self.on_parent_child_focus,
+        )
+        self.closed = True
+        if self.IsModal():
+            self.EndModal(wx.ID_CLOSE)
+        else:
+            self.Destroy()
 
 
 class LyricsDialog(wx.Dialog):
@@ -4085,6 +4688,18 @@ class CollectionPanel(wx.Panel):
             event.Skip()
 
 
+class RecentlyPlayedPanel(CollectionPanel):
+    """A chronological history, never a title/artist-sorted collection."""
+
+    def show_items(self, items: list[SpotifyItem]) -> None:
+        self.sort_key = "original"
+        self.sort_descending = False
+        super().show_items(items)
+
+    def sort_options(self) -> set[str]:
+        return {"original"}
+
+
 class SavedAlbumsPanel(CollectionPanel):
     def __init__(self, parent: wx.Window, frame: "MainFrame") -> None:
         super().__init__(
@@ -6109,6 +6724,8 @@ class PodcastsPanel(PlaylistsPanel):
         self.history.reset(ViewState(tr("Podcasts"), []))
         self.heading.SetLabel(tr("Podcasts"))
         self.status.SetLabel(msg.PODCASTS_LOAD_HINT)
+        self.rss_store = RSSSubscriptionStore(frame.store)
+        self.pending_refresh_announcement: str | None = None
         browse_controls = wx.BoxSizer(wx.HORIZONTAL)
         browse_controls.Add(
             wx.StaticText(self, label=tr("Browse category")),
@@ -6134,9 +6751,7 @@ class PodcastsPanel(PlaylistsPanel):
         self.language_options: list[tuple[str, str]] = []
         browse_controls.Add(self.language_filter, 1, wx.RIGHT, 6)
         self.browse_button = wx.Button(self, label=tr("&Browse podcasts"))
-        browse_controls.Add(self.browse_button, 0, wx.RIGHT, 6)
-        self.saved_button = wx.Button(self, label=tr("Show &saved podcasts"))
-        browse_controls.Add(self.saved_button, 0)
+        browse_controls.Add(self.browse_button, 0)
         self.GetSizer().Insert(
             1,
             browse_controls,
@@ -6167,11 +6782,9 @@ class PodcastsPanel(PlaylistsPanel):
         )
         self.update_language_options([])
         self.browse_button.Bind(wx.EVT_BUTTON, self.on_browse)
-        self.saved_button.Bind(wx.EVT_BUTTON, self.on_show_saved)
         self.language_filter.Bind(wx.EVT_CHOICE, self.on_filter)
         self.listening_status_filter.Bind(wx.EVT_CHOICE, self.on_filter)
-        self.saved_button.MoveBeforeInTabOrder(self.items)
-        self.browse_button.MoveBeforeInTabOrder(self.saved_button)
+        self.browse_button.MoveBeforeInTabOrder(self.items)
         self.language_filter.MoveBeforeInTabOrder(self.browse_button)
         self.browse_category.MoveBeforeInTabOrder(self.language_filter)
         self.Layout()
@@ -6315,7 +6928,10 @@ class PodcastsPanel(PlaylistsPanel):
             query=query,
             category="show",
         )
-        self.history.reset(state)
+        if self.history.current.items:
+            self.history.push(state)
+        else:
+            self.history.reset(state)
         self.current_playlist = None
         self.render(state, focus=True)
         count = sum(show.kind == ItemKind.SHOW for show in shows)
@@ -6361,6 +6977,7 @@ class PodcastsPanel(PlaylistsPanel):
             lambda: (
                 self.frame.spotify.saved_shows(),
                 self.frame.spotify.saved_episodes(),
+                self.rss_store.shows(),
             ),
             lambda result: self.show_library(*result),
             failure=self.finish_load_error,
@@ -6389,6 +7006,7 @@ class PodcastsPanel(PlaylistsPanel):
             lambda: (
                 self.frame.spotify.saved_shows(),
                 self.frame.spotify.saved_episodes(),
+                self.rss_store.shows(),
             ),
             lambda result: self.show_library(*result),
             failure=self.finish_load_error,
@@ -6398,10 +7016,12 @@ class PodcastsPanel(PlaylistsPanel):
         self,
         shows: list[SpotifyItem],
         episodes: list[SpotifyItem],
+        rss_shows: list[SpotifyItem] | None = None,
     ) -> None:
         self.loading = False
         self.loaded_once = True
-        items = [*shows, *episodes]
+        imported = rss_shows or []
+        items = [*shows, *imported, *episodes]
         state = ViewState(tr("Podcasts"), items)
         self.history.reset(state)
         self.current_playlist = None
@@ -6410,8 +7030,12 @@ class PodcastsPanel(PlaylistsPanel):
             focus=window_is_or_descendant(wx.Window.FindFocus(), self.items),
         )
         self.status.SetLabel(
-            msg.saved_podcasts(len(shows), len(episodes))
+            msg.saved_podcasts(len(shows) + len(imported), len(episodes))
         )
+        if getattr(self, "pending_refresh_announcement", None):
+            announcement = self.pending_refresh_announcement
+            self.pending_refresh_announcement = None
+            self.frame.say(announcement)
 
     def on_open(self, event: wx.Event | None = None) -> None:
         item = self.items.selected_item()
@@ -6435,6 +7059,15 @@ class PodcastsPanel(PlaylistsPanel):
                 self.history.current.items.index(item)
             )
         self.loading = True
+        if item.raw.get("rss_subscription"):
+            self.frame.run_task(
+                tr("Loading podcast feed."),
+                lambda: feed_episodes(item),
+                lambda episodes: self.show_episodes(item, episodes),
+                failure=self.finish_load_error,
+                requires_spotify=False,
+            )
+            return
         self.frame.run_task(
             None,
             lambda: self.frame.spotify.children(item),
@@ -6638,6 +7271,17 @@ class PodcastsPanel(PlaylistsPanel):
         )
 
     def remove_saved_item(self, item: SpotifyItem) -> None:
+        if item.raw.get("rss_subscription") and item.kind == ItemKind.SHOW:
+            answer = wx.MessageBox(
+                msg.unsubscribe_podcast(item.name),
+                tr("Unsubscribe"),
+                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+                self,
+            )
+            if answer == wx.YES:
+                self.rss_store.remove(str(item.raw.get("feed_url") or ""))
+                self.finish_remove_saved_item()
+            return
         prompt = (
             msg.unsubscribe_podcast(item.name)
             if item.kind == ItemKind.SHOW
@@ -6664,6 +7308,25 @@ class PodcastsPanel(PlaylistsPanel):
 
     def finish_remove_saved_item(self) -> None:
         self.frame.say(msg.REMOVED_FROM_LIBRARY)
+        self.refresh()
+
+    def import_opml(self, path: Path) -> None:
+        self.frame.run_task(
+            tr("Importing podcast subscriptions."),
+            lambda: self.rss_store.import_file(path),
+            self.finish_import_opml,
+            requires_spotify=False,
+        )
+
+    def finish_import_opml(self, result: tuple[int, int]) -> None:
+        added, total = result
+        self.pending_refresh_announcement = tr(
+            "Imported {added} podcast subscriptions; {total} stored."
+        ).format(
+            added=added,
+            total=total,
+        )
+        self.loading = False
         self.refresh()
 
 
@@ -7048,7 +7711,7 @@ class MainFrame(wx.Frame):
             load_on_first_focus=True,
         )
         self.playlists = PlaylistsPanel(self.notebook, self)
-        self.recently_played = CollectionPanel(
+        self.recently_played = RecentlyPlayedPanel(
             self.notebook,
             self,
             tr("Recently Played"),
@@ -7222,10 +7885,36 @@ class MainFrame(wx.Frame):
         )
         return lyrics
 
+    def cached_transcript_translation(
+        self,
+        item: SpotifyItem,
+        transcript: Transcript,
+    ) -> Transcript:
+        target = self.deepl.target_language
+        if not self.deepl.api_key or not target or not transcript.text:
+            return transcript
+        return TranscriptCache(self.store).read_translation(
+            item.id, transcript, target
+        )
+
+    def translate_transcript(
+        self,
+        item: SpotifyItem,
+        transcript: Transcript,
+    ) -> Transcript:
+        target = self.deepl.target_language
+        logger.info(
+            "DeepL transcript translation requested item=%s target=%s characters=%d",
+            item.id,
+            target,
+            len(transcript.text),
+        )
+        translated = self.deepl.translate(transcript.text)
+        return TranscriptCache(self.store).write_translation(
+            item.id, transcript, target, translated
+        )
+
     def _create_web_player(self) -> None:
-        if not self.spotify.connected:
-            logger.info("Deferred web player creation until Spotify is connected")
-            return
         try:
             self.player = WebPlaybackController(
                 self,
@@ -7245,6 +7934,12 @@ class MainFrame(wx.Frame):
         menu_bar = wx.MenuBar()
         file_menu = wx.Menu()
         export_list = file_menu.Append(wx.ID_ANY, tr("&Export list..."))
+        import_opml = file_menu.Append(
+            wx.ID_ANY, tr("Import podcast subscriptions from OP&ML...")
+        )
+        transcribe_local_audio = file_menu.Append(
+            wx.ID_ANY, tr("Transcribe &local audio...")
+        )
         manage_carts = file_menu.Append(wx.ID_ANY, tr("Manage &carts..."))
         followed_artists = file_menu.Append(
             wx.ID_ANY, tr("Followed &artists and authors...")
@@ -7332,7 +8027,14 @@ class MainFrame(wx.Frame):
                 wx.ID_ANY,
                 MainFrame.menu_label(self, label, action_id),
             )
-            self.Bind(wx.EVT_MENU, lambda event: handler(), menu_item)
+            # Let the native menu close and restore focus before the command
+            # speaks.  Otherwise a screen reader can announce the restored
+            # control over (or immediately after) the command's status/error.
+            self.Bind(
+                wx.EVT_MENU,
+                lambda event: wx.CallAfter(handler),
+                menu_item,
+            )
             if action_id:
                 self.keyed_menu_items.append((menu_item, label, action_id))
             return menu_item
@@ -7680,8 +8382,18 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_manual, manual)
         self.Bind(
             wx.EVT_MENU,
-            lambda event: self.export_list_command(),
+            lambda event: wx.CallAfter(self.export_list_command),
             export_list,
+        )
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.import_podcast_opml(),
+            import_opml,
+        )
+        self.Bind(
+            wx.EVT_MENU,
+            lambda event: self.transcribe_local_audio(),
+            transcribe_local_audio,
         )
         self.Bind(wx.EVT_MENU, lambda event: self.manage_carts(), manage_carts)
         self.Bind(
@@ -7723,6 +8435,12 @@ class MainFrame(wx.Frame):
 
     def say(self, message: str) -> None:
         self.SetStatusText(message)
+        # Screen readers announce focus/selection changes asynchronously.  Let
+        # those settle before speaking BlindSpot's status so a returning focus
+        # announcement cannot overwrite or follow the useful message.
+        wx.CallAfter(self._announce_status, message)
+
+    def _announce_status(self, message: str) -> None:
         try:
             self.announcer.speak(message, interrupt=False)
         except Exception:
@@ -7862,6 +8580,8 @@ class MainFrame(wx.Frame):
                 expected_unavailable = (
                     PlaylistContentsUnavailable,
                     LyricsUnavailable,
+                    TranscriptUnavailable,
+                    RSSPodcastError,
                     CoversUnavailable,
                     SongStoryUnavailable,
                     UKChartError,
@@ -7897,6 +8617,8 @@ class MainFrame(wx.Frame):
                         (
                             PlaylistContentsUnavailable,
                             LyricsUnavailable,
+                            TranscriptUnavailable,
+                            RSSPodcastError,
                             CoversUnavailable,
                             SongStoryUnavailable,
                             UKChartError,
@@ -8059,6 +8781,110 @@ class MainFrame(wx.Frame):
         if page == 0:
             return self.search.history.current.title
         return self.notebook.GetPageText(page)
+
+    def import_podcast_opml(self) -> None:
+        dialog = wx.FileDialog(
+            self,
+            tr("Import podcast subscriptions"),
+            wildcard=tr("OPML files") + "|*.opml;*.xml|" + tr("All files") + "|*.*",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        )
+        if dialog.ShowModal() != wx.ID_OK:
+            dialog.Destroy()
+            return
+        path = Path(dialog.GetPath())
+        dialog.Destroy()
+        self.podcasts.import_opml(path)
+
+    def transcribe_local_audio(self) -> None:
+        dialog = wx.FileDialog(
+            self,
+            tr("Transcribe local audio"),
+            wildcard=(
+                tr("Audio files")
+                + "|*.mp3;*.m4a;*.aac;*.wav;*.flac;*.ogg;*.opus;*.wma;"
+                "*.mp4;*.m4v;*.webm|"
+                + tr("All files")
+                + "|*.*"
+            ),
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        )
+        if dialog.ShowModal() != wx.ID_OK:
+            dialog.Destroy()
+            return
+        path = Path(dialog.GetPath()).resolve()
+        dialog.Destroy()
+        self.transcribe_local_audio_path(path)
+
+    def transcribe_local_audio_path(self, path: Path) -> None:
+        try:
+            details = path.stat()
+        except OSError as error:
+            self.show_error(str(error))
+            return
+        identity = uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"{path}|{details.st_size}|{details.st_mtime_ns}",
+        )
+        item = SpotifyItem(
+            f"local-audio:{identity}",
+            ItemKind.EPISODE,
+            path.stem,
+            raw={"local_audio_path": str(path)},
+        )
+        cache = TranscriptCache(self.store)
+        cached = cache.read(item.id)
+        self.use_transcript_audio(item, path)
+        if cached and cached.complete:
+            self.display_transcript(item, cached)
+            return
+        transcriber = WhisperTranscriber(self.store)
+        if not transcriber.ready:
+            answer = wx.MessageBox(
+                tr(
+                    "Local audio transcription requires the optional Whisper "
+                    "components and model. The one-time download is about "
+                    "150 MB. Download the components now?"
+                ),
+                tr("Set up local audio transcription"),
+                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+                self,
+            )
+            if answer != wx.YES:
+                self.say(tr("Transcription was not started."))
+                return
+            self.run_task(
+                tr("Setting up optional local audio transcription."),
+                lambda: transcriber.install(
+                    lambda message: wx.CallAfter(self.say, message)
+                ),
+                lambda result: self.start_local_audio_transcript(
+                    item, path, cache, transcriber, cached
+                ),
+                requires_spotify=False,
+            )
+            return
+        self.start_local_audio_transcript(
+            item, path, cache, transcriber, cached
+        )
+
+    def start_local_audio_transcript(
+        self,
+        item: SpotifyItem,
+        path: Path,
+        cache: TranscriptCache,
+        transcriber: WhisperTranscriber,
+        existing: Transcript | None = None,
+    ) -> None:
+        dialog = TranscriptDialog(self, item, existing)
+        dialog.begin(
+            transcriber,
+            EpisodeMedia(str(path)),
+            cache,
+            source_path=path,
+        )
+        dialog.ShowModal()
+        dialog.Destroy()
 
     def export_list_command(self) -> None:
         """Export the list in view, or the playlist or album selected in it."""
@@ -9055,7 +9881,6 @@ class MainFrame(wx.Frame):
                 self.podcasts.browse_category,
                 getattr(self.podcasts, "language_filter", None),
                 self.podcasts.browse_button,
-                self.podcasts.saved_button,
                 self.podcasts.items,
                 getattr(self.podcasts, "filter", None),
                 getattr(self.podcasts, "listening_status_filter", None),
@@ -9124,7 +9949,13 @@ class MainFrame(wx.Frame):
             target.SelectAll()
 
     def using_local_player(self) -> bool:
-        return bool(self.player and not self.remote_device_id)
+        return bool(
+            getattr(self, "player", None)
+            and (
+                self.current_player_state.get("direct_audio")
+                or not self.remote_device_id
+            )
+        )
 
     def playback_position_ms(self, track_id: str) -> int | None:
         item = self.current_player_item
@@ -9682,6 +10513,9 @@ class MainFrame(wx.Frame):
         *,
         announce: bool = False,
     ) -> None:
+        if getattr(item, "raw", {}).get("audio_url"):
+            self.play_direct_audio(item, 0, announce=announce)
+            return
         self.suppress_track_announcement_id = item.id
         pending_transfer = getattr(self, "pending_transfer_device", None)
         if pending_transfer:
@@ -9780,6 +10614,9 @@ class MainFrame(wx.Frame):
         item: SpotifyItem,
         position_ms: int,
     ) -> None:
+        if getattr(item, "raw", {}).get("audio_url"):
+            self.play_direct_audio(item, position_ms)
+            return
         self.suppress_track_announcement_id = item.id
         pending_transfer = getattr(self, "pending_transfer_device", None)
         if pending_transfer:
@@ -9917,6 +10754,41 @@ class MainFrame(wx.Frame):
         if item.raw.get("resume_point", {}).get("fully_played"):
             position_ms = 0
         self.play_from_lyric(item, position_ms)
+
+    def play_direct_audio(
+        self,
+        item: SpotifyItem,
+        position_ms: int = 0,
+        *,
+        announce: bool = True,
+    ) -> None:
+        if not self.player:
+            self.say(msg.PLAYER_NOT_READY)
+            return
+        audio_url = str(item.raw.get("audio_url") or "")
+        if not audio_url:
+            self.say(tr("Direct audio is unavailable."))
+            return
+        self.suppress_track_announcement_id = item.id
+        value = {
+            "id": item.id,
+            "uri": item.uri,
+            "type": "episode",
+            "name": item.name,
+            "duration_ms": item.duration_ms,
+            "artists": ([{"name": item.artist}] if item.artist else []),
+            "album": {"name": item.album},
+            "audio_url": audio_url,
+            "feed_url": str(item.raw.get("feed_url") or ""),
+            "transcript_url": str(item.raw.get("transcript_url") or ""),
+            "transcript_type": str(item.raw.get("transcript_type") or ""),
+            "description": str(item.raw.get("description") or ""),
+            "local_audio_path": str(item.raw.get("local_audio_path") or ""),
+            "rss_subscription": bool(item.raw.get("rss_subscription")),
+        }
+        self.player.play_direct(audio_url, value, position_ms)
+        if announce:
+            self.say(msg.playing(item.name))
 
     def play_playable_item(self, item: SpotifyItem) -> None:
         if self.resolve_then([item], lambda: self.play_playable_item(item)):
@@ -10114,6 +10986,11 @@ class MainFrame(wx.Frame):
         self.play_playable_item(item)
 
     def player_device_id(self) -> str | None:
+        if (
+            getattr(self, "player", None)
+            and getattr(self, "current_player_state", {}).get("direct_audio")
+        ):
+            return "direct-audio"
         if self.remote_device_id:
             return self.remote_device_id
         if not self.player or not self.player.ready:
@@ -10123,6 +11000,24 @@ class MainFrame(wx.Frame):
         return self.player.device_id
 
     def toggle_playback(self) -> None:
+        if self.pending_resume and self.pending_resume[0].id.startswith(
+            "local-audio:"
+        ):
+            item, position_ms, _context_uri = self.pending_resume
+            self.pending_resume = None
+            path_value = str(item.raw.get("local_audio_path") or "")
+            path = Path(path_value) if path_value else None
+            if path and path.is_file():
+                self.use_transcript_audio(item, path)
+                self.play_direct_audio(item, position_ms, announce=False)
+            else:
+                self.say(
+                    tr(
+                        "Select the local audio file again from File, "
+                        "Transcribe local audio."
+                    )
+                )
+            return
         device_id = self.player_device_id()
         if not device_id:
             return
@@ -11218,7 +12113,7 @@ class MainFrame(wx.Frame):
                 self.play(item)
 
     def on_playback_update(self, state: dict) -> None:
-        if self.remote_device_id:
+        if self.remote_device_id and not state.get("direct_audio"):
             return
         self.apply_playback_update(state)
 
@@ -11800,6 +12695,12 @@ class MainFrame(wx.Frame):
                     (menu.Append(wx.ID_ANY, label), callback)
                 )
         if item.kind == ItemKind.EPISODE:
+            actions.append(
+                (
+                    menu.Append(wx.ID_ANY, tr("Show &transcript...")),
+                    lambda: self.show_transcript_for_item(item),
+                )
+            )
             actions.append(
                 (
                     menu.Append(wx.ID_ANY, tr("&Download episode...")),
@@ -13742,6 +14643,146 @@ class MainFrame(wx.Frame):
             lambda: find_episode_download(item),
             self.choose_episode_destination,
         )
+
+    def show_transcript_for_item(self, item: SpotifyItem) -> None:
+        cache = TranscriptCache(self.store)
+        cached = cache.read(item.id)
+        local_path_value = str(item.raw.get("local_audio_path") or "")
+        if item.id.startswith("local-audio:"):
+            local_path = Path(local_path_value) if local_path_value else None
+            if local_path and local_path.is_file():
+                logger.info(
+                    "Routing local-audio transcript to original file item=%s",
+                    item.id,
+                )
+                self.transcribe_local_audio_path(local_path.resolve())
+                return
+            if cached:
+                logger.warning(
+                    "Original local audio unavailable; displaying cached transcript "
+                    "item=%s complete=%s",
+                    item.id,
+                    cached.complete,
+                )
+                self.say(
+                    tr(
+                        "The original local audio file is unavailable. "
+                        "Showing the cached transcript without playback."
+                    )
+                )
+                self.display_transcript(item, cached)
+                return
+            self.say(tr("The original local audio file is unavailable."))
+            return
+        audio_path = cache.audio_path(item.id)
+        transcript_path = cache.path(item.id)
+        matched_whisper_audio = (
+            audio_path.is_file()
+            and transcript_path.is_file()
+            and transcript_path.stat().st_mtime >= audio_path.stat().st_mtime
+        )
+        if (
+            cached
+            and cached.complete
+            and (cached.source != "whisper" or matched_whisper_audio)
+        ):
+            if audio_path.is_file():
+                self.use_transcript_audio(item, audio_path)
+            self.display_transcript(item, cached)
+            return
+        existing = cached if cached and cached.source != "whisper" else None
+
+        def find() -> tuple[EpisodeMedia, Transcript | None]:
+            media = find_episode_media(item)
+            return media, fetch_publisher_transcript(media)
+
+        self.run_task(
+            tr("Looking for an episode transcript."),
+            find,
+            lambda result: self.finish_find_transcript(
+                item, cache, result[0], result[1], existing
+            ),
+            requires_spotify=False,
+        )
+
+    def finish_find_transcript(
+        self,
+        item: SpotifyItem,
+        cache: TranscriptCache,
+        media: EpisodeMedia,
+        transcript: Transcript | None,
+        existing: Transcript | None = None,
+    ) -> None:
+        if transcript:
+            cache.write(item.id, transcript)
+            self.display_transcript(item, transcript)
+            return
+
+        transcriber = WhisperTranscriber(self.store)
+        if not transcriber.ready:
+            answer = wx.MessageBox(
+                tr(
+                    "This episode has no publisher transcript. BlindSpot can "
+                    "download optional local transcription components and a "
+                    "Whisper model. The one-time download is about 150 MB and "
+                    "the installed files are kept in the portable data "
+                    "directory. To keep transcript timing accurate when "
+                    "podcasts insert changing ads, the transcribed episode "
+                    "audio is also kept in that directory. "
+                    "Download the components now?"
+                ),
+                tr("Set up podcast transcription"),
+                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+                self,
+            )
+            if answer != wx.YES:
+                self.say(tr("Transcription was not started."))
+                return
+            self.run_task(
+                tr("Setting up optional podcast transcription."),
+                lambda: transcriber.install(
+                    lambda message: wx.CallAfter(self.say, message)
+                ),
+                lambda result: self.start_whisper_transcript(
+                    item, media, cache, transcriber, existing
+                ),
+                requires_spotify=False,
+            )
+            return
+        self.start_whisper_transcript(
+            item, media, cache, transcriber, existing
+        )
+
+    def display_transcript(
+        self,
+        item: SpotifyItem,
+        transcript: Transcript,
+    ) -> None:
+        transcript = self.cached_transcript_translation(item, transcript)
+        dialog = TranscriptDialog(self, item, transcript)
+        dialog.ShowModal()
+        dialog.Destroy()
+
+    def use_transcript_audio(self, item: SpotifyItem, path: Path) -> None:
+        """Play the same cached bytes Whisper timed, including inserted ads."""
+        if not self.player:
+            return
+        url = self.player.serve_media(item.id, path)
+        if url:
+            item.raw["audio_url"] = url
+
+    def start_whisper_transcript(
+        self,
+        item: SpotifyItem,
+        media: EpisodeMedia,
+        cache: TranscriptCache,
+        transcriber: WhisperTranscriber,
+        existing: Transcript | None = None,
+    ) -> None:
+        dialog = TranscriptDialog(self, item, existing)
+        dialog.begin(transcriber, media, cache)
+        dialog.ShowModal()
+        dialog.Destroy()
 
     def choose_episode_destination(self, download: PodcastDownload) -> None:
         dialog = wx.FileDialog(

@@ -6,9 +6,9 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: BlindSpot 2026.9.5\n"
+"Project-Id-Version: BlindSpot 2026.9.6\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-09-23 14:51+1000\n"
+"POT-Creation-Date: 2026-09-25 22:10+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1869,11 +1869,11 @@ msgid "Podcast directory unavailable."
 msgstr ""
 
 #: blindspot/podcasts.py
-msgid "Podcast feed unavailable."
+msgid "Episode download unavailable."
 msgstr ""
 
-#: blindspot/podcasts.py
-msgid "Episode download unavailable."
+#: blindspot/podcasts.py blindspot/rss_podcasts.py blindspot/transcripts.py
+msgid "Podcast feed unavailable."
 msgstr ""
 
 #: blindspot/rnbooks.py
@@ -1886,6 +1886,30 @@ msgstr ""
 
 #: blindspot/rnbooks.py
 msgid "The ABC Radio National book countdown could not be reached."
+msgstr ""
+
+#: blindspot/rss_podcasts.py
+msgid "The OPML file could not be read."
+msgstr ""
+
+#: blindspot/rss_podcasts.py
+msgid "The OPML file contains no podcast feeds."
+msgstr ""
+
+#: blindspot/rss_podcasts.py
+msgid "Imported RSS podcast subscription."
+msgstr ""
+
+#: blindspot/rss_podcasts.py
+msgid "The podcast feed could not be loaded."
+msgstr ""
+
+#: blindspot/rss_podcasts.py
+msgid "The podcast feed is too large."
+msgstr ""
+
+#: blindspot/rss_podcasts.py
+msgid "The podcast feed is invalid."
 msgstr ""
 
 #: blindspot/spotify.py
@@ -2120,6 +2144,50 @@ msgstr ""
 
 #: blindspot/ticketmaster.py
 msgid "Date to be announced"
+msgstr ""
+
+#: blindspot/transcripts.py
+msgid "Publisher transcript is invalid."
+msgstr ""
+
+#: blindspot/transcripts.py
+msgid "Publisher transcript is empty."
+msgstr ""
+
+#: blindspot/transcripts.py
+msgid "Episode audio is unavailable from its public feed."
+msgstr ""
+
+#: blindspot/transcripts.py
+msgid "Automatic Whisper setup is currently available on Windows only."
+msgstr ""
+
+#: blindspot/transcripts.py
+msgid "Downloading optional transcription components..."
+msgstr ""
+
+#: blindspot/transcripts.py
+msgid "Invalid transcription component archive."
+msgstr ""
+
+#: blindspot/transcripts.py
+msgid "Whisper transcription components are not installed."
+msgstr ""
+
+#: blindspot/transcripts.py
+msgid "Whisper could not transcribe this episode."
+msgstr ""
+
+#: blindspot/transcripts.py
+msgid "Transcription stopped before any text was produced."
+msgstr ""
+
+#: blindspot/transcripts.py
+msgid "The episode audio could not be decoded."
+msgstr ""
+
+#: blindspot/transcripts.py
+msgid "No speech was found in this episode."
 msgstr ""
 
 #: blindspot/triplej.py
@@ -2743,6 +2811,88 @@ msgstr ""
 
 #: blindspot/ui.py
 #, python-brace-format
+msgid "Transcript for {episode_name} - BlindSpot"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Follow transcript playback"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Transcript for {episode_name}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Original"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Translation"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Transcript view"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Translate with DeepL"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Sends this transcript text to DeepL for translation."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "&Stop transcription"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "The transcript can be translated when transcription finishes."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Translated transcript"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Original transcript"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Translating..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Translating transcript"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Transcribing episode."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Transcription complete."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Stopping transcription."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Move to a timed transcript line first."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "First transcript line."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Last transcript line."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
 msgid "Lyrics for {track_name} - BlindSpot"
 msgstr ""
 
@@ -2782,14 +2932,6 @@ msgstr ""
 #: blindspot/ui.py
 #, python-brace-format
 msgid "Lyrics for {heading}"
-msgstr ""
-
-#: blindspot/ui.py
-msgid "Original"
-msgstr ""
-
-#: blindspot/ui.py
-msgid "Translation"
 msgstr ""
 
 #: blindspot/ui.py
@@ -3591,10 +3733,6 @@ msgid "&Browse podcasts"
 msgstr ""
 
 #: blindspot/ui.py
-msgid "Show &saved podcasts"
-msgstr ""
-
-#: blindspot/ui.py
 msgid "Listening status"
 msgstr ""
 
@@ -3620,6 +3758,10 @@ msgstr[1] ""
 
 #: blindspot/ui.py
 msgid "No podcasts found with the selected category and language."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Loading podcast feed."
 msgstr ""
 
 #: blindspot/ui.py
@@ -3650,6 +3792,15 @@ msgstr ""
 
 #: blindspot/ui.py
 msgid "Remove saved episode"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Importing podcast subscriptions."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Imported {added} podcast subscriptions; {total} stored."
 msgstr ""
 
 #: blindspot/ui.py
@@ -3729,6 +3880,14 @@ msgstr ""
 
 #: blindspot/ui.py
 msgid "&Export list..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Import podcast subscriptions from OP&ML..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Transcribe &local audio..."
 msgstr ""
 
 #: blindspot/ui.py
@@ -4049,6 +4208,44 @@ msgid "Report saved to {name}."
 msgstr ""
 
 #: blindspot/ui.py
+msgid "Import podcast subscriptions"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "OPML files"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "All files"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Transcribe local audio"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Audio files"
+msgstr ""
+
+#: blindspot/ui.py
+msgid ""
+"Local audio transcription requires the optional Whisper components and "
+"model. The one-time download is about 150 MB. Download the components now?"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Set up local audio transcription"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Transcription was not started."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Setting up optional local audio transcription."
+msgstr ""
+
+#: blindspot/ui.py
 #, python-brace-format
 msgid "Loading {name} to export"
 msgstr ""
@@ -4243,6 +4440,10 @@ msgid "Connected device action - BlindSpot"
 msgstr ""
 
 #: blindspot/ui.py
+msgid "Direct audio is unavailable."
+msgstr ""
+
+#: blindspot/ui.py
 #, python-brace-format
 msgid "{name} description"
 msgstr ""
@@ -4250,6 +4451,10 @@ msgstr ""
 #: blindspot/ui.py
 #, python-brace-format
 msgid "{name} information"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Select the local audio file again from File, Transcribe local audio."
 msgstr ""
 
 #: blindspot/ui.py
@@ -4348,6 +4553,10 @@ msgstr ""
 
 #: blindspot/ui.py
 msgid "&Move"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Show &transcript..."
 msgstr ""
 
 #: blindspot/ui.py
@@ -4707,15 +4916,39 @@ msgid "Artists similar to {name}, provided by Last.fm"
 msgstr ""
 
 #: blindspot/ui.py
+msgid ""
+"The original local audio file is unavailable. Showing the cached transcript "
+"without playback."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "The original local audio file is unavailable."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Looking for an episode transcript."
+msgstr ""
+
+#: blindspot/ui.py
+msgid ""
+"This episode has no publisher transcript. BlindSpot can download optional "
+"local transcription components and a Whisper model. The one-time download is"
+" about 150 MB and the installed files are kept in the portable data "
+"directory. To keep transcript timing accurate when podcasts insert changing "
+"ads, the transcribed episode audio is also kept in that directory. Download "
+"the components now?"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Set up podcast transcription"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Setting up optional podcast transcription."
+msgstr ""
+
+#: blindspot/ui.py
 msgid "Download podcast episode"
-msgstr ""
-
-#: blindspot/ui.py
-msgid "Audio files"
-msgstr ""
-
-#: blindspot/ui.py
-msgid "All files"
 msgstr ""
 
 #: blindspot/ukcharts.py
@@ -4726,3 +4959,4 @@ msgstr ""
 #, python-brace-format
 msgid "UK number ones are available from {first} to {last}."
 msgstr ""
+

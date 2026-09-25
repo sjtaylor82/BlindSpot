@@ -3,8 +3,11 @@ from __future__ import annotations
 import http.server
 import json
 import logging
+import mimetypes
 import sys
 import threading
+import urllib.parse
+from pathlib import Path
 from collections.abc import Callable
 
 import wx
@@ -33,6 +36,10 @@ PLAYER_HTML = """<!doctype html>
       let volumeCommands = Promise.resolve();
       let volumeBeforeMute = 0.8;
       let playbackSnapshotTimer = null;
+      const directAudio = new Audio();
+      directAudio.preload = "metadata";
+      let directItem = null;
+      let directActive = false;
       function send(type, detail = {}) {
         const message = JSON.stringify({type, ...detail});
         window.blindspot.postMessage(message);
@@ -61,6 +68,47 @@ PLAYER_HTML = """<!doctype html>
           } : null
         };
       }
+
+      function serializeDirectState() {
+        if (!directItem || !directActive) {
+          return null;
+        }
+        const duration = Number.isFinite(directAudio.duration)
+          ? Math.round(directAudio.duration * 1000)
+          : Number(directItem.duration_ms || 0);
+        return {
+          progress_ms: Math.round(directAudio.currentTime * 1000),
+          sent_at_ms: Date.now(),
+          is_playing: !directAudio.paused && !directAudio.ended,
+          context_uri: null,
+          direct_audio: true,
+          item: {...directItem, duration_ms: duration}
+        };
+      }
+
+      function sendDirectState() {
+        const state = serializeDirectState();
+        if (state) {
+          send("playback_update", {state});
+        }
+      }
+
+      for (const eventName of [
+        "loadedmetadata", "play", "pause", "seeked", "ended", "durationchange"
+      ]) {
+        directAudio.addEventListener(eventName, sendDirectState);
+      }
+      directAudio.addEventListener("error", () => {
+        const detail = directAudio.error
+          ? `Media error ${directAudio.error.code}`
+          : "The audio stream could not be played.";
+        send("error", {source: "direct audio", message: detail});
+      });
+      setInterval(() => {
+        if (directActive && !directAudio.paused) {
+          sendDirectState();
+        }
+      }, 1000);
 
       function provideToken(token) {
         accessToken = token || "";
@@ -107,6 +155,9 @@ PLAYER_HTML = """<!doctype html>
           "playback_error"
         ]) {
           player.addListener(eventName, ({message}) => {
+            if (directActive && eventName === "playback_error") {
+              return;
+            }
             send("error", {source: eventName, message});
           });
         }
@@ -114,12 +165,22 @@ PLAYER_HTML = """<!doctype html>
           send("autoplay_failed");
         });
         player.addListener("player_state_changed", state => {
+          if (state && !state.paused && directActive) {
+            directAudio.pause();
+            directActive = false;
+          }
+          if (directActive) {
+            return;
+          }
           send("playback_update", {state: serializeState(state)});
         });
         player.connect().then(success => {
           send("connection_result", {success});
           if (success && !playbackSnapshotTimer) {
             playbackSnapshotTimer = setInterval(() => {
+              if (directActive) {
+                return;
+              }
               player.getCurrentState().then(state => {
                 if (state) {
                   send("playback_update", {state: serializeState(state)});
@@ -138,6 +199,10 @@ PLAYER_HTML = """<!doctype html>
         return player.activateElement().then(() => true);
       };
       window.blindSpotRequestPlaybackState = () => {
+        if (directActive) {
+          send("playback_state", {state: serializeDirectState()});
+          return;
+        }
         if (!player) {
           send("playback_state", {state: null});
           return;
@@ -157,28 +222,55 @@ PLAYER_HTML = """<!doctype html>
         });
       }
       window.blindSpotTogglePlayback = () => {
+        if (directActive) {
+          if (directAudio.paused) {
+            directAudio.play().catch(error => reportCommandError("playback", error));
+          } else {
+            directAudio.pause();
+          }
+          return;
+        }
         if (player) {
           player.togglePlay().catch(error => reportCommandError("playback", error));
         }
       };
       window.blindSpotPause = () => {
+        if (directActive) {
+          directAudio.pause();
+          return;
+        }
         if (player) {
           player.pause().catch(error => reportCommandError("pause", error));
         }
       };
       window.blindSpotPreviousTrack = () => {
+        if (directActive) {
+          return;
+        }
         if (player) {
           player.previousTrack()
             .catch(error => reportCommandError("previous track", error));
         }
       };
       window.blindSpotNextTrack = () => {
+        if (directActive) {
+          return;
+        }
         if (player) {
           player.nextTrack()
             .catch(error => reportCommandError("next track", error));
         }
       };
       window.blindSpotSeekRelative = deltaMs => {
+        if (directActive) {
+          const maximum = Number.isFinite(directAudio.duration)
+            ? Math.max(0, directAudio.duration - 0.01)
+            : Number.MAX_SAFE_INTEGER;
+          directAudio.currentTime = Math.min(
+            maximum, Math.max(0, directAudio.currentTime + deltaMs / 1000)
+          );
+          return;
+        }
         if (!player) {
           return;
         }
@@ -192,12 +284,21 @@ PLAYER_HTML = """<!doctype html>
         }).catch(error => reportCommandError("seek", error));
       };
       window.blindSpotSeekTo = positionMs => {
+        if (directActive) {
+          directAudio.currentTime = Math.max(0, positionMs / 1000);
+          return;
+        }
         if (player) {
           player.seek(Math.max(0, positionMs))
             .catch(error => reportCommandError("seek", error));
         }
       };
       window.blindSpotSeekAndPlay = positionMs => {
+        if (directActive) {
+          directAudio.currentTime = Math.max(0, positionMs / 1000);
+          directAudio.play().catch(error => reportCommandError("seek", error));
+          return;
+        }
         if (player) {
           player.seek(Math.max(0, positionMs))
             .then(() => player.resume())
@@ -206,6 +307,12 @@ PLAYER_HTML = """<!doctype html>
       };
       window.blindSpotAdjustVolume = deltaPercent => {
         volumeCommands = volumeCommands.then(() => {
+          if (directActive) {
+            const target = Math.min(1, Math.max(0, directAudio.volume + deltaPercent / 100));
+            directAudio.volume = target;
+            send("volume_result", {volume: Math.round(target * 100)});
+            return;
+          }
           if (!player) {
             return;
           }
@@ -222,6 +329,10 @@ PLAYER_HTML = """<!doctype html>
       };
       window.blindSpotSetVolume = volumePercent => {
         volumeCommands = volumeCommands.then(() => {
+          if (directActive) {
+            directAudio.volume = Math.min(1, Math.max(0, volumePercent / 100));
+            return;
+          }
           if (!player) {
             return;
           }
@@ -231,6 +342,13 @@ PLAYER_HTML = """<!doctype html>
       };
       window.blindSpotToggleMute = () => {
         volumeCommands = volumeCommands.then(() => {
+          if (directActive) {
+            directAudio.muted = !directAudio.muted;
+            send("volume_result", {
+              volume: directAudio.muted ? 0 : Math.round(directAudio.volume * 100)
+            });
+            return;
+          }
           if (!player) {
             return;
           }
@@ -251,6 +369,28 @@ PLAYER_HTML = """<!doctype html>
           send("volume_result", {volume: null});
         });
       };
+      window.blindSpotPlayDirect = (url, item, positionMs) => {
+        directAudio.pause();
+        directItem = item;
+        directActive = true;
+        if (player) {
+          player.getCurrentState().then(state => {
+            if (state && !state.paused) {
+              player.pause().catch(() => {});
+            }
+          }).catch(() => {});
+        }
+        directAudio.src = url;
+        directAudio.load();
+        const start = () => {
+          directAudio.removeEventListener("loadedmetadata", start);
+          if (positionMs > 0) {
+            directAudio.currentTime = positionMs / 1000;
+          }
+          directAudio.play().catch(error => reportCommandError("direct audio", error));
+        };
+        directAudio.addEventListener("loadedmetadata", start);
+      };
       window.onSpotifyWebPlaybackSDKReady = () => {
         sdkReady = true;
         send("sdk_ready");
@@ -267,10 +407,16 @@ PLAYER_HTML = """<!doctype html>
 class PlayerPageServer:
     def __init__(self) -> None:
         html = PLAYER_HTML.encode("utf-8")
+        media: dict[str, Path] = {}
+        self.media = media
 
         class Handler(http.server.BaseHTTPRequestHandler):
             def do_GET(self) -> None:
-                if self.path not in ("/", "/player"):
+                path = urllib.parse.urlsplit(self.path).path
+                if path.startswith("/media/"):
+                    self._send_media(media.get(path.removeprefix("/media/")))
+                    return
+                if path not in ("/", "/player"):
                     self.send_error(404)
                     return
                 self.send_response(200)
@@ -279,6 +425,45 @@ class PlayerPageServer:
                 self.send_header("Content-Length", str(len(html)))
                 self.end_headers()
                 self.wfile.write(html)
+
+            def _send_media(self, path: Path | None) -> None:
+                if path is None or not path.is_file():
+                    self.send_error(404)
+                    return
+                size = path.stat().st_size
+                start, end = 0, max(0, size - 1)
+                range_header = self.headers.get("Range", "")
+                if range_header.startswith("bytes="):
+                    try:
+                        first, last = range_header[6:].split("-", 1)
+                        start = int(first) if first else 0
+                        end = min(end, int(last)) if last else end
+                    except ValueError:
+                        self.send_error(416)
+                        return
+                if start < 0 or start > end or start >= size:
+                    self.send_error(416)
+                    return
+                length = end - start + 1
+                self.send_response(206 if range_header else 200)
+                self.send_header(
+                    "Content-Type",
+                    mimetypes.guess_type(path.name)[0] or "application/octet-stream",
+                )
+                self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Content-Length", str(length))
+                if range_header:
+                    self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+                self.end_headers()
+                with path.open("rb") as source:
+                    source.seek(start)
+                    remaining = length
+                    while remaining:
+                        block = source.read(min(1024 * 1024, remaining))
+                        if not block:
+                            break
+                        self.wfile.write(block)
+                        remaining -= len(block)
 
             def log_message(self, format: str, *args: object) -> None:
                 return
@@ -298,6 +483,12 @@ class PlayerPageServer:
     def start(self) -> None:
         self.thread.start()
         logger.info("Local player page started on 127.0.0.1")
+
+    def media_url(self, key: str, path: Path) -> str:
+        safe_key = urllib.parse.quote(key, safe="")
+        self.media[safe_key] = path.resolve()
+        port = self.server.server_address[1]
+        return f"http://127.0.0.1:{port}/media/{safe_key}"
 
     def close(self) -> None:
         self.server.shutdown()
@@ -329,6 +520,7 @@ class WebPlaybackController:
         self.closed = False
         self.playback_state_callbacks: list[Callable[[dict], None]] = []
         self.volume_callbacks: list[Callable[[int | None], None]] = []
+        self.pending_direct: tuple[str, dict, int] | None = None
         self.server: PlayerPageServer | None = None
         self.webview: wx.html2.WebView | None = None
 
@@ -411,6 +603,20 @@ class WebPlaybackController:
     def seek_and_play(self, position_ms: int) -> None:
         self._run_script(f"window.blindSpotSeekAndPlay({int(position_ms)});")
 
+    def play_direct(self, url: str, item: dict, position_ms: int = 0) -> None:
+        if not self.page_ready:
+            self.pending_direct = (url, item, position_ms)
+            return
+        self._run_script(
+            "window.blindSpotPlayDirect("
+            f"{json.dumps(url)}, {json.dumps(item)}, {int(position_ms)});"
+        )
+
+    def serve_media(self, key: str, path: Path) -> str:
+        if not self.server:
+            return ""
+        return self.server.media_url(key, path)
+
     def adjust_volume(
         self,
         delta_percent: int,
@@ -438,7 +644,12 @@ class WebPlaybackController:
             logger.info("Web player message type=%s", message_type)
         if message_type in {"page_ready", "sdk_ready", "token_required"}:
             self.page_ready = True
-            self.provide_token()
+            if self.pending_direct:
+                url, item, position_ms = self.pending_direct
+                self.pending_direct = None
+                self.play_direct(url, item, position_ms)
+            if getattr(self.spotify, "connected", True):
+                self.provide_token()
         elif message_type == "ready":
             self.device_id = message.get("device_id")
             if self.device_id:
@@ -468,7 +679,9 @@ class WebPlaybackController:
             source = message.get("source", "player")
             detail = message.get("message", msg.UNKNOWN_PLAYER_ERROR)
             logger.error("Web player error source=%s message=%s", source, detail)
-            if (
+            if (source == "direct audio"):
+                self.on_error(detail)
+            elif (
                 source == "playback_error"
                 and "no list was loaded" in detail.casefold()
             ):
