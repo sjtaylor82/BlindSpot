@@ -1,6 +1,19 @@
 BLINDSPOT CHANGELOG
 ===================
 
+Next release
+
+Features implemented:
+- Queue multiple songs from a pasted Artist - Title list. BlindSpot reviews
+  the ordered Spotify matches and identifies missing songs before queueing.
+  Results can be unchecked or replaced from a fresh Spotify search. Several
+  songs are searched concurrently and progress is announced.
+
+Bugs fixed:
+- Space toggles a song's checkbox during batch queue review instead of
+  pausing or resuming playback, and the new state is announced.
+
+
 2026.9.7 - 25 September 2026
 
 Features implemented:

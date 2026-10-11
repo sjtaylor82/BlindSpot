@@ -6,6 +6,10 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
 
 - Search tab with Songs, Albums, Artists, Playlists, Podcasts, Podcast
   episodes, Audiobooks, and All filters.
+- **Queue multiple songs** accepts a pasted one-song-per-line list, matches
+  `Artist - Title` entries on Spotify, presents the ordered matches for review,
+  and queues the checked songs together. Individual results can be unchecked
+  or replaced from a fresh Spotify search before queueing.
 - A separate editable **Genre** field browses community-tagged
   Songs, Albums, or Artists and resolves the ranked results to Spotify. An
   optional Search query narrows the Last.fm names before matching. You do

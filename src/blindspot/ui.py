@@ -12,6 +12,7 @@ import urllib.request
 import uuid
 import webbrowser
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from pathlib import Path
 from typing import NamedTuple
@@ -367,6 +368,58 @@ LASTFM_TAG_CHOICES = (
     "Soundtrack",
     "World",
 )
+
+
+def parse_batch_song_list(value: str) -> list[tuple[str, str]]:
+    """Return ``(artist, title)`` pairs from a pasted one-song-per-line list."""
+    songs: list[tuple[str, str]] = []
+    for raw_line in value.splitlines():
+        line = re.sub(r"^\s*(?:[-*\u2022]+|\d+[.)])\s*", "", raw_line).strip()
+        if not line:
+            continue
+        parts = re.split(r"\s+[\u2013\u2014-]\s+", line, maxsplit=1)
+        if len(parts) == 2 and all(part.strip() for part in parts):
+            songs.append((parts[0].strip(), parts[1].strip()))
+        else:
+            songs.append(("", line))
+    return songs
+
+
+def normalized_song_text(value: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", value).casefold()
+    return " ".join(re.findall(r"[\w]+", decomposed, flags=re.UNICODE))
+
+
+def best_batch_track(
+    artist: str,
+    title: str,
+    results: list[SpotifyItem],
+) -> SpotifyItem | None:
+    """Choose a credible Spotify result while preferring exact title/artist."""
+    wanted_title = normalized_song_text(title)
+    wanted_artist = normalized_song_text(artist)
+    ranked: list[tuple[int, int, SpotifyItem]] = []
+    for index, item in enumerate(results):
+        if item.kind != ItemKind.TRACK or not item.uri:
+            continue
+        found_title = normalized_song_text(item.name)
+        found_artist = normalized_song_text(item.artist)
+        title_exact = found_title == wanted_title
+        artist_exact = not wanted_artist or found_artist == wanted_artist
+        title_close = bool(
+            wanted_title
+            and (wanted_title in found_title or found_title in wanted_title)
+        )
+        artist_close = bool(
+            not wanted_artist
+            or wanted_artist in found_artist
+            or found_artist in wanted_artist
+        )
+        if not title_close or not artist_close:
+            continue
+        score = (100 if title_exact else 60) + (60 if artist_exact else 30)
+        ranked.append((score, -index, item))
+    return max(ranked, default=(0, 0, None), key=lambda value: value[:2])[2]
 PODCAST_BROWSE_CATEGORIES = (
     (tr_noop("General discovery"), "podcast"),
     (tr_noop("Arts"), "arts podcast"),
@@ -666,6 +719,7 @@ def space_belongs_to_control(window: wx.Window | None) -> bool:
             wx.BitmapButton,
             wx.ToggleButton,
             wx.CheckBox,
+            wx.CheckListBox,
             wx.RadioButton,
             wx.RadioBox,
             wx.TextCtrl,
@@ -3660,6 +3714,44 @@ class CreatePlaylistDialog(wx.Dialog):
         event.Skip()
 
 
+class BatchQueueDialog(wx.Dialog):
+    def __init__(self, parent: wx.Window) -> None:
+        super().__init__(
+            parent,
+            title=tr("Queue multiple songs"),
+            size=(620, 480),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        outer = wx.BoxSizer(wx.VERTICAL)
+        instructions = wx.StaticText(
+            self,
+            label=tr(
+                "Paste one song per line, preferably as Artist - Title. "
+                "Bullets and numbered lists are accepted."
+            ),
+        )
+        self.songs = wx.TextCtrl(
+            self,
+            style=wx.TE_MULTILINE | wx.TE_DONTWRAP,
+        )
+        self.songs.SetName(tr("Songs to find"))
+        outer.Add(instructions, 0, wx.EXPAND | wx.ALL, 12)
+        outer.Add(self.songs, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+        buttons = self.CreateSeparatedButtonSizer(wx.OK | wx.CANCEL)
+        if buttons:
+            outer.Add(buttons, 0, wx.EXPAND | wx.ALL, 12)
+        self.SetSizer(outer)
+        self.SetMinSize((440, 320))
+        self.Bind(wx.EVT_BUTTON, self.on_ok, id=wx.ID_OK)
+        wx.CallAfter(self.songs.SetFocus)
+
+    def on_ok(self, event: wx.CommandEvent) -> None:
+        if not parse_batch_song_list(self.songs.GetValue()):
+            self.songs.SetFocus()
+            return
+        event.Skip()
+
+
 ITEM_LIST_USES_DATAVIEW = sys.platform == "darwin"
 ItemListBase = dv.DataViewListCtrl if ITEM_LIST_USES_DATAVIEW else wx.ListCtrl
 
@@ -3982,7 +4074,21 @@ class SearchPanel(wx.Panel):
             style=wx.RA_SPECIFY_ROWS,
         )
         self.search_button = wx.Button(self, label=tr("&Search"))
+        self.batch_queue_button = wx.Button(
+            self,
+            label=tr("Queue &multiple songs..."),
+        )
         self.heading = wx.StaticText(self, label=tr("Search results"))
+        self.queue_matches_button = wx.Button(
+            self,
+            label=tr("Add checked songs to &queue"),
+        )
+        self.queue_matches_button.Hide()
+        self.search_again_button = wx.Button(
+            self,
+            label=tr("Search again for &focused song..."),
+        )
+        self.search_again_button.Hide()
         self.album_artwork_button = wx.Button(
             self,
             label=tr("Display album &artwork..."),
@@ -3990,6 +4096,9 @@ class SearchPanel(wx.Panel):
         self.album_artwork_button.Hide()
         self.results = ItemList(self)
         self.results.SetName(tr("Search results"))
+        self.batch_results = wx.CheckListBox(self)
+        self.batch_results.SetName(tr("Songs to queue"))
+        self.batch_results.Hide()
         self.status = wx.StaticText(self, label=msg.ENTER_SEARCH_QUERY)
 
         outer.Add(query_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
@@ -3997,8 +4106,15 @@ class SearchPanel(wx.Panel):
         outer.Add(tag_label, 0, wx.LEFT | wx.RIGHT, 10)
         outer.Add(self.tag, 0, wx.EXPAND | wx.ALL, 10)
         outer.Add(self.categories, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        outer.Add(self.search_button, 0, wx.ALL, 10)
+        search_buttons = wx.BoxSizer(wx.HORIZONTAL)
+        search_buttons.Add(self.search_button, 0, wx.RIGHT, 10)
+        search_buttons.Add(self.batch_queue_button)
+        outer.Add(search_buttons, 0, wx.ALL, 10)
         outer.Add(self.heading, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        batch_buttons = wx.BoxSizer(wx.HORIZONTAL)
+        batch_buttons.Add(self.queue_matches_button, 0, wx.RIGHT, 10)
+        batch_buttons.Add(self.search_again_button)
+        outer.Add(batch_buttons, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
         outer.Add(
             self.album_artwork_button,
             0,
@@ -4006,6 +4122,7 @@ class SearchPanel(wx.Panel):
             10,
         )
         outer.Add(self.results, 1, wx.EXPAND | wx.ALL, 10)
+        outer.Add(self.batch_results, 1, wx.EXPAND | wx.ALL, 10)
         outer.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         self.SetSizer(outer)
 
@@ -4013,6 +4130,20 @@ class SearchPanel(wx.Panel):
         self.tag.Bind(wx.EVT_TEXT_ENTER, self.on_search)
         self.categories.Bind(wx.EVT_KEY_DOWN, self.on_category_key)
         self.search_button.Bind(wx.EVT_BUTTON, self.on_search)
+        self.batch_queue_button.Bind(wx.EVT_BUTTON, self.on_batch_queue)
+        self.queue_matches_button.Bind(
+            wx.EVT_BUTTON,
+            self.on_queue_batch_matches,
+        )
+        self.search_again_button.Bind(
+            wx.EVT_BUTTON,
+            self.on_search_batch_again,
+        )
+        self.batch_results.Bind(wx.EVT_CHECKLISTBOX, self.on_batch_check)
+        self.batch_results.Bind(
+            wx.EVT_LISTBOX_DCLICK,
+            self.on_search_batch_again,
+        )
         self.album_artwork_button.Bind(
             wx.EVT_BUTTON,
             self.on_display_album_artwork,
@@ -4068,6 +4199,216 @@ class SearchPanel(wx.Panel):
             lambda: self.frame.spotify.search(query, category),
             lambda items: self.show_search(query, category, items),
         )
+
+    def on_batch_queue(self, event: wx.Event | None = None) -> None:
+        dialog = BatchQueueDialog(self)
+        try:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            songs = parse_batch_song_list(dialog.songs.GetValue())
+        finally:
+            dialog.Destroy()
+        self.frame.run_task(
+            ntr(
+                "Finding {count} song on Spotify",
+                "Finding {count} songs on Spotify",
+                len(songs),
+            ).format(count=len(songs)),
+            lambda: self.find_batch_matches(songs),
+            lambda matches: self.show_batch_matches(songs, matches),
+        )
+
+    def find_batch_matches(
+        self,
+        songs: list[tuple[str, str]],
+    ) -> list[SpotifyItem | None]:
+        matches: list[SpotifyItem | None] = [None] * len(songs)
+
+        def find_one(artist: str, title: str) -> SpotifyItem | None:
+            query = " ".join(part for part in (artist, title) if part)
+            return best_batch_track(
+                artist,
+                title,
+                self.frame.spotify.search(query, "track"),
+            )
+
+        # A small pool substantially reduces waiting without firing enough
+        # simultaneous Spotify requests to invite avoidable rate limiting.
+        with ThreadPoolExecutor(max_workers=min(3, len(songs))) as pool:
+            pending = {
+                pool.submit(find_one, artist, title): index
+                for index, (artist, title) in enumerate(songs)
+            }
+            for completed, future in enumerate(as_completed(pending), start=1):
+                matches[pending[future]] = future.result()
+                wx.CallAfter(
+                    self.status.SetLabel,
+                    tr("Found {completed} of {total} songs").format(
+                        completed=completed,
+                        total=len(songs),
+                    ),
+                )
+        return matches
+
+    def show_batch_matches(
+        self,
+        songs: list[tuple[str, str]],
+        matches: list[SpotifyItem | None],
+    ) -> None:
+        items: list[SpotifyItem] = []
+        matched = 0
+        for index, ((artist, title), match) in enumerate(
+            zip(songs, matches, strict=True),
+            start=1,
+        ):
+            requested = " - ".join(part for part in (artist, title) if part)
+            if match:
+                match.raw["batch_artist"] = artist
+                match.raw["batch_title"] = title
+                match.raw["batch_checked"] = True
+                match.raw["list_note"] = tr("requested: {song}").format(
+                    song=requested
+                )
+                items.append(match)
+                matched += 1
+            else:
+                items.append(SpotifyItem(
+                    f"__batch_missing_{index}",
+                    ItemKind.HEADING,
+                    tr("No match: {song}").format(song=requested),
+                    raw={
+                        "batch_missing": True,
+                        "batch_artist": artist,
+                        "batch_title": title,
+                        "batch_checked": False,
+                    },
+                ))
+        state = ViewState(tr("Review songs to queue"), items, category="batch")
+        self.history.reset(state)
+        self.render(state, focus=True)
+        missing = len(songs) - matched
+        self.status.SetLabel(
+            tr("Matched {matched} of {total} songs; {missing} need review.").format(
+                matched=matched,
+                total=len(songs),
+                missing=missing,
+            )
+        )
+
+    def on_queue_batch_matches(self, event: wx.Event | None = None) -> None:
+        self.remember_batch_checks()
+        matches = [
+            item
+            for item in self.history.current.items
+            if item.playable and item.uri and item.raw.get("batch_checked")
+        ]
+        self.frame.queue_many(matches)
+
+    def remember_batch_checks(self) -> None:
+        if self.history.current.category != "batch":
+            return
+        checked = set(self.batch_results.GetCheckedItems())
+        for index, item in enumerate(self.history.current.items):
+            item.raw["batch_checked"] = index in checked and item.playable
+
+    def on_batch_check(self, event: wx.CommandEvent | None = None) -> None:
+        self.remember_batch_checks()
+        index = event.GetInt() if event else self.batch_results.GetSelection()
+        if index == wx.NOT_FOUND or index >= len(self.history.current.items):
+            return
+        item = self.history.current.items[index]
+        if not item.playable:
+            self.batch_results.Check(index, False)
+            item.raw["batch_checked"] = False
+            self.frame.say(tr("This song has no Spotify match to queue."))
+            return
+        state = (
+            tr("checked")
+            if item.raw.get("batch_checked")
+            else tr("not checked")
+        )
+        self.frame.say(tr("{song}, {state}").format(
+            song=item.accessible_label(),
+            state=state,
+        ))
+
+    def on_search_batch_again(self, event: wx.Event | None = None) -> None:
+        index = self.batch_results.GetSelection()
+        if index == wx.NOT_FOUND:
+            self.frame.say(tr("Select a song to search for again."))
+            self.batch_results.SetFocus()
+            return
+        item = self.history.current.items[index]
+        artist = str(item.raw.get("batch_artist") or "")
+        title = str(item.raw.get("batch_title") or item.name)
+        requested = " - ".join(part for part in (artist, title) if part)
+        dialog = wx.TextEntryDialog(
+            self,
+            tr("Edit the Spotify search if needed, then choose OK."),
+            tr("Search again for song"),
+            requested,
+        )
+        try:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            query = dialog.GetValue().strip()
+        finally:
+            dialog.Destroy()
+        if not query:
+            return
+        self.frame.run_task(
+            msg.SEARCHING_SPOTIFY,
+            lambda: self.frame.spotify.search(query, "track"),
+            lambda candidates: self.choose_batch_replacement(
+                index,
+                artist,
+                title,
+                candidates,
+            ),
+        )
+
+    def choose_batch_replacement(
+        self,
+        index: int,
+        artist: str,
+        title: str,
+        candidates: list[SpotifyItem],
+    ) -> None:
+        tracks = [
+            item
+            for item in candidates
+            if item.kind == ItemKind.TRACK and item.uri
+        ]
+        if not tracks:
+            self.frame.say(tr("No alternative matches found."))
+            return
+        dialog = wx.SingleChoiceDialog(
+            self,
+            tr("Choose the correct Spotify recording."),
+            tr("Choose another match"),
+            [item.accessible_label() for item in tracks],
+        )
+        try:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            replacement = tracks[dialog.GetSelection()]
+        finally:
+            dialog.Destroy()
+        requested = " - ".join(part for part in (artist, title) if part)
+        replacement.raw["batch_artist"] = artist
+        replacement.raw["batch_title"] = title
+        replacement.raw["batch_checked"] = True
+        replacement.raw["list_note"] = tr("requested: {song}").format(
+            song=requested
+        )
+        self.remember_batch_checks()
+        self.history.current.items[index] = replacement
+        self.history.current.selected = index
+        self.render(self.history.current, focus=True)
+        self.batch_results.SetSelection(index)
+        self.frame.say(tr("Match replaced with {song}.").format(
+            song=replacement.accessible_label()
+        ))
 
     def show_search(
         self,
@@ -4352,12 +4693,30 @@ class SearchPanel(wx.Panel):
     def render(self, state: ViewState, *, focus: bool) -> None:
         self.heading.SetLabel(state.title)
         self.frame.update_title_for_page(self, state.title)
+        batch_review = state.category == "batch"
+        self.queue_matches_button.Show(
+            batch_review and any(item.playable for item in state.items)
+        )
+        self.search_again_button.Show(batch_review and bool(state.items))
+        self.results.Show(not batch_review)
+        self.batch_results.Show(batch_review)
         self.album_artwork_button.Show(
             state.parent_kind == ItemKind.ALBUM
             and state.parent_item is not None
         )
         self.Layout()
-        if state.parent_kind == ItemKind.ALBUM:
+        if batch_review:
+            self.batch_results.Set([
+                item.accessible_label() for item in state.items
+            ])
+            for index, item in enumerate(state.items):
+                self.batch_results.Check(
+                    index,
+                    bool(item.raw.get("batch_checked") and item.playable),
+                )
+            if state.items:
+                self.batch_results.SetSelection(state.selected)
+        elif state.parent_kind == ItemKind.ALBUM:
             multi_disc = any(
                 int(item.raw.get("disc_number") or 1) > 1
                 for item in state.items
@@ -4374,7 +4733,9 @@ class SearchPanel(wx.Panel):
         else:
             self.results.set_items(state.items, state.selected)
         if focus:
-            if state.items:
+            if batch_review and state.items:
+                self.batch_results.SetFocus()
+            elif state.items:
                 self.results.SetFocus()
             elif self.album_artwork_button.IsShown():
                 self.album_artwork_button.SetFocus()
@@ -8084,6 +8445,11 @@ class MainFrame(wx.Frame):
             go, tr("Pre&vious track"), self.previous_track, "previous_track"
         )
         add_item(go, tr("&Next track"), self.next_track, "next_track")
+        add_item(
+            go,
+            tr("Queue &multiple songs..."),
+            self.open_batch_queue,
+        )
         go.AppendSeparator()
 
         seek_menu = wx.Menu()
@@ -9868,6 +10234,10 @@ class MainFrame(wx.Frame):
                 getattr(self.search, "tag", None),
                 self.search.categories,
                 self.search.search_button,
+                getattr(self.search, "batch_queue_button", None),
+                getattr(self.search, "queue_matches_button", None),
+                getattr(self.search, "search_again_button", None),
+                getattr(self.search, "batch_results", None),
                 self.search.results,
             ]
             artwork_button = getattr(
@@ -12440,6 +12810,11 @@ class MainFrame(wx.Frame):
         else:
             self.queue_selected(self.current_selected_item())
 
+    def open_batch_queue(self) -> None:
+        self.discard_transient_open_album()
+        self.notebook.SetSelection(0)
+        self.search.on_batch_queue()
+
     def queue_from_list(self, item_list: ItemList) -> None:
         chosen = item_list.marked_items() or (
             [item_list.selected_item()] if item_list.selected_item() else []
@@ -12460,6 +12835,15 @@ class MainFrame(wx.Frame):
             )
         if not marked:
             self.say(msg.NO_PLAYABLE_TRACKS)
+            return
+        MainFrame.queue_many(self, marked)
+
+    def queue_many(self, items: list[SpotifyItem]) -> None:
+        marked = [item for item in items if item.uri and item.playable]
+        if not marked:
+            self.say(msg.NO_PLAYABLE_TRACKS)
+            return
+        if self.resolve_then(marked, lambda: self.queue_many(marked)):
             return
         if self.queue_should_be_deferred():
             self.deferred_queue_items.extend(marked)
@@ -12602,17 +12986,37 @@ class MainFrame(wx.Frame):
         self.run_task(
             msg.opening_album(item.name),
             load_album,
-            lambda result: self.finish_open_album(*result),
+            lambda result: self.finish_open_album(*result, item.artist),
         )
 
     def finish_open_album(
         self,
         album: SpotifyItem,
         tracks: list[SpotifyItem],
+        fallback_artist: str = "",
     ) -> None:
         origin_page = self.notebook.GetSelection()
+        raw_artists = ", ".join(
+            str(value.get("name") or "")
+            for value in album.raw.get("artists") or []
+            if value.get("name")
+        )
+        track_artists = tuple(dict.fromkeys(
+            track.artist for track in tracks if track.artist
+        ))
+        artist = (
+            album.artist
+            or raw_artists
+            or fallback_artist
+            or (track_artists[0] if len(track_artists) == 1 else "")
+        )
+        title = (
+            f"{artist} - {album.name}"
+            if artist
+            else album.name
+        )
         state = ViewState(
-            album.name,
+            title,
             tracks,
             parent_id=album.id,
             parent_kind=ItemKind.ALBUM,

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: BlindSpot 2026.9.7\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-09-25 22:54+1000\n"
+"POT-Creation-Date: 2026-10-05 11:55+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -3014,6 +3014,20 @@ msgid "Public playlist"
 msgstr ""
 
 #: blindspot/ui.py
+msgid "Queue multiple songs"
+msgstr ""
+
+#: blindspot/ui.py
+msgid ""
+"Paste one song per line, preferably as Artist - Title. Bullets and numbered "
+"lists are accepted."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Songs to find"
+msgstr ""
+
+#: blindspot/ui.py
 msgid "Items"
 msgstr ""
 
@@ -3042,11 +3056,104 @@ msgid "&Search"
 msgstr ""
 
 #: blindspot/ui.py
+msgid "Queue &multiple songs..."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Add checked songs to &queue"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Search again for &focused song..."
+msgstr ""
+
+#: blindspot/ui.py
 msgid "Display album &artwork..."
 msgstr ""
 
 #: blindspot/ui.py
+msgid "Songs to queue"
+msgstr ""
+
+#: blindspot/ui.py
 msgid "Last.fm genre and tag browsing is available for Songs, Albums, and Artists."
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Finding {count} song on Spotify"
+msgid_plural "Finding {count} songs on Spotify"
+msgstr[0] ""
+msgstr[1] ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Found {completed} of {total} songs"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "requested: {song}"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "No match: {song}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Review songs to queue"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Matched {matched} of {total} songs; {missing} need review."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "This song has no Spotify match to queue."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "checked"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "not checked"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{song}, {state}"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Select a song to search for again."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Edit the Spotify search if needed, then choose OK."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Search again for song"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "No alternative matches found."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Choose the correct Spotify recording."
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Choose another match"
+msgstr ""
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Match replaced with {song}."
 msgstr ""
 
 #: blindspot/ui.py

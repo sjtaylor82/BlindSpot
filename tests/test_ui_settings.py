@@ -2905,6 +2905,7 @@ class SearchContextMenuTests(unittest.TestCase):
             "album",
             ui.ItemKind.ALBUM,
             "Album",
+            artist="Artist",
             raw={"images": [{"url": "art"}]},
         )
         track = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Track")
@@ -2946,7 +2947,83 @@ class SearchContextMenuTests(unittest.TestCase):
             MainFrame.finish_open_album(frame, album, [track])
 
         self.assertIs(rendered[0].parent_item, album)
+        self.assertEqual(rendered[0].title, "Artist - Album")
         self.assertEqual(selections, [0])
+
+    def test_track_artist_is_used_when_embedded_album_has_no_artist(self):
+        album = ui.SpotifyItem("album", ui.ItemKind.ALBUM, "Greatest Hits")
+        history = ui.NavigationHistory(ui.ViewState("Search", []))
+        rendered = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": type(
+                    "Notebook",
+                    (),
+                    {
+                        "GetSelection": lambda self: 0,
+                        "SetSelection": lambda self, page: None,
+                    },
+                )(),
+                "search": type(
+                    "Search",
+                    (),
+                    {
+                        "history": history,
+                        "render": lambda self, state, focus: rendered.append(state),
+                    },
+                )(),
+                "open_album_return_page": None,
+                "open_album_return_state": None,
+                "focus_open_album": lambda self: None,
+                "say": lambda self, message: None,
+            },
+        )()
+
+        with patch("blindspot.ui.wx.CallAfter"):
+            MainFrame.finish_open_album(frame, album, [], "Queen")
+
+        self.assertEqual(rendered[0].title, "Queen - Greatest Hits")
+
+    def test_album_track_artist_is_used_when_album_metadata_has_no_artist(self):
+        album = ui.SpotifyItem("album", ui.ItemKind.ALBUM, "Greatest Hits")
+        track = ui.SpotifyItem(
+            "track", ui.ItemKind.TRACK, "A Song", artist="Queen"
+        )
+        history = ui.NavigationHistory(ui.ViewState("Search", []))
+        rendered = []
+        frame = type(
+            "Frame",
+            (),
+            {
+                "notebook": type(
+                    "Notebook",
+                    (),
+                    {
+                        "GetSelection": lambda self: 0,
+                        "SetSelection": lambda self, page: None,
+                    },
+                )(),
+                "search": type(
+                    "Search",
+                    (),
+                    {
+                        "history": history,
+                        "render": lambda self, state, focus: rendered.append(state),
+                    },
+                )(),
+                "open_album_return_page": None,
+                "open_album_return_state": None,
+                "focus_open_album": lambda self: None,
+                "say": lambda self, message: None,
+            },
+        )()
+
+        with patch("blindspot.ui.wx.CallAfter"):
+            MainFrame.finish_open_album(frame, album, [track])
+
+        self.assertEqual(rendered[0].title, "Queen - Greatest Hits")
 
     def test_artist_albums_from_new_music_remember_return_page(self):
         artist = ui.SpotifyItem("artist", ui.ItemKind.ARTIST, "Artist")
