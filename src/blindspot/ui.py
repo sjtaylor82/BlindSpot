@@ -70,6 +70,7 @@ from .abcclassic import (
 )
 from .rnbooks import (
     COUNTDOWNS as RN_BOOK_COUNTDOWNS,
+    CURRENT_100_URL as RN_BOOKS_CURRENT_URL,
     NEXT_100_URL as RN_BOOKS_NEXT_URL,
     TOP_100_URL as RN_BOOKS_TOP_URL,
     BookCountdown,
@@ -131,6 +132,7 @@ from .playlist_operations import (
 )
 from .spotify import (
     REDIRECT_URI,
+    DeviceUnavailable,
     PlaylistContentsUnavailable,
     RecentlyPlayedPermissionRequired,
     SpotifyClient,
@@ -559,6 +561,10 @@ LOG_LEVEL_LABELS = {
     "Warnings": tr_noop("Warnings"),
     "Errors": tr_noop("Errors"),
 }
+# The Spotify Connect name BlindSpot's built-in player registers under
+# (set in web_player.py). It is a device name, so it is never translated.
+OWN_PLAYER_NAME = "BlindSpot"
+
 DEVICE_TYPE_LABELS = {
     "Computer": tr_noop("Computer"),
     "Tablet": tr_noop("Tablet"),
@@ -9010,6 +9016,11 @@ class MainFrame(wx.Frame):
                         failure()
                     if isinstance(caught_error, RecentlyPlayedPermissionRequired):
                         self.offer_permission_refresh()
+                    elif (
+                        isinstance(caught_error, DeviceUnavailable)
+                        and self.forget_unavailable_device()
+                    ):
+                        pass
                     elif isinstance(
                         caught_error,
                         (
@@ -10739,11 +10750,51 @@ class MainFrame(wx.Frame):
             self.show_playback_devices,
         )
 
+    def playback_device_choices(self, devices: list[dict]) -> list[dict]:
+        """Spotify's devices, led by the BlindSpot player on this computer.
+
+        Every BlindSpot that has ever connected is called BlindSpot, and
+        Spotify keeps listing old ones for a while, so only the live player
+        is offered. When it is not connected yet it is still offered, so
+        there is always a way back to it.
+        """
+        local_id = self.player.device_id if getattr(self, "player", None) else None
+        own = next(
+            (
+                device
+                for device in devices
+                if local_id and device.get("id") == local_id
+            ),
+            None,
+        )
+        others = [
+            device
+            for device in devices
+            if device is not own and str(device.get("name")) != OWN_PLAYER_NAME
+        ]
+        own = (
+            {**own, "own_player": True}
+            if own
+            else {"id": "", "name": OWN_PLAYER_NAME, "own_player": True}
+        )
+        return [own, *others]
+
     def show_playback_devices(self, devices: list[dict]) -> None:
+        devices = self.playback_device_choices(devices)
         outputs = self.sound_card_choices()
         labels = []
         selected = 0
         for index, device in enumerate(devices):
+            if device.get("own_player"):
+                parts = [tr("BlindSpot, this computer")]
+                if device.get("is_active") or not (
+                    self.remote_device_id
+                    or getattr(self, "pending_transfer_device", None)
+                ):
+                    parts.append(tr("active"))
+                    selected = index
+                labels.append(", ".join(parts))
+                continue
             parts = [
                 str(device.get("name") or tr("Unnamed device")),
                 tr(
@@ -10794,11 +10845,49 @@ class MainFrame(wx.Frame):
     ) -> None:
         outputs = outputs or []
         if selection < len(devices):
-            self.choose_playback_device_action(devices[selection])
+            device = devices[selection]
+            if device.get("own_player") and not device.get("id"):
+                self.choose_own_player()
+            else:
+                self.choose_playback_device_action(device)
         elif selection < len(devices) + len(outputs):
             self.choose_sound_card(outputs[selection - len(devices)])
         else:
             self.choose_playback_device()
+
+    def use_own_player(self) -> str | None:
+        """Stop sending playback to another device.
+
+        Returns the name of the device BlindSpot was using instead of its own
+        player, or None when it was already using its own player.
+        """
+        pending = getattr(self, "pending_transfer_device", None)
+        remote_id = getattr(self, "remote_device_id", None)
+        if not pending and not remote_id:
+            return None
+        name = str(
+            (pending or {}).get("name")
+            or getattr(self, "remote_device_name", "")
+            or tr("device")
+        )
+        self.pending_transfer_device = None
+        self.remote_device_id = None
+        self.remote_device_name = ""
+        self.remote_supports_volume = None
+        self.remote_refresh_timer.Stop()
+        return name
+
+    def choose_own_player(self) -> None:
+        self.use_own_player()
+        self.say(msg.OWN_PLAYER_CHOSEN)
+
+    def forget_unavailable_device(self) -> bool:
+        """Fall back to BlindSpot's own player after Spotify lost a device."""
+        name = self.use_own_player()
+        if name is None:
+            return False
+        self.say(msg.device_unavailable(name))
+        return True
 
     def sound_card_choices(self) -> list[audio_devices.AudioOutput]:
         """List Windows sound cards, led by a choice to follow the default."""
@@ -10817,7 +10906,8 @@ class MainFrame(wx.Frame):
         self.store.write("settings.json", settings)
         self.audio_output_applied = False
         self.apply_audio_output()
-        self.say(tr("BlindSpot plays through {name}.").format(name=output.name))
+        previous = self.use_own_player()
+        self.say(msg.sound_card_chosen(output.name, previous))
 
     def apply_audio_output(self) -> None:
         """Route BlindSpot's audio to the sound card chosen in the device list.
@@ -14157,7 +14247,9 @@ class MainFrame(wx.Frame):
                     "unresolved": True,
                     "list_note": f"countdown rank {entry.rank}",
                     "chart_url": (
-                        RN_BOOKS_TOP_URL
+                        RN_BOOKS_CURRENT_URL
+                        if countdown.year == 2026
+                        else RN_BOOKS_TOP_URL
                         if entry.rank <= 100
                         else RN_BOOKS_NEXT_URL
                     ),

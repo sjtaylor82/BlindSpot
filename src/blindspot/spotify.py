@@ -185,6 +185,10 @@ class PlaylistContentsUnavailable(SpotifyError):
     pass
 
 
+class DeviceUnavailable(SpotifyError):
+    """Spotify no longer knows the device a command was sent to."""
+
+
 class RecentlyPlayedPermissionRequired(SpotifyError):
     pass
 
@@ -1700,7 +1704,13 @@ class SpotifyClient:
                 retry_after = int(header) if header else None
             except ValueError:
                 retry_after = None
-            raise SpotifyError(
+            error_type = (
+                DeviceUnavailable
+                if error.code == 404
+                and "device not found" in str(message).casefold()
+                else SpotifyError
+            )
+            raise error_type(
                 msg.spotify_rate_limited(retry_after)
                 if error.code == 429
                 else msg.spotify_error(error.code, message),

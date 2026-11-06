@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: BlindSpot 2026.9.7\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-10-05 11:55+1000\n"
+"POT-Creation-Date: 2026-11-06 20:59+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1586,6 +1586,27 @@ msgstr ""
 #: blindspot/messages.py
 #, python-brace-format
 msgid "Playback moved to {name} without playing."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "BlindSpot will play through its own player."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid ""
+"{name} is no longer available, so BlindSpot will play through its own "
+"player. Try again."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "BlindSpot plays through {output}, using its own player instead of {device}."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "BlindSpot plays through {name}."
 msgstr ""
 
 #: blindspot/messages.py
@@ -4502,15 +4523,19 @@ msgid "Sleep timer"
 msgstr ""
 
 #: blindspot/ui.py
+msgid "BlindSpot, this computer"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "active"
+msgstr ""
+
+#: blindspot/ui.py
 msgid "Unnamed device"
 msgstr ""
 
 #: blindspot/ui.py
 msgid "device"
-msgstr ""
-
-#: blindspot/ui.py
-msgid "active"
 msgstr ""
 
 #: blindspot/ui.py
@@ -4538,11 +4563,6 @@ msgstr ""
 
 #: blindspot/ui.py
 msgid "Windows default"
-msgstr ""
-
-#: blindspot/ui.py
-#, python-brace-format
-msgid "BlindSpot plays through {name}."
 msgstr ""
 
 #: blindspot/ui.py

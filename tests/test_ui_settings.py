@@ -963,6 +963,7 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             frame = Mock(store=ui.PortableStore(Path(folder)))
             frame.apply_audio_output = lambda: MainFrame.apply_audio_output(frame)
+            frame.use_own_player.return_value = None
             with patch.object(ui.audio_devices, "AVAILABLE", True), patch.object(
                 ui.audio_devices, "route_process_tree", return_value=0
             ) as route:
@@ -977,6 +978,83 @@ class PlaybackMemorySettingsTests(unittest.TestCase):
             # Nothing was playing yet, so routing is retried when sound starts.
             self.assertFalse(frame.audio_output_applied)
             frame.say.assert_called_once_with("BlindSpot plays through Speakers.")
+
+    def test_choosing_sound_card_returns_to_own_player(self):
+        with tempfile.TemporaryDirectory() as folder:
+            frame = Mock(
+                store=ui.PortableStore(Path(folder)),
+                pending_transfer_device=None,
+                remote_device_id="phone",
+                remote_device_name="Phone",
+            )
+            frame.use_own_player = lambda: MainFrame.use_own_player(frame)
+            with patch.object(ui.audio_devices, "AVAILABLE", False):
+                MainFrame.choose_sound_card(
+                    frame, ui.audio_devices.AudioOutput("{speaker}", "Speakers")
+                )
+
+        self.assertIsNone(frame.remote_device_id)
+        frame.remote_refresh_timer.Stop.assert_called_once()
+        frame.say.assert_called_once_with(
+            "BlindSpot plays through Speakers, using its own player instead "
+            "of Phone."
+        )
+
+    def test_lost_device_falls_back_to_own_player(self):
+        frame = Mock(
+            pending_transfer_device={"id": "speaker", "name": "Kitchen"},
+            remote_device_id="phone",
+            remote_device_name="Phone",
+        )
+        frame.use_own_player = lambda: MainFrame.use_own_player(frame)
+
+        self.assertTrue(MainFrame.forget_unavailable_device(frame))
+
+        self.assertIsNone(frame.pending_transfer_device)
+        self.assertIsNone(frame.remote_device_id)
+        frame.say.assert_called_once_with(
+            "Kitchen is no longer available, so BlindSpot will play through "
+            "its own player. Try again."
+        )
+
+    def test_lost_device_on_own_player_is_reported_normally(self):
+        frame = Mock(pending_transfer_device=None, remote_device_id=None)
+        frame.use_own_player = lambda: MainFrame.use_own_player(frame)
+
+        self.assertFalse(MainFrame.forget_unavailable_device(frame))
+        frame.say.assert_not_called()
+
+    def test_device_list_offers_only_the_live_blindspot(self):
+        frame = Mock(player=Mock(device_id="live"))
+        devices = [
+            {"id": "old", "name": "BlindSpot", "type": "Computer"},
+            {"id": "phone", "name": "Phone", "type": "Smartphone"},
+            {"id": "live", "name": "BlindSpot", "type": "Computer"},
+        ]
+
+        choices = MainFrame.playback_device_choices(frame, devices)
+
+        self.assertEqual([choice["id"] for choice in choices], ["live", "phone"])
+        self.assertTrue(choices[0]["own_player"])
+
+    def test_device_list_offers_own_player_before_it_connects(self):
+        frame = Mock(player=Mock(device_id=None))
+        devices = [{"id": "old", "name": "BlindSpot"}, {"id": "phone", "name": "Phone"}]
+
+        choices = MainFrame.playback_device_choices(frame, devices)
+
+        self.assertEqual([choice["id"] for choice in choices], ["", "phone"])
+        self.assertTrue(choices[0]["own_player"])
+
+    def test_choosing_unconnected_own_player_needs_no_transfer(self):
+        frame = Mock()
+
+        MainFrame.handle_playback_device_selection(
+            frame, [{"id": "", "name": "BlindSpot", "own_player": True}], 0
+        )
+
+        frame.choose_own_player.assert_called_once_with()
+        frame.choose_playback_device_action.assert_not_called()
 
     def test_sound_card_routing_is_left_alone_until_chosen(self):
         with tempfile.TemporaryDirectory() as folder:

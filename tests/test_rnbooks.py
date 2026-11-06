@@ -8,12 +8,33 @@ from blindspot.rnbooks import (
     BookEntry,
     RNBooksClient,
     RNBooksError,
+    parse_current_100,
     parse_next_100,
     parse_top_100,
 )
 
 
 class ParserTests(unittest.TestCase):
+    def test_current_top_100_parses_live_list_items(self):
+        markup = """
+        <div class="SongListItem_position__a">61</div>
+        <div class="SongListItem_title__b">Too Much Lip</div>
+        <div data-testid="song-card-artist">Melissa Lucashenko</div>
+        <div class="SongListItem_position__a">62</div>
+        <div class="SongListItem_title__b">Are We There Yet?</div>
+        <div data-testid="song-card-artist">Alison Lester</div>
+        """
+
+        entries = parse_current_100(markup)
+
+        self.assertEqual(
+            [(entry.rank, entry.title, entry.author) for entry in entries],
+            [
+                (61, "Too Much Lip", "Melissa Lucashenko"),
+                (62, "Are We There Yet?", "Alison Lester"),
+            ],
+        )
+
     def test_top_100_parses_hero_and_ranked_cards(self):
         markup = """
         <h3 class="SongCountdownHero_title__abc">Boy Swallows Universe</h3>
@@ -70,6 +91,22 @@ class ParserTests(unittest.TestCase):
         with self.assertRaises(RNBooksError):
             client.countdown(BookCountdown(2025, 101, 200, "Next"))
 
+    def test_current_countdown_accepts_revealed_entries(self):
+        client = RNBooksClient()
+        client._request = Mock(
+            return_value=(
+                '<div class="SongListItem_position__a">100</div>'
+                '<div class="SongListItem_title__b">Round the Twist</div>'
+                '<div data-testid="song-card-artist">Paul Jennings</div>'
+            )
+        )
+
+        entries = client.countdown(
+            BookCountdown(2026, 1, 100, "Top 100 Australian Books (2026)")
+        )
+
+        self.assertEqual(entries, [BookEntry("Round the Twist", "Paul Jennings", 100)])
+
 
 class RadioNationalWorkflowTests(unittest.TestCase):
     def panel(self, selection):
@@ -115,6 +152,18 @@ class RadioNationalWorkflowTests(unittest.TestCase):
         self.assertEqual(result.items[0].kind, ItemKind.AUDIOBOOK)
         self.assertTrue(result.items[0].raw["unresolved"])
         self.assertEqual(result.items[0].raw["chart_url"], ui.RN_BOOKS_NEXT_URL)
+
+    def test_current_results_link_to_2026_countdown(self):
+        frame = Mock()
+        frame.rn_books.countdown.return_value = [
+            BookEntry("Round the Twist", "Paul Jennings", 100)
+        ]
+
+        result = ui.MainFrame.rn_book_results(
+            frame, BookCountdown(2026, 1, 100, "Top 100 Australian Books (2026)")
+        )
+
+        self.assertEqual(result.items[0].raw["chart_url"], ui.RN_BOOKS_CURRENT_URL)
 
 
 if __name__ == "__main__":

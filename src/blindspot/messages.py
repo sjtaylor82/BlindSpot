@@ -554,6 +554,25 @@ def moved_without_playing(name: str) -> str:
     return tr("Playback moved to {name} without playing.").format(name=name)
 
 
+OWN_PLAYER_CHOSEN = tr_noop("BlindSpot will play through its own player.")
+
+
+def device_unavailable(name: str) -> str:
+    return tr(
+        "{name} is no longer available, so BlindSpot will play through its "
+        "own player. Try again."
+    ).format(name=name)
+
+
+def sound_card_chosen(output: str, previous_device: str | None = None) -> str:
+    if previous_device:
+        return tr(
+            "BlindSpot plays through {output}, using its own player instead "
+            "of {device}."
+        ).format(output=output, device=previous_device)
+    return tr("BlindSpot plays through {name}.").format(name=output)
+
+
 def device_targeted(name: str) -> str:
     return tr(
         "{name} will receive a forced transfer on the next play."

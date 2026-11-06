@@ -92,8 +92,9 @@ BlindSpot is a portable, screen-reader-friendly Spotify client for Windows and m
   official rank, work and composer. When you act on a work BlindSpot searches
   Spotify for a representative recording, which may be one movement or excerpt
   when the ranked work is a symphony, concerto, opera or collection.
-  **ABC Radio National Top Books** offers the official 2025 Top 100, the
-  separately published ranks 101–200, or the complete Top 200. Choose an
+  **ABC Radio National Top Books** offers the 2026 Top 100 Australian Books
+  as it is revealed, plus the official 2025 Top 100, the separately published
+  ranks 101–200, or the complete 2025 Top 200. Choose an
   available countdown rather than entering a historical date. Rows show the
   official rank, title and author; Spotify audiobook matching happens only
   when a book is opened or played, so browsing does not consume audiobook

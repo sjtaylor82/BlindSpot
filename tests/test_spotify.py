@@ -306,6 +306,47 @@ def country_client(responses):
     return client
 
 
+class DeviceErrorTests(unittest.TestCase):
+    def _raise(self, status, message):
+        import io
+        import json
+        import urllib.error
+
+        error = urllib.error.HTTPError(
+            "https://api.spotify.com/v1/me/player/play",
+            status,
+            "Error",
+            {},
+            io.BytesIO(json.dumps({"error": {"message": message}}).encode()),
+        )
+        client = SpotifyClient.__new__(SpotifyClient)
+        request = urllib.request.Request(
+            "https://api.spotify.com/v1/me/player/play"
+        )
+        with patch(
+            "blindspot.spotify.urllib.request.urlopen",
+            side_effect=error,
+        ):
+            with self.assertRaises(SpotifyError) as caught:
+                client._open_json(request)
+        return caught.exception
+
+    def test_a_lost_device_is_recognised(self):
+        from blindspot.spotify import DeviceUnavailable
+
+        error = self._raise(404, "Device not found")
+
+        self.assertIsInstance(error, DeviceUnavailable)
+        self.assertEqual(error.status, 404)
+
+    def test_other_404s_are_not_a_lost_device(self):
+        from blindspot.spotify import DeviceUnavailable
+
+        error = self._raise(404, "Player command failed: No active device found")
+
+        self.assertNotIsInstance(error, DeviceUnavailable)
+
+
 class RateLimitErrorTests(unittest.TestCase):
     def _raise(self, retry_after):
         import io

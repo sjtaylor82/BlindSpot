@@ -4,6 +4,8 @@ BLINDSPOT CHANGELOG
 Next release
 
 Features implemented:
+- Added Radio National's 2026 Top 100 Australian Books countdown, refreshing
+  the official list as books are revealed during the live broadcast.
 - Queue multiple songs from a pasted Artist - Title list. BlindSpot reviews
   the ordered Spotify matches and identifies missing songs before queueing.
   Results can be unchecked or replaced from a fresh Spotify search. Several
@@ -12,6 +14,15 @@ Features implemented:
 Bugs fixed:
 - Space toggles a song's checkbox during batch queue review instead of
   pausing or resuming playback, and the new state is announced.
+- When a phone, speaker or other device stops being available, BlindSpot
+  goes back to its own player instead of repeating "404: Device not found"
+  on every play. This also clears a forced transfer waiting for the next
+  play.
+- Choosing a sound card in the playback device list also switches playback
+  back to BlindSpot's own player, so the sound card is actually used.
+- The playback device list shows BlindSpot's own player once, as BlindSpot,
+  this computer, at the top. It is there even before the player has
+  connected. Old BlindSpot entries that Spotify still lists are left out.
 
 
 2026.9.7 - 25 September 2026

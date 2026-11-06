@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: BlindSpot 2026.9.3\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-09-25 22:54+1000\n"
+"POT-Creation-Date: 2026-11-06 20:59+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: BlindSpot contributors\n"
 "Language: pl\n"
@@ -18,15 +18,15 @@ msgstr ""
 
 #: blindspot/abcclassic.py
 msgid "The ABC Classic 100 archive could not be read."
-msgstr ""
+msgstr "Nie można odczytać archiwum ABC Classic 100."
 
 #: blindspot/abcclassic.py
 msgid "That ABC Classic 100 countdown was not found."
-msgstr ""
+msgstr "Nie znaleziono tego notowania ABC Classic 100."
 
 #: blindspot/abcclassic.py
 msgid "The ABC Classic 100 archive could not be reached."
-msgstr ""
+msgstr "Nie można połączyć się z archiwum ABC Classic 100."
 
 #: blindspot/applemusic.py
 msgid "Indonesia"
@@ -316,28 +316,28 @@ msgstr "Dowolny gatunek"
 
 #: blindspot/deepl.py
 msgid "Enter a DeepL API key in preferences first."
-msgstr ""
+msgstr "Najpierw wpisz klucz API DeepL w ustawieniach."
 
 #: blindspot/deepl.py
 msgid "Choose a lyrics translation language in preferences first."
-msgstr ""
+msgstr "Najpierw wybierz w ustawieniach język tłumaczenia tekstów."
 
 #: blindspot/deepl.py
 msgid "DeepL rejected the API key."
-msgstr ""
+msgstr "DeepL odrzucił klucz API."
 
 #: blindspot/deepl.py
 msgid "The DeepL translation quota has been reached."
-msgstr ""
+msgstr "Wyczerpano limit tłumaczeń DeepL."
 
 #: blindspot/deepl.py
 #, python-brace-format
 msgid "DeepL returned error {status}."
-msgstr ""
+msgstr "DeepL zwrócił błąd {status}."
 
 #: blindspot/deepl.py
 msgid "Lyrics translation failed."
-msgstr ""
+msgstr "Nie udało się przetłumaczyć tekstu utworu."
 
 #: blindspot/export.py
 msgid "Position"
@@ -548,7 +548,7 @@ msgstr "O czym jest ten utwór?"
 
 #: blindspot/keymap.py
 msgid "Open album of focused or current track"
-msgstr ""
+msgstr "Otwórz album zaznaczonego lub bieżącego utworu"
 
 #: blindspot/keymap.py
 msgid "Retrieve lyrics"
@@ -1664,6 +1664,31 @@ msgid "Playback moved to {name} without playing."
 msgstr "Przeniesiono odtwarzanie na urządzenie {name} bez rozpoczynania."
 
 #: blindspot/messages.py
+msgid "BlindSpot will play through its own player."
+msgstr "BlindSpot będzie odtwarzać przez własny odtwarzacz."
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid ""
+"{name} is no longer available, so BlindSpot will play through its own "
+"player. Try again."
+msgstr ""
+"Urządzenie {name} nie jest już dostępne, więc BlindSpot będzie odtwarzać "
+"przez własny odtwarzacz. Spróbuj ponownie."
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "BlindSpot plays through {output}, using its own player instead of {device}."
+msgstr ""
+"BlindSpot odtwarza przez {output}, używając własnego odtwarzacza zamiast "
+"urządzenia {device}."
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "BlindSpot plays through {name}."
+msgstr "BlindSpot odtwarza przez {name}."
+
+#: blindspot/messages.py
 #, python-brace-format
 msgid "{name} will receive a forced transfer on the next play."
 msgstr "Urządzenie {name} otrzyma wymuszone przeniesienie przy następnym odtwarzaniu."
@@ -1981,39 +2006,39 @@ msgstr "Kanał podcastu jest niedostępny."
 
 #: blindspot/rnbooks.py
 msgid "The ABC Radio National book countdown could not be read."
-msgstr ""
+msgstr "Nie można odczytać notowania książek ABC Radio National."
 
 #: blindspot/rnbooks.py
 msgid "The complete ABC Radio National book countdown was not found."
-msgstr ""
+msgstr "Nie znaleziono pełnego notowania książek ABC Radio National."
 
 #: blindspot/rnbooks.py
 msgid "The ABC Radio National book countdown could not be reached."
-msgstr ""
+msgstr "Nie można połączyć się z notowaniem książek ABC Radio National."
 
 #: blindspot/rss_podcasts.py
 msgid "The OPML file could not be read."
-msgstr ""
+msgstr "Nie można odczytać pliku OPML."
 
 #: blindspot/rss_podcasts.py
 msgid "The OPML file contains no podcast feeds."
-msgstr ""
+msgstr "Plik OPML nie zawiera żadnych kanałów podcastów."
 
 #: blindspot/rss_podcasts.py
 msgid "Imported RSS podcast subscription."
-msgstr ""
+msgstr "Zaimportowano subskrypcję podcastu RSS."
 
 #: blindspot/rss_podcasts.py
 msgid "The podcast feed could not be loaded."
-msgstr ""
+msgstr "Nie można załadować kanału podcastu."
 
 #: blindspot/rss_podcasts.py
 msgid "The podcast feed is too large."
-msgstr ""
+msgstr "Kanał podcastu jest zbyt duży."
 
 #: blindspot/rss_podcasts.py
 msgid "The podcast feed is invalid."
-msgstr ""
+msgstr "Kanał podcastu jest nieprawidłowy."
 
 #: blindspot/spotify.py
 msgid "played recently"
@@ -2251,59 +2276,61 @@ msgstr "Data zostanie ogłoszona"
 
 #: blindspot/transcripts.py
 msgid "Publisher transcript is invalid."
-msgstr ""
+msgstr "Transkrypcja wydawcy jest nieprawidłowa."
 
 #: blindspot/transcripts.py
 msgid "Publisher transcript is empty."
-msgstr ""
+msgstr "Transkrypcja wydawcy jest pusta."
 
 #: blindspot/transcripts.py
 msgid "Episode audio is unavailable from its public feed."
-msgstr ""
+msgstr "Dźwięk odcinka jest niedostępny w jego publicznym kanale."
 
 #: blindspot/transcripts.py
 msgid "Automatic Whisper setup is currently available on Windows only."
 msgstr ""
+"Automatyczna instalacja Whisper jest obecnie dostępna tylko w systemie "
+"Windows."
 
 #: blindspot/transcripts.py
 msgid "Downloading optional transcription components..."
-msgstr ""
+msgstr "Pobieranie opcjonalnych składników transkrypcji..."
 
 #: blindspot/transcripts.py
 msgid "Invalid transcription component archive."
-msgstr ""
+msgstr "Nieprawidłowe archiwum składników transkrypcji."
 
 #: blindspot/transcripts.py
 msgid "Whisper transcription components are not installed."
-msgstr ""
+msgstr "Składniki transkrypcji Whisper nie są zainstalowane."
 
 #: blindspot/transcripts.py
 msgid "Whisper could not transcribe this episode."
-msgstr ""
+msgstr "Whisper nie mógł przetranskrybować tego odcinka."
 
 #: blindspot/transcripts.py
 msgid "Transcription stopped before any text was produced."
-msgstr ""
+msgstr "Transkrypcja zatrzymała się, zanim powstał jakikolwiek tekst."
 
 #: blindspot/transcripts.py
 msgid "The episode audio could not be decoded."
-msgstr ""
+msgstr "Nie można zdekodować dźwięku odcinka."
 
 #: blindspot/transcripts.py
 msgid "No speech was found in this episode."
-msgstr ""
+msgstr "W tym odcinku nie znaleziono mowy."
 
 #: blindspot/triplej.py
 msgid "The Triple J Hottest 100 archive could not be read."
-msgstr ""
+msgstr "Nie można odczytać archiwum Triple J Hottest 100."
 
 #: blindspot/triplej.py
 msgid "That Triple J Hottest 100 countdown was not found."
-msgstr ""
+msgstr "Nie znaleziono tego notowania Triple J Hottest 100."
 
 #: blindspot/triplej.py
 msgid "The Triple J Hottest 100 archive could not be reached."
-msgstr ""
+msgstr "Nie można połączyć się z archiwum Triple J Hottest 100."
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -2873,15 +2900,15 @@ msgstr "Klucz API Last.fm"
 
 #: blindspot/ui.py
 msgid "DeepL API key"
-msgstr ""
+msgstr "Klucz API DeepL"
 
 #: blindspot/ui.py
 msgid "&Get a DeepL API key..."
-msgstr ""
+msgstr "&Uzyskaj klucz API DeepL..."
 
 #: blindspot/ui.py
 msgid "Lyrics translation language"
-msgstr ""
+msgstr "Język tłumaczenia tekstów"
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -2904,53 +2931,53 @@ msgstr "Otwórz w &Wikipedii"
 #: blindspot/ui.py
 #, python-brace-format
 msgid "Information about {name}"
-msgstr ""
+msgstr "Informacje: {name}"
 
 #: blindspot/ui.py
 msgid "Album and recording information"
-msgstr ""
+msgstr "Informacje o albumie i nagraniu"
 
 #: blindspot/ui.py
 msgid "Recording"
-msgstr ""
+msgstr "Nagranie"
 
 #: blindspot/ui.py
 #, python-brace-format
 msgid "Transcript for {episode_name} - BlindSpot"
-msgstr ""
+msgstr "Transkrypcja: {episode_name} - BlindSpot"
 
 #: blindspot/ui.py
 msgid "&Follow transcript playback"
-msgstr ""
+msgstr "Śl&edź odtwarzanie transkrypcji"
 
 #: blindspot/ui.py
 msgid "Original"
-msgstr ""
+msgstr "Oryginał"
 
 #: blindspot/ui.py
 msgid "Translation"
-msgstr ""
+msgstr "Tłumaczenie"
 
 #: blindspot/ui.py
 msgid "Transcript view"
-msgstr ""
+msgstr "Widok transkrypcji"
 
 #: blindspot/ui.py
 #, python-brace-format
 msgid "Transcript for {episode_name}"
-msgstr ""
+msgstr "Transkrypcja: {episode_name}"
 
 #: blindspot/ui.py
 msgid "&Translate with DeepL"
-msgstr ""
+msgstr "&Przetłumacz za pomocą DeepL"
 
 #: blindspot/ui.py
 msgid "Sends this transcript text to DeepL for translation."
-msgstr ""
+msgstr "Wysyła tekst tej transkrypcji do DeepL w celu przetłumaczenia."
 
 #: blindspot/ui.py
 msgid "&Stop transcription"
-msgstr ""
+msgstr "Za&trzymaj transkrypcję"
 
 #: blindspot/ui.py
 msgid "The transcript can be translated when transcription finishes."
@@ -2958,43 +2985,43 @@ msgstr "Transkrypcję można przetłumaczyć po zakończeniu transkrypcji."
 
 #: blindspot/ui.py
 msgid "Translated transcript"
-msgstr ""
+msgstr "Przetłumaczona transkrypcja"
 
 #: blindspot/ui.py
 msgid "Original transcript"
-msgstr ""
+msgstr "Oryginalna transkrypcja"
 
 #: blindspot/ui.py
 msgid "Translating..."
-msgstr ""
+msgstr "Tłumaczenie..."
 
 #: blindspot/ui.py
 msgid "Translating transcript"
-msgstr ""
+msgstr "Tłumaczenie transkrypcji"
 
 #: blindspot/ui.py
 msgid "Transcribing episode."
-msgstr ""
+msgstr "Transkrypcja odcinka."
 
 #: blindspot/ui.py
 msgid "Transcription complete."
-msgstr ""
+msgstr "Transkrypcja zakończona."
 
 #: blindspot/ui.py
 msgid "Stopping transcription."
-msgstr ""
+msgstr "Zatrzymywanie transkrypcji."
 
 #: blindspot/ui.py
 msgid "Move to a timed transcript line first."
-msgstr ""
+msgstr "Najpierw przejdź do wiersza transkrypcji ze znacznikiem czasu."
 
 #: blindspot/ui.py
 msgid "First transcript line."
-msgstr ""
+msgstr "Pierwszy wiersz transkrypcji."
 
 #: blindspot/ui.py
 msgid "Last transcript line."
-msgstr ""
+msgstr "Ostatni wiersz transkrypcji."
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -3041,27 +3068,27 @@ msgstr "Tekst utworu: {heading}"
 
 #: blindspot/ui.py
 msgid "Lyrics view"
-msgstr ""
+msgstr "Widok tekstu utworu"
 
 #: blindspot/ui.py
 msgid "&Fetch translation"
-msgstr ""
+msgstr "&Pobierz tłumaczenie"
 
 #: blindspot/ui.py
 msgid "Translated lyrics"
-msgstr ""
+msgstr "Przetłumaczony tekst utworu"
 
 #: blindspot/ui.py
 msgid "Original lyrics"
-msgstr ""
+msgstr "Oryginalny tekst utworu"
 
 #: blindspot/ui.py
 msgid "Fetching translation..."
-msgstr ""
+msgstr "Pobieranie tłumaczenia..."
 
 #: blindspot/ui.py
 msgid "Fetching lyrics translation"
-msgstr ""
+msgstr "Pobieranie tłumaczenia tekstu utworu"
 
 #: blindspot/ui.py
 msgid "Enter text to find."
@@ -3119,6 +3146,22 @@ msgid "Public playlist"
 msgstr "Playlista publiczna"
 
 #: blindspot/ui.py
+msgid "Queue multiple songs"
+msgstr "Dodaj wiele utworów do kolejki"
+
+#: blindspot/ui.py
+msgid ""
+"Paste one song per line, preferably as Artist - Title. Bullets and numbered "
+"lists are accepted."
+msgstr ""
+"Wklej po jednym utworze w wierszu, najlepiej w formacie Wykonawca - Tytuł. "
+"Listy wypunktowane i numerowane są akceptowane."
+
+#: blindspot/ui.py
+msgid "Songs to find"
+msgstr "Utwory do znalezienia"
+
+#: blindspot/ui.py
 msgid "Items"
 msgstr "Elementy"
 
@@ -3147,14 +3190,108 @@ msgid "&Search"
 msgstr "&Szukaj"
 
 #: blindspot/ui.py
+msgid "Queue &multiple songs..."
+msgstr "Dodaj do kolejki &wiele utworów..."
+
+#: blindspot/ui.py
+msgid "Add checked songs to &queue"
+msgstr "Dodaj zaznaczone utwory do &kolejki"
+
+#: blindspot/ui.py
+msgid "Search again for &focused song..."
+msgstr "Wyszukaj ponownie zaznaczony &utwór..."
+
+#: blindspot/ui.py
 msgid "Display album &artwork..."
 msgstr "Wyświetl &okładkę albumu..."
+
+#: blindspot/ui.py
+msgid "Songs to queue"
+msgstr "Utwory do dodania do kolejki"
 
 #: blindspot/ui.py
 msgid "Last.fm genre and tag browsing is available for Songs, Albums, and Artists."
 msgstr ""
 "Przeglądanie gatunków i tagów Last.fm jest dostępne dla utworów, albumów i "
 "wykonawców."
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Finding {count} song on Spotify"
+msgid_plural "Finding {count} songs on Spotify"
+msgstr[0] "Wyszukiwanie {count} utworu w Spotify"
+msgstr[1] "Wyszukiwanie {count} utworów w Spotify"
+msgstr[2] "Wyszukiwanie {count} utworów w Spotify"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Found {completed} of {total} songs"
+msgstr "Znaleziono {completed} z {total} utworów"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "requested: {song}"
+msgstr "szukano: {song}"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "No match: {song}"
+msgstr "Brak dopasowania: {song}"
+
+#: blindspot/ui.py
+msgid "Review songs to queue"
+msgstr "Sprawdź utwory do dodania do kolejki"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Matched {matched} of {total} songs; {missing} need review."
+msgstr "Dopasowano {matched} z {total} utworów; do sprawdzenia: {missing}."
+
+#: blindspot/ui.py
+msgid "This song has no Spotify match to queue."
+msgstr "Ten utwór nie ma w Spotify dopasowania, które można dodać do kolejki."
+
+#: blindspot/ui.py
+msgid "checked"
+msgstr "zaznaczony"
+
+#: blindspot/ui.py
+msgid "not checked"
+msgstr "niezaznaczony"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "{song}, {state}"
+msgstr "{song}, {state}"
+
+#: blindspot/ui.py
+msgid "Select a song to search for again."
+msgstr "Zaznacz utwór, który chcesz wyszukać ponownie."
+
+#: blindspot/ui.py
+msgid "Edit the Spotify search if needed, then choose OK."
+msgstr "W razie potrzeby popraw wyszukiwanie w Spotify, a następnie wybierz OK."
+
+#: blindspot/ui.py
+msgid "Search again for song"
+msgstr "Wyszukaj utwór ponownie"
+
+#: blindspot/ui.py
+msgid "No alternative matches found."
+msgstr "Nie znaleziono innych dopasowań."
+
+#: blindspot/ui.py
+msgid "Choose the correct Spotify recording."
+msgstr "Wybierz właściwe nagranie w Spotify."
+
+#: blindspot/ui.py
+msgid "Choose another match"
+msgstr "Wybierz inne dopasowanie"
+
+#: blindspot/ui.py
+#, python-brace-format
+msgid "Match replaced with {song}."
+msgstr "Dopasowanie zastąpiono utworem {song}."
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -3317,6 +3454,10 @@ msgid ""
 "This is an annual listener poll, not an Australian sales chart. Songs are "
 "looked up on Spotify only when you play, queue or save them."
 msgstr ""
+"Triple J Hottest 100 {countdown}, odczytywane na żywo z oficjalnego archiwum"
+" ABC. To coroczny plebiscyt słuchaczy, a nie australijska lista sprzedaży. "
+"Utwory są wyszukiwane w Spotify dopiero wtedy, gdy je odtwarzasz, dodajesz "
+"do kolejki lub zapisujesz."
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -3325,6 +3466,10 @@ msgid ""
 "archive. A representative Spotify recording is looked up only when you act "
 "on a work; large works may resolve to one movement or excerpt."
 msgstr ""
+"ABC Classic 100 {countdown}, z oficjalnego archiwum plebiscytów słuchaczy "
+"ABC Classic. Reprezentatywne nagranie w Spotify jest wyszukiwane dopiero "
+"wtedy, gdy podejmiesz działanie na utworze; w przypadku dużych dzieł może to"
+" być jedna część lub fragment."
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -3334,6 +3479,11 @@ msgid ""
 "browsing the list does not use audiobook listening time. Availability "
 "depends on your Spotify plan and country."
 msgstr ""
+"ABC Radio National {countdown}, z oficjalnego notowania książek ABC "
+"wybranych głosami słuchaczy. Audiobooki są wyszukiwane w Spotify dopiero "
+"wtedy, gdy podejmiesz działanie na książce; przeglądanie listy nie zużywa "
+"czasu słuchania audiobooków. Dostępność zależy od Twojego planu Spotify i "
+"kraju."
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -3398,11 +3548,11 @@ msgstr "Obserwowani wykonawcy i autorzy"
 
 #: blindspot/ui.py
 msgid "Apple Music most played"
-msgstr ""
+msgstr "Najczęściej odtwarzane w Apple Music"
 
 #: blindspot/ui.py
 msgid "Charts and countdowns"
-msgstr ""
+msgstr "Listy przebojów i notowania"
 
 #: blindspot/ui.py
 msgid "Show"
@@ -3430,39 +3580,39 @@ msgstr "Lista"
 
 #: blindspot/ui.py
 msgid "Countdown"
-msgstr ""
+msgstr "Notowanie"
 
 #: blindspot/ui.py
 msgid "Choose a year or special countdown"
-msgstr ""
+msgstr "Wybierz rok lub notowanie specjalne"
 
 #: blindspot/ui.py
 msgid "Triple J Hottest 100 year or special countdown"
-msgstr ""
+msgstr "Rok lub notowanie specjalne Triple J Hottest 100"
 
 #: blindspot/ui.py
 msgid "Classic 100 countdown"
-msgstr ""
+msgstr "Notowanie Classic 100"
 
 #: blindspot/ui.py
 msgid "Choose a Classic 100 countdown"
-msgstr ""
+msgstr "Wybierz notowanie Classic 100"
 
 #: blindspot/ui.py
 msgid "ABC Classic 100 countdown"
-msgstr ""
+msgstr "Notowanie ABC Classic 100"
 
 #: blindspot/ui.py
 msgid "Radio National book countdown"
-msgstr ""
+msgstr "Notowanie książek Radio National"
 
 #: blindspot/ui.py
 msgid "Choose a Radio National book countdown"
-msgstr ""
+msgstr "Wybierz notowanie książek Radio National"
 
 #: blindspot/ui.py
 msgid "ABC Radio National book countdown"
-msgstr ""
+msgstr "Notowanie książek ABC Radio National"
 
 #: blindspot/ui.py
 msgid "US Billboard Hot 100 (experimental)"
@@ -3474,15 +3624,15 @@ msgstr "Numery jeden według kraju"
 
 #: blindspot/ui.py
 msgid "Triple J Hottest 100"
-msgstr ""
+msgstr "Triple J Hottest 100"
 
 #: blindspot/ui.py
 msgid "ABC Classic 100"
-msgstr ""
+msgstr "ABC Classic 100"
 
 #: blindspot/ui.py
 msgid "ABC Radio National Top Books"
-msgstr ""
+msgstr "ABC Radio National Top Books"
 
 #: blindspot/ui.py
 msgid "Historical chart"
@@ -3522,27 +3672,27 @@ msgstr "Rok lub data (RRRR lub RRRR-MM-DD)"
 
 #: blindspot/ui.py
 msgid "Choose an ABC Radio National book countdown."
-msgstr ""
+msgstr "Wybierz notowanie książek ABC Radio National."
 
 #: blindspot/ui.py
 msgid "Loading ABC Radio National Top Books"
-msgstr ""
+msgstr "Ładowanie ABC Radio National Top Books"
 
 #: blindspot/ui.py
 msgid "Choose an ABC Classic 100 countdown."
-msgstr ""
+msgstr "Wybierz notowanie ABC Classic 100."
 
 #: blindspot/ui.py
 msgid "Loading ABC Classic 100"
-msgstr ""
+msgstr "Ładowanie ABC Classic 100"
 
 #: blindspot/ui.py
 msgid "Choose a Triple J Hottest 100 year or special countdown."
-msgstr ""
+msgstr "Wybierz rok lub notowanie specjalne Triple J Hottest 100."
 
 #: blindspot/ui.py
 msgid "Loading Triple J Hottest 100"
-msgstr ""
+msgstr "Ładowanie Triple J Hottest 100"
 
 #: blindspot/ui.py
 msgid "Enter the chart date as year-month-day."
@@ -3901,7 +4051,7 @@ msgstr "Nie znaleziono podcastów w wybranej kategorii i języku."
 
 #: blindspot/ui.py
 msgid "Loading podcast feed."
-msgstr ""
+msgstr "Ładowanie kanału podcastu."
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -3937,12 +4087,12 @@ msgstr "Usuń zapisany odcinek"
 
 #: blindspot/ui.py
 msgid "Importing podcast subscriptions."
-msgstr ""
+msgstr "Importowanie subskrypcji podcastów."
 
 #: blindspot/ui.py
 #, python-brace-format
 msgid "Imported {added} podcast subscriptions; {total} stored."
-msgstr ""
+msgstr "Zaimportowano subskrypcje podcastów: {added}; zapisane łącznie: {total}."
 
 #: blindspot/ui.py
 msgid "Now Playing"
@@ -4030,11 +4180,11 @@ msgstr "&Eksportuj listę..."
 
 #: blindspot/ui.py
 msgid "Import podcast subscriptions from OP&ML..."
-msgstr ""
+msgstr "Importuj subskrypcje podcastów z OP&ML..."
 
 #: blindspot/ui.py
 msgid "Transcribe &local audio..."
-msgstr ""
+msgstr "Transkrybuj &lokalny plik audio..."
 
 #: blindspot/ui.py
 msgid "Manage &carts..."
@@ -4197,7 +4347,7 @@ msgstr "O czym &jest ten utwór?"
 
 #: blindspot/ui.py
 msgid "Album and recording &information..."
-msgstr ""
+msgstr "&Informacje o albumie i nagraniu..."
 
 #: blindspot/ui.py
 msgid "&Open album"
@@ -4205,7 +4355,7 @@ msgstr "&Otwórz album"
 
 #: blindspot/ui.py
 msgid "Find alternate &versions..."
-msgstr ""
+msgstr "Znajdź inne w&ersje..."
 
 #: blindspot/ui.py
 msgid "&Lyrics..."
@@ -4355,11 +4505,11 @@ msgstr "Zapisano raport w pliku: {name}."
 
 #: blindspot/ui.py
 msgid "Import podcast subscriptions"
-msgstr ""
+msgstr "Importuj subskrypcje podcastów"
 
 #: blindspot/ui.py
 msgid "OPML files"
-msgstr ""
+msgstr "Pliki OPML"
 
 #: blindspot/ui.py
 msgid "All files"
@@ -4367,7 +4517,7 @@ msgstr "Wszystkie pliki"
 
 #: blindspot/ui.py
 msgid "Transcribe local audio"
-msgstr ""
+msgstr "Transkrybuj lokalny plik audio"
 
 #: blindspot/ui.py
 msgid "Audio files"
@@ -4378,18 +4528,20 @@ msgid ""
 "Local audio transcription requires the optional Whisper components and "
 "model. The one-time download is about 150 MB. Download the components now?"
 msgstr ""
+"Transkrypcja lokalnych plików audio wymaga opcjonalnych składników i modelu "
+"Whisper. Jednorazowe pobieranie ma około 150 MB. Pobrać składniki teraz?"
 
 #: blindspot/ui.py
 msgid "Set up local audio transcription"
-msgstr ""
+msgstr "Skonfiguruj transkrypcję lokalnych plików audio"
 
 #: blindspot/ui.py
 msgid "Transcription was not started."
-msgstr ""
+msgstr "Transkrypcja nie została rozpoczęta."
 
 #: blindspot/ui.py
 msgid "Setting up optional local audio transcription."
-msgstr ""
+msgstr "Konfigurowanie opcjonalnej transkrypcji lokalnych plików audio."
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -4541,16 +4693,20 @@ msgid "Sleep timer"
 msgstr "Wyłącznik czasowy"
 
 #: blindspot/ui.py
+msgid "BlindSpot, this computer"
+msgstr "BlindSpot, ten komputer"
+
+#: blindspot/ui.py
+msgid "active"
+msgstr "aktywne"
+
+#: blindspot/ui.py
 msgid "Unnamed device"
 msgstr "Urządzenie bez nazwy"
 
 #: blindspot/ui.py
 msgid "device"
 msgstr "urządzenie"
-
-#: blindspot/ui.py
-msgid "active"
-msgstr "aktywne"
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -4580,11 +4736,6 @@ msgid "Windows default"
 msgstr "Domyślna systemu Windows"
 
 #: blindspot/ui.py
-#, python-brace-format
-msgid "BlindSpot plays through {name}."
-msgstr "BlindSpot odtwarza przez {name}."
-
-#: blindspot/ui.py
 msgid "Continue playing on this device"
 msgstr "Kontynuuj odtwarzanie na tym urządzeniu"
 
@@ -4606,7 +4757,7 @@ msgstr "Działanie dla połączonego urządzenia - BlindSpot"
 
 #: blindspot/ui.py
 msgid "Direct audio is unavailable."
-msgstr ""
+msgstr "Bezpośredni dźwięk jest niedostępny."
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -4621,6 +4772,8 @@ msgstr "Informacje: {name}"
 #: blindspot/ui.py
 msgid "Select the local audio file again from File, Transcribe local audio."
 msgstr ""
+"Wybierz ponownie lokalny plik audio, korzystając z polecenia Plik, "
+"Transkrybuj lokalny plik audio."
 
 #: blindspot/ui.py
 msgid "No later section."
@@ -4726,7 +4879,7 @@ msgstr "&Przenieś"
 
 #: blindspot/ui.py
 msgid "Show &transcript..."
-msgstr ""
+msgstr "Pokaż t&ranskrypcję..."
 
 #: blindspot/ui.py
 msgid "&Download episode..."
@@ -4743,7 +4896,7 @@ msgstr "Znajdź podobnych &wykonawców (Last.fm)"
 #: blindspot/ui.py
 #, python-brace-format
 msgid "&About {artist}..."
-msgstr ""
+msgstr "&Informacje: {artist}..."
 
 #: blindspot/ui.py
 msgid "&What's this song about?"
@@ -5049,11 +5202,11 @@ msgstr "Wyszukiwanie utworu {name} w Wikipedii."
 #: blindspot/ui.py
 #, python-brace-format
 msgid "Loading album and recording information for {name}"
-msgstr ""
+msgstr "Ładowanie informacji o albumie i nagraniu: {name}"
 
 #: blindspot/ui.py
 msgid "No additional album or recording information was found."
-msgstr ""
+msgstr "Nie znaleziono dodatkowych informacji o albumie ani nagraniu."
 
 #: blindspot/ui.py
 #, python-brace-format
@@ -5124,14 +5277,16 @@ msgid ""
 "The original local audio file is unavailable. Showing the cached transcript "
 "without playback."
 msgstr ""
+"Oryginalny lokalny plik audio jest niedostępny. Wyświetlana jest zapisana "
+"transkrypcja bez odtwarzania."
 
 #: blindspot/ui.py
 msgid "The original local audio file is unavailable."
-msgstr ""
+msgstr "Oryginalny lokalny plik audio jest niedostępny."
 
 #: blindspot/ui.py
 msgid "Looking for an episode transcript."
-msgstr ""
+msgstr "Wyszukiwanie transkrypcji odcinka."
 
 #: blindspot/ui.py
 msgid ""
@@ -5142,14 +5297,20 @@ msgid ""
 "ads, the transcribed episode audio is also kept in that directory. Download "
 "the components now?"
 msgstr ""
+"Ten odcinek nie ma transkrypcji wydawcy. BlindSpot może pobrać opcjonalne "
+"składniki lokalnej transkrypcji oraz model Whisper. Jednorazowe pobieranie "
+"ma około 150 MB, a zainstalowane pliki są przechowywane w przenośnym "
+"katalogu danych. Aby czas transkrypcji był dokładny, gdy podcasty wstawiają "
+"zmieniające się reklamy, w tym katalogu przechowywany jest też dźwięk "
+"transkrybowanego odcinka. Pobrać składniki teraz?"
 
 #: blindspot/ui.py
 msgid "Set up podcast transcription"
-msgstr ""
+msgstr "Skonfiguruj transkrypcję podcastów"
 
 #: blindspot/ui.py
 msgid "Setting up optional podcast transcription."
-msgstr ""
+msgstr "Konfigurowanie opcjonalnej transkrypcji podcastów."
 
 #: blindspot/ui.py
 msgid "Download podcast episode"

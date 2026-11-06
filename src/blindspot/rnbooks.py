@@ -21,6 +21,9 @@ NEXT_100_URL = (
     "https://www.abc.net.au/listen/programs/the-bookshelf/"
     "we-reveal-the-books-that-didnt-quite-make-the-top-100/105871776"
 )
+CURRENT_100_URL = (
+    "https://www.abc.net.au/listen/radionational/countdown/top100books/1-100"
+)
 
 
 class RNBooksError(RuntimeError):
@@ -44,6 +47,7 @@ class BookEntry:
 
 # Add future years here once ABC publishes their final ranked pages.
 COUNTDOWNS = (
+    BookCountdown(2026, 1, 100, "Top 100 Australian Books (2026)"),
     BookCountdown(2025, 1, 100, "Top 100 Books of the 21st Century (2025)"),
     BookCountdown(2025, 101, 200, "The Ones That Got Away, 101–200 (2025)"),
     BookCountdown(2025, 1, 200, "Complete Top 200 (2025)"),
@@ -92,6 +96,27 @@ def parse_next_100(html: str) -> list[BookEntry]:
     return _unique_ranked(entries)
 
 
+def parse_current_100(html: str) -> list[BookEntry]:
+    """Parse the current RN countdown's full-list page.
+
+    ABC publishes this page progressively during countdown weekend, so it can
+    legitimately contain fewer than 100 entries until the broadcast finishes.
+    """
+    entries = []
+    for match in re.finditer(
+        r'SongListItem_position__[^" ]*"[^>]*>\s*(\d+)\s*</div>.*?'
+        r'SongListItem_title__[^" ]*"[^>]*>(.*?)</div>.*?'
+        r'data-testid="song-card-artist"[^>]*>(.*?)</div>',
+        html,
+        re.DOTALL,
+    ):
+        rank = int(match.group(1))
+        title, author = _text(match.group(2)), _text(match.group(3))
+        if 1 <= rank <= 100 and title and author:
+            entries.append(BookEntry(title, author, rank))
+    return _unique_ranked(entries)
+
+
 def _unique_ranked(entries: list[BookEntry]) -> list[BookEntry]:
     by_rank = {entry.rank: entry for entry in entries}
     return [by_rank[rank] for rank in sorted(by_rank)]
@@ -110,11 +135,16 @@ class RNBooksClient:
             countdown.end,
         )
         try:
-            entries = []
-            if countdown.start <= 100:
-                entries += parse_top_100(self._top_100_html())
-            if countdown.end > 100:
-                entries += parse_next_100(self._next_100_html())
+            if countdown.year == 2026:
+                # Do not cache the live page: newly revealed books should
+                # appear when the user searches again during the broadcast.
+                entries = parse_current_100(self._request(CURRENT_100_URL))
+            else:
+                entries = []
+                if countdown.start <= 100:
+                    entries += parse_top_100(self._top_100_html())
+                if countdown.end > 100:
+                    entries += parse_next_100(self._next_100_html())
         except (TypeError, ValueError) as error:
             raise RNBooksError(
                 tr("The ABC Radio National book countdown could not be read.")
@@ -125,7 +155,9 @@ class RNBooksClient:
             if countdown.start <= entry.rank <= countdown.end
         ]
         expected = countdown.end - countdown.start + 1
-        if len(entries) != expected:
+        # The current countdown is published from 100 towards 1 across the
+        # weekend. Show all revealed entries rather than rejecting the list.
+        if not entries or (countdown.year != 2026 and len(entries) != expected):
             raise RNBooksError(
                 tr("The complete ABC Radio National book countdown was not found.")
             )
