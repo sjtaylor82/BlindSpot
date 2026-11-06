@@ -15,7 +15,7 @@ jobs:
         include:
           - os: windows-latest
             artifact: BlindSpot-Windows
-          - os: macos-14
+          - os: macos-15
             artifact: BlindSpot-macOS
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
