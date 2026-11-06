@@ -227,6 +227,10 @@ Register this redirect URI in the Spotify developer dashboard:
 - Shift+F8 and Shift+F6: jump to the next or previous lyric section (verse or chorus), found from the stanza breaks in the lyrics (or gaps in the synced timing). The section number is only spoken if you turn on "Speak section number when jumping between lyric sections" in Preferences.
 - F7: pause or resume the current track.
 - F9: next track.
+- Ctrl+Z (Command+Z on Mac): undo an accidental F5 or F9, returning to the
+  song or episode you left at the position you were up to. For 30 seconds
+  after F5 or F9 this works even in an edit box; after that, Ctrl+Z in an
+  edit box undoes typing as usual.
 - Shift+F4 and Shift+F5: decrease or increase volume five percent.
 - Shift+F7: mute or restore the previous volume.
 - BlindSpot remembers the last manually selected volume for its built-in player

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: BlindSpot 2026.9.7\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-11-06 20:59+1000\n"
+"POT-Creation-Date: 2026-11-06 21:10+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -426,6 +426,10 @@ msgstr ""
 
 #: blindspot/keymap.py
 msgid "Next track"
+msgstr ""
+
+#: blindspot/keymap.py
+msgid "Undo restart or track change"
 msgstr ""
 
 #: blindspot/keymap.py
@@ -1586,6 +1590,15 @@ msgstr ""
 #: blindspot/messages.py
 #, python-brace-format
 msgid "Playback moved to {name} without playing."
+msgstr ""
+
+#: blindspot/messages.py
+msgid "No restart or track change to undo."
+msgstr ""
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Back to {name} at {position}."
 msgstr ""
 
 #: blindspot/messages.py
@@ -4103,6 +4116,10 @@ msgstr ""
 
 #: blindspot/ui.py
 msgid "&Next track"
+msgstr ""
+
+#: blindspot/ui.py
+msgid "Undo restart or track &change"
 msgstr ""
 
 #: blindspot/ui.py

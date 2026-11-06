@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: BlindSpot 2026.9.3\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-11-06 20:59+1000\n"
+"POT-Creation-Date: 2026-11-06 21:10+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: BlindSpot contributors\n"
 "Language: pl\n"
@@ -429,6 +429,10 @@ msgstr "Wstrzymaj lub wznów"
 #: blindspot/keymap.py
 msgid "Next track"
 msgstr "Następny utwór"
+
+#: blindspot/keymap.py
+msgid "Undo restart or track change"
+msgstr "Cofnij powrót do początku lub zmianę utworu"
 
 #: blindspot/keymap.py
 msgid "Jump to next lyric section"
@@ -1662,6 +1666,15 @@ msgstr "Odtwarzanie na urządzeniu: {name}."
 #, python-brace-format
 msgid "Playback moved to {name} without playing."
 msgstr "Przeniesiono odtwarzanie na urządzenie {name} bez rozpoczynania."
+
+#: blindspot/messages.py
+msgid "No restart or track change to undo."
+msgstr "Nie ma powrotu do początku ani zmiany utworu do cofnięcia."
+
+#: blindspot/messages.py
+#, python-brace-format
+msgid "Back to {name} at {position}."
+msgstr "Powrót do: {name}, pozycja {position}."
 
 #: blindspot/messages.py
 msgid "BlindSpot will play through its own player."
@@ -3191,7 +3204,7 @@ msgstr "&Szukaj"
 
 #: blindspot/ui.py
 msgid "Queue &multiple songs..."
-msgstr "Dodaj do kolejki &wiele utworów..."
+msgstr "&Dodaj do kolejki wiele utworów..."
 
 #: blindspot/ui.py
 msgid "Add checked songs to &queue"
@@ -4196,7 +4209,7 @@ msgstr "Obserwowani &wykonawcy i autorzy..."
 
 #: blindspot/ui.py
 msgid "&Bookmarks..."
-msgstr "&Zakładki..."
+msgstr "Zakł&adki..."
 
 #: blindspot/ui.py
 msgid "Search for c&oncerts..."
@@ -4274,6 +4287,10 @@ msgid "&Next track"
 msgstr "&Następny utwór"
 
 #: blindspot/ui.py
+msgid "Undo restart or track &change"
+msgstr "&Cofnij powrót do początku lub zmianę utworu"
+
+#: blindspot/ui.py
 msgid "Seek &backward 5 seconds"
 msgstr "Przewiń do &tyłu o 5 sekund"
 
@@ -4347,7 +4364,7 @@ msgstr "O czym &jest ten utwór?"
 
 #: blindspot/ui.py
 msgid "Album and recording &information..."
-msgstr "&Informacje o albumie i nagraniu..."
+msgstr "Informacje o albumie i &nagraniu..."
 
 #: blindspot/ui.py
 msgid "&Open album"

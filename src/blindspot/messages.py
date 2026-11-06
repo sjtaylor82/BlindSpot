@@ -554,6 +554,15 @@ def moved_without_playing(name: str) -> str:
     return tr("Playback moved to {name} without playing.").format(name=name)
 
 
+NOTHING_TO_UNDO = tr_noop("No restart or track change to undo.")
+
+
+def track_change_undone(name: str, position: str) -> str:
+    return tr("Back to {name} at {position}.").format(
+        name=name, position=position
+    )
+
+
 OWN_PLAYER_CHOSEN = tr_noop("BlindSpot will play through its own player.")
 
 

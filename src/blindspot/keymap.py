@@ -51,6 +51,13 @@ KEY_ACTIONS = (
     ),
     KeyAction("pause_resume", tr_noop("Pause or resume"), "Main", ("F7", "Space"), ("F7", "Space")),
     KeyAction("next_track", tr_noop("Next track"), "Main", ("F9",), ("F9",)),
+    KeyAction(
+        "undo_track_change",
+        tr_noop("Undo restart or track change"),
+        "Main",
+        ("Control+Z",),
+        ("Command+Z",),
+    ),
     KeyAction("next_verse", tr_noop("Jump to next lyric section"), "Main", ("Shift+F8",), ("Shift+F8",)),
     KeyAction(
         "previous_verse",

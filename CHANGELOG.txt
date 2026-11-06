@@ -11,6 +11,11 @@ Features implemented:
   Results can be unchecked or replaced from a fresh Spotify search. Several
   songs are searched concurrently and progress is announced.
 
+- Ctrl+Z (Command+Z on Mac) undoes an accidental F5 or F9, going back to
+  the song, episode or audiobook you were on at the position you were up
+  to. It is also in the Playback menu and can be changed in the keyboard
+  shortcuts.
+
 Bugs fixed:
 - Space toggles a song's checkbox during batch queue review instead of
   pausing or resuming playback, and the new state is announced.
@@ -23,6 +28,8 @@ Bugs fixed:
 - The playback device list shows BlindSpot's own player once, as BlindSpot,
   this computer, at the top. It is there even before the player has
   connected. Old BlindSpot entries that Spotify still lists are left out.
+- Polish: Bookmarks and Exit in the File menu no longer share the same
+  shortcut letter.
 
 
 2026.9.7 - 25 September 2026

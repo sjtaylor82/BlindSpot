@@ -716,6 +716,20 @@ RESUME_MODE_LABELS = (
 )
 
 
+# How long after F5 or F9 Ctrl+Z undoes playback even in an edit box.
+TRACK_UNDO_FRESH_SECONDS = 30
+
+
+def undo_belongs_to_control(window: wx.Window | None) -> bool:
+    """Return whether the focused control should undo its own typing."""
+    if isinstance(window, (wx.TextCtrl, wx.SearchCtrl)):
+        try:
+            return bool(window.IsEditable())
+        except (AttributeError, RuntimeError):
+            return True
+    return isinstance(window, wx.ComboBox)
+
+
 def space_belongs_to_control(window: wx.Window | None) -> bool:
     """Return whether the focused control should handle bare Space itself."""
     return isinstance(
@@ -1793,6 +1807,7 @@ TRANSPORT_KEY_ACTIONS: dict[str, tuple[str, tuple[object, ...]]] = {
     "previous_track": ("previous_track", ()),
     "pause_resume": ("toggle_pause_resume", ()),
     "next_track": ("next_track", ()),
+    "undo_track_change": ("undo_track_change", ()),
     "toggle_mute": ("toggle_mute", ()),
     "volume_down": ("adjust_volume", (-5,)),
     "volume_up": ("adjust_volume", (5,)),
@@ -1851,6 +1866,12 @@ class HostedPanelDialog(wx.Dialog):
             action == "pause_resume"
             and event.GetKeyCode() == wx.WXK_SPACE
             and space_belongs_to_control(event.GetEventObject())
+        ):
+            return False
+        if (
+            action == "undo_track_change"
+            and undo_belongs_to_control(event.GetEventObject())
+            and not self.frame.track_undo_is_fresh()
         ):
             return False
         method, arguments = TRANSPORT_KEY_ACTIONS[action]
@@ -2468,6 +2489,8 @@ class TranscriptDialog(wx.Dialog):
                 self.frame.toggle_pause_resume()
         elif action == "next_track":
             self.frame.next_track()
+        elif action == "undo_track_change":
+            self.frame.undo_track_change()
         elif action == "toggle_mute":
             self.frame.toggle_mute()
         elif action == "volume_down":
@@ -3386,6 +3409,9 @@ class LyricsDialog(wx.Dialog):
         elif action == "next_track":
             LyricsDialog.cancel_phrase(self)
             frame.next_track()
+        elif action == "undo_track_change":
+            LyricsDialog.cancel_phrase(self)
+            frame.undo_track_change()
         elif action == "toggle_mute":
             frame.toggle_mute()
         elif action == "volume_down":
@@ -8453,6 +8479,12 @@ class MainFrame(wx.Frame):
         add_item(go, tr("&Next track"), self.next_track, "next_track")
         add_item(
             go,
+            tr("Undo restart or track &change"),
+            self.undo_track_change,
+            "undo_track_change",
+        )
+        add_item(
+            go,
             tr("Queue &multiple songs..."),
             self.open_batch_queue,
         )
@@ -9782,6 +9814,12 @@ class MainFrame(wx.Frame):
             action == "pause_resume"
             and event.GetKeyCode() == wx.WXK_SPACE
             and space_belongs_to_control(focused)
+        ):
+            return False
+        if (
+            action == "undo_track_change"
+            and undo_belongs_to_control(focused)
+            and not MainFrame.track_undo_is_fresh(self)
         ):
             return False
         simple_actions = {
@@ -12157,10 +12195,96 @@ class MainFrame(wx.Frame):
         self.on_play_started(item, standalone=not bool(context_uri))
         self.say(msg.resumed(item.name, self.format_time(position_ms)))
 
+    def remember_track_for_undo(self) -> None:
+        """Note the song and position before F5 or F9 moves away from it."""
+        item = getattr(self, "current_player_item", None)
+        if not item:
+            return
+        position_ms = self.playback_position_ms(item.id) or 0
+        state = getattr(self, "current_player_state", {}) or {}
+        context_uri = str(
+            state.get("context_uri")
+            or (state.get("context") or {}).get("uri")
+            or ""
+        )
+        self.track_undo = (item, position_ms, context_uri)
+        self.track_undo_at = time.monotonic()
+        logger.info(
+            "Remembered place for undo item=%s position_ms=%s",
+            item.id,
+            position_ms,
+        )
+
+    def track_undo_is_fresh(self) -> bool:
+        """Whether Ctrl+Z should undo playback even in an edit box.
+
+        Straight after F5 or F9, Ctrl+Z means "undo that", wherever focus is.
+        Later on, an edit box gets Ctrl+Z back for undoing typing.
+        """
+        if not getattr(self, "track_undo", None):
+            return False
+        remembered_at = getattr(self, "track_undo_at", None)
+        return (
+            remembered_at is not None
+            and time.monotonic() - remembered_at <= TRACK_UNDO_FRESH_SECONDS
+        )
+
+    def undo_track_change(self) -> None:
+        """Ctrl+Z: go back to the song and place F5 or F9 moved away from."""
+        remembered = getattr(self, "track_undo", None)
+        if not remembered:
+            logger.info("Nothing to undo")
+            self.say(msg.NOTHING_TO_UNDO)
+            return
+        item, position_ms, context_uri = remembered
+        logger.info(
+            "Undoing restart or track change item=%s position_ms=%s",
+            item.id,
+            position_ms,
+        )
+        if item.raw.get("audio_url"):
+            self.track_undo = None
+            self.play_direct_audio(item, position_ms, announce=False)
+            self.say(msg.track_change_undone(
+                item.name, self.format_time(position_ms)
+            ))
+            return
+        device_id = self.player_device_id()
+        if not device_id:
+            return
+        self.track_undo = None
+        self.suppress_track_announcement_id = item.id
+        self.run_task(
+            None,
+            lambda: self.spotify.play_at(
+                item,
+                position_ms,
+                device_id,
+                context_uri,
+            ),
+            lambda result: self.finish_undo_track_change(
+                item,
+                position_ms,
+                context_uri,
+            ),
+        )
+
+    def finish_undo_track_change(
+        self,
+        item: SpotifyItem,
+        position_ms: int,
+        context_uri: str,
+    ) -> None:
+        self.on_play_started(item, standalone=not bool(context_uri))
+        self.say(msg.track_change_undone(
+            item.name, self.format_time(position_ms)
+        ))
+
     def next_track(self) -> None:
         device_id = self.player_device_id()
         if not device_id:
             return
+        getattr(self, "remember_track_for_undo", lambda: None)()
         self.send_next_track(device_id)
 
     def send_next_track(self, device_id: str) -> None:
@@ -12188,6 +12312,10 @@ class MainFrame(wx.Frame):
         if not device_id:
             return
         pending = getattr(self, "pending_previous_restart", None)
+        if not (pending and pending.IsRunning()):
+            # A second quick press goes on from the same place, so keep the
+            # position noted by the first.
+            getattr(self, "remember_track_for_undo", lambda: None)()
         if pending and pending.IsRunning():
             pending.Stop()
             self.pending_previous_restart = None

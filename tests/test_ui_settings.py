@@ -6576,6 +6576,125 @@ class StandaloneTrackNavigationTests(unittest.TestCase):
 
         self.assertEqual(sent, ["device"])
 
+    def undo_frame(self, item, position_ms=95_000, context=""):
+        frame = Mock(
+            current_player_item=item,
+            current_player_state={"context_uri": context},
+            track_undo=None,
+        )
+        frame.playback_position_ms.return_value = position_ms
+        frame.player_device_id.return_value = "device"
+        frame.format_time = MainFrame.format_time
+        frame.run_task = lambda message, work, done: done(work())
+        return frame
+
+    def test_next_track_remembers_place_for_undo(self):
+        item = ui.SpotifyItem("ep", ui.ItemKind.EPISODE, "Episode")
+        frame = self.undo_frame(item, context="spotify:show:s")
+        frame.remember_track_for_undo = (
+            lambda: MainFrame.remember_track_for_undo(frame)
+        )
+
+        MainFrame.next_track(frame)
+
+        self.assertEqual(frame.track_undo, (item, 95_000, "spotify:show:s"))
+        frame.send_next_track.assert_called_once_with("device")
+
+    def test_undo_returns_to_remembered_place(self):
+        item = ui.SpotifyItem("ep", ui.ItemKind.EPISODE, "Episode")
+        frame = self.undo_frame(item)
+        frame.track_undo = (item, 754_000, "spotify:show:s")
+        frame.finish_undo_track_change = (
+            lambda *args: MainFrame.finish_undo_track_change(frame, *args)
+        )
+
+        MainFrame.undo_track_change(frame)
+
+        frame.spotify.play_at.assert_called_once_with(
+            item, 754_000, "device", "spotify:show:s"
+        )
+        frame.say.assert_called_once_with("Back to Episode at 12:34.")
+        self.assertIsNone(frame.track_undo)
+
+    def test_undo_returns_direct_audio_to_its_place(self):
+        item = ui.SpotifyItem(
+            "rss", ui.ItemKind.EPISODE, "Feed episode",
+            raw={"audio_url": "https://example.com/a.mp3"},
+        )
+        frame = self.undo_frame(item)
+        frame.track_undo = (item, 61_000, "")
+
+        MainFrame.undo_track_change(frame)
+
+        frame.play_direct_audio.assert_called_once_with(
+            item, 61_000, announce=False
+        )
+        frame.spotify.play_at.assert_not_called()
+        frame.say.assert_called_once_with("Back to Feed episode at 1:01.")
+
+    def test_undo_with_nothing_remembered_says_so(self):
+        frame = self.undo_frame(None)
+
+        MainFrame.undo_track_change(frame)
+
+        frame.say.assert_called_once_with("No restart or track change to undo.")
+        frame.spotify.play_at.assert_not_called()
+
+    def test_double_previous_keeps_place_from_first_press(self):
+        item = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Track")
+        frame = self.undo_frame(item)
+        frame.remember_track_for_undo = Mock()
+        frame.pending_previous_restart = Mock()
+        frame.pending_previous_restart.IsRunning.return_value = True
+
+        MainFrame.previous_track(frame)
+
+        frame.remember_track_for_undo.assert_not_called()
+
+    def test_undo_is_fresh_only_just_after_a_track_change(self):
+        frame = Mock(track_undo=("item", 0, ""))
+        with patch("blindspot.ui.time.monotonic", return_value=1000.0):
+            frame.track_undo_at = 990.0
+            self.assertTrue(MainFrame.track_undo_is_fresh(frame))
+            frame.track_undo_at = 900.0
+            self.assertFalse(MainFrame.track_undo_is_fresh(frame))
+            frame.track_undo = None
+            frame.track_undo_at = 999.0
+            self.assertFalse(MainFrame.track_undo_is_fresh(frame))
+
+    def test_ctrl_z_in_search_box_undoes_fresh_track_change(self):
+        frame = Mock()
+        frame.keymap_action_for_event.return_value = "undo_track_change"
+        search_box = Mock(spec=ui.wx.TextCtrl)
+        search_box.IsEditable.return_value = True
+        event = Mock()
+        event.GetKeyCode.return_value = ord("Z")
+
+        with patch.object(MainFrame, "track_undo_is_fresh", lambda self: True), patch.object(
+            MainFrame, "keymap_action_for_event", lambda self, e, c: "undo_track_change"
+        ):
+            handled = MainFrame.dispatch_mapped_key(frame, event, search_box, None)
+        self.assertTrue(handled)
+        frame.undo_track_change.assert_called_once_with()
+
+        frame.undo_track_change.reset_mock()
+        with patch.object(MainFrame, "track_undo_is_fresh", lambda self: False), patch.object(
+            MainFrame, "keymap_action_for_event", lambda self, e, c: "undo_track_change"
+        ):
+            handled = MainFrame.dispatch_mapped_key(frame, event, search_box, None)
+        self.assertFalse(handled)
+        frame.undo_track_change.assert_not_called()
+
+    def test_editable_text_keeps_its_own_undo(self):
+        editable = Mock(spec=ui.wx.TextCtrl)
+        editable.IsEditable.return_value = True
+        read_only = Mock(spec=ui.wx.TextCtrl)
+        read_only.IsEditable.return_value = False
+
+        self.assertTrue(ui.undo_belongs_to_control(editable))
+        self.assertFalse(ui.undo_belongs_to_control(read_only))
+        self.assertFalse(ui.undo_belongs_to_control(None))
+
     def test_previous_always_restarts_current_track(self):
         item = ui.SpotifyItem("track", ui.ItemKind.TRACK, "Track")
         seeks = []
