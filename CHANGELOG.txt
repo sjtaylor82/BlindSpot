@@ -1,7 +1,7 @@
 BLINDSPOT CHANGELOG
 ===================
 
-Next release
+2026.11.6 - 6 November 2026
 
 Features implemented:
 - Added Radio National's 2026 Top 100 Australian Books countdown, refreshing
