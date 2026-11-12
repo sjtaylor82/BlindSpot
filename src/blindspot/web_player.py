@@ -575,6 +575,16 @@ class WebPlaybackController:
             daemon=True,
         ).start()
 
+    def restart(self) -> None:
+        """Reload the hidden page so Spotify registers a fresh device.
+
+        Used when Spotify no longer knows the device id this player holds.
+        """
+        self.device_id = None
+        self.page_ready = False
+        if not self.closed and self.webview and self.server:
+            self.webview.LoadURL(self.server.url)
+
     def activate(self) -> None:
         self._run_script("window.blindSpotActivate();")
 

@@ -1876,7 +1876,7 @@ class RecentlyPlayedRefreshTests(unittest.TestCase):
                 "resolve_then": lambda self, items, retry: False,
                 "spotify": spotify,
                 "run_task": (
-                    lambda self, message, worker, success: success(worker())
+                    lambda self, message, worker, success, **kw: success(worker())
                 ),
                 "finish_toggle_like": lambda self, item, saved: None,
                 "say": lambda self, message: None,
@@ -5714,7 +5714,7 @@ class PodcastSupportTests(unittest.TestCase):
             {
                 "spotify": spotify,
                 "run_task": (
-                    lambda self, message, worker, success: success(worker())
+                    lambda self, message, worker, success, **kw: success(worker())
                 ),
                 "say": lambda self, message: spoken.append(message),
             },
@@ -7197,7 +7197,7 @@ class PlaybackFeedbackTests(unittest.TestCase):
                 "spotify": spotify,
                 "suppress_track_announcement_id": None,
                 "run_task": (
-                    lambda self, message, worker, success: success(worker())
+                    lambda self, message, worker, success, **kw: success(worker())
                 ),
                 "on_play_started": (
                     lambda self, value, **options: None
@@ -7216,7 +7216,7 @@ class PlaybackFeedbackTests(unittest.TestCase):
             (),
             {
                 "remote_device_id": "device",
-                "run_task": lambda self, message, worker, success: (
+                "run_task": lambda self, message, worker, success, **kw: (
                     messages.append(message)
                 ),
                 "spotify": object(),

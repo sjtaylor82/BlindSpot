@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: BlindSpot 2026.11.6\n"
 "Report-Msgid-Bugs-To: https://github.com/sjtaylor82/BlindSpot/issues\n"
-"POT-Creation-Date: 2026-11-06 21:10+1000\n"
+"POT-Creation-Date: 2026-11-12 17:22+1000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -982,6 +982,12 @@ msgstr ""
 
 #: blindspot/messages.py
 msgid "player starting."
+msgstr ""
+
+#: blindspot/messages.py
+msgid ""
+"Spotify lost BlindSpot's player, so it is restarting. Playback will continue"
+" when it is ready."
 msgstr ""
 
 #: blindspot/messages.py

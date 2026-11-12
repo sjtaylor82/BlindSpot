@@ -130,6 +130,10 @@ NO_DEVICES = tr_noop(
 SLEEP_TIMER_PROMPT = tr_noop("Choose when playback should stop.")
 PLAYER_NOT_READY = tr_noop("not ready.")
 PLAYER_STARTING = tr_noop("player starting.")
+PLAYER_RESTARTING = tr_noop(
+    "Spotify lost BlindSpot's player, so it is restarting. Playback will "
+    "continue when it is ready."
+)
 WEBVIEW2_REQUIRED = tr_noop(
     "BlindSpot's player requires Microsoft WebView2. Install the Evergreen "
     "WebView2 Runtime and restart BlindSpot."

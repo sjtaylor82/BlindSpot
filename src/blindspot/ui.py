@@ -9000,6 +9000,7 @@ class MainFrame(wx.Frame):
         failure: Callable[[], None] | None = None,
         error_parent: wx.Window | None = None,
         requires_spotify: bool = True,
+        retry_after_restart: Callable[[], None] | None = None,
     ) -> None:
         if requires_spotify and not self.spotify.connected:
             if failure:
@@ -9050,7 +9051,10 @@ class MainFrame(wx.Frame):
                         self.offer_permission_refresh()
                     elif (
                         isinstance(caught_error, DeviceUnavailable)
-                        and self.forget_unavailable_device()
+                        and (
+                            self.forget_unavailable_device()
+                            or self.restart_lost_own_player(retry_after_restart)
+                        )
                     ):
                         pass
                     elif isinstance(
@@ -10915,6 +10919,24 @@ class MainFrame(wx.Frame):
         self.remote_refresh_timer.Stop()
         return name
 
+    def restart_lost_own_player(
+        self,
+        retry: Callable[[], None] | None = None,
+    ) -> bool:
+        """Restart BlindSpot's player after Spotify dropped its device.
+
+        The action that hit the error runs again once the player is ready.
+        """
+        player = getattr(self, "player", None)
+        if not player or not hasattr(player, "restart"):
+            return False
+        logger.warning("Spotify no longer knows BlindSpot's player; restarting it")
+        if retry is not None:
+            retry()
+        player.restart()
+        self.say(msg.PLAYER_RESTARTING)
+        return True
+
     def choose_own_player(self) -> None:
         self.use_own_player()
         self.say(msg.OWN_PLAYER_CHOSEN)
@@ -11127,6 +11149,7 @@ class MainFrame(wx.Frame):
                 item,
                 standalone=item.playable,
             ),
+            retry_after_restart=lambda: setattr(self, "pending_play_item", item),
         )
 
     def play_items(
@@ -11175,7 +11198,25 @@ class MainFrame(wx.Frame):
                 after_started,
                 disable_repeat,
             ),
+            retry_after_restart=lambda: self._queue_play_items_retry(
+                playable,
+                started_message,
+                after_started,
+                disable_repeat,
+            ),
         )
+
+    def _queue_play_items_retry(
+        self,
+        playable: list[SpotifyItem],
+        started_message: str,
+        after_started: Callable[[], None] | None,
+        disable_repeat: bool,
+    ) -> None:
+        self.pending_play_items = list(playable)
+        self.pending_play_items_message = started_message
+        self.pending_play_items_callback = after_started
+        self.pending_play_items_disable_repeat = disable_repeat
 
     def finish_play_items(
         self,
