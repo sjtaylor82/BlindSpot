@@ -1,6 +1,13 @@
 BLINDSPOT CHANGELOG
 ===================
 
+2026.11.12 - 12 November 2026
+
+Bugs fixed:
+- When Spotify forgets BlindSpot's own player, for example after a long idle
+  or sleep, playing a song no longer shows "404: Device not found".
+  BlindSpot restarts its player and plays the song once it is ready.
+
 2026.11.6 - 6 November 2026
 
 Features implemented:
